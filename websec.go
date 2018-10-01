@@ -29,7 +29,7 @@ func main() {        ///                                                        
 
 	domains := flag.Args()
 	live_domains := []string{
-		"keykernel.io", "stackfund.com", "apdex.com", "x.m2fx.co", "m2fx.co",  "x.bitcoinpatent.com" }
+		"keykernel.io", "apdex.com", "x.m2fx.co", "m2fx.co",  "x.bitcoinpatent.com" }
 
 	domains = append( live_domains , domains...)
 	////////////////////////////////// SSL CERT MANAGER
