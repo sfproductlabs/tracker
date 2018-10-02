@@ -1,5 +1,5 @@
 # DragonGate
-Pure Go lang implementation of NGINX functionality with SSL management, static file serving, and HTTP reverse proxy to Python or other process
+Pure Go lang implementation of NGINX functionality with SSL management, static file serving, and HTTP reverse proxy to Python, Node or other web service
 
 ## Instructions
 
