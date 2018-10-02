@@ -34,4 +34,11 @@ I had to disable ipv6 (error during LetsEncrypt init phase) also.
 net.ipv6.conf.enp6s0.disable_ipv6 = 1
 ```
 
+### Tests
+
+* Benchmarking run:
+```
+./benchmark.sh
+```
+
 
