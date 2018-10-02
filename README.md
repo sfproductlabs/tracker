@@ -1,5 +1,5 @@
 # DragonGate
-Pure Go lang implementation of NGINX functionality with SSL management, static file serving, and HTTP reverse proxy to Python, Node or other web service
+A pure Go lang replacement for NGINX in one page of code with proxying, tracking urls, benchmarks, templates and automatic TLS support using LetsEncrypt.
 
 ## Instructions
 
@@ -35,6 +35,7 @@ net.ipv6.conf.enp6s0.disable_ipv6 = 1
 ```
 
 ### Tests
+* Tested on ARM and x64.
 
 * Benchmarking run:
 ```
