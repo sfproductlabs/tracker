@@ -1,1 +1,1 @@
-go install && go build && ./dragongate
+go build && ./dragongate
