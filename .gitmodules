@@ -1,0 +1,3 @@
+[submodule "tests/wrk"]
+	path = tests/wrk
+	url = https://github.com/dioptre/wrk.git
