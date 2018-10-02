@@ -1,8 +1,8 @@
 {
     "Domains": ["dev.sfproductlabs.com"],
     "ProxyUrl": "localhost:8000",
-    "ServicePort" : ":8443",
-    "RedirectPort" : ":8480",
+    "ServicePort" : ":443",
+    "RedirectPort" : ":80",
     "StaticDirectory" : "public",
     "UseTemplates" : true,
     "UsePingPong" : true
