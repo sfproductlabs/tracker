@@ -31,6 +31,7 @@ type Configuration struct {
 	ProxyUrl        string   //Forward Address
 	StaticDirectory string   //Static FS Directory (./public/)
 	UsePingPong     bool
+	Tracker         string
 }
 
 ////////////////////////////////////////
@@ -105,6 +106,15 @@ func main() {
 		http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("pong"))
 		})
+	}
+
+	if configuration.Tracker != "" {
+		TrackingGif := []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x1, 0x0, 0x1, 0x0, 0x80, 0x0, 0x0, 0xff, 0xff, 0xff, 0x0, 0x0, 0x0, 0x2c, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x2, 0x2, 0x44, 0x1, 0x0, 0x3b}
+		http.HandleFunc("/track", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("content-type", "image/gif")
+			w.Write(TrackingGif)
+		})
+
 	}
 
 	//////////////////////////////////////// PUBLIC ROUTE (Static FS)

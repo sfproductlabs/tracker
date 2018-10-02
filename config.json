@@ -2,5 +2,6 @@
     "Domains": ["dev.sfproductlabs.com"],
     "ProxyUrl": "localhost:8000",
     "StaticDirectory" : "public",
-    "UsePingPong" : true
+    "UsePingPong" : true,
+    "Tracker" : "/tracker"
 }
