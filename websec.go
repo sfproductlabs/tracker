@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/crypto/acme/autocert"
 )
+<<<<<<< HEAD
 
 ////////////////////////////////////////
 // Get the system setup from the config.json file:
@@ -57,6 +58,29 @@ func main() {
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(configuration.Domains...),
 		Cache:      autocert.DirCache(cache),
+=======
+// 安全 WEB SEC
+func main() {        ///                                                                    //.
+	fmt.Println("       +MM    smNy:          yMm/  dmmmmmmm/            dMd           ")
+	fmt.Println("       oMN     .+dh.      ./:`oMm- ::::::MM+   `////////mMm////////`  ")
+	fmt.Println(" ///  +NMh//MMh///+///`   oMN            MM+   :MM:`````dMd`````:MM:  ")
+	fmt.Println("     /MM+   MMh Mm/       oMN     Web    MM+   :MMmmmmmmMMMmmmmmmMM:  ")
+	fmt.Println("    +NMs   .MMMNs. `/-    oMN     Sec    MM+   .yy-`````dMd`````-yy-  ")
+	fmt.Println("  .yMNo.   .MMh.   -MM.   oMN            MM+            dMd           ")
+	fmt.Println(" sh:       ::yhhhhhh/-    +md         +dddo`            HHH           ")
+	flag.Parse() //// ARGS                                                //###//       ##/
+
+	domains := flag.Args()
+	live_domains := []string{
+		"keykernel.io", "apdex.com", "x.m2fx.co", "m2fx.co",  "x.bitcoinpatent.com" }
+
+	domains = append( live_domains , domains...)
+	////////////////////////////////// SSL CERT MANAGER
+	certManager := autocert.Manager{          ///CREATE
+		Prompt:     autocert.AcceptTOS,   /// CACHE
+		HostPolicy: autocert.HostWhitelist(domains...),
+		Cache:      autocert.DirCache( cacheDir() ),
+>>>>>>> dd0617d9443723110a62a9af139a0f6a903ffa78
 	}
 	server := &http.Server{ // HTTP REDIR SSL RENEW
 		Addr: configuration.ServicePort,
