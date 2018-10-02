@@ -134,6 +134,7 @@ func main() {
 		})
 	}
 
+	//////////////////////////////////////// TRACKING ROUTE
 	if configuration.Tracker != "" {
 		http.HandleFunc("/track/", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("content-type", "image/gif")
