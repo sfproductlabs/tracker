@@ -1,6 +1,6 @@
 /*===----------- dragongate.go - nginx alternative written in go  ----------===
  *
- *                     DragonGate Simple WebServer
+ *    DragonGate Simple WebServer with LetsEncrypt Auto-configuration
  *
  * This file is licensed under the Apache 2 License. See LICENSE for details.
  *
@@ -134,6 +134,7 @@ func main() {
 		})
 	}
 
+	//////////////////////////////////////// TRACKING ROUTE
 	if configuration.Tracker != "" {
 		http.HandleFunc("/track/", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("content-type", "image/gif")

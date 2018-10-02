@@ -1,5 +1,5 @@
 # DragonGate
-Pure Go lang implementation of NGINX functionality with SSL management, static file serving, and HTTP reverse proxy to Python or other process
+Pure Go lang implementation of NGINX functionality with SSL management, static file serving, and HTTP reverse proxy to Python, Node or other web service
 
 ## Instructions
 
@@ -19,7 +19,7 @@ export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
 go get github.com/dioptre/dragongate
 cd ~/go/src/github.com/dioptre/dragongate
 go install
-./build.sh
+./debug.sh
 ```
 
 ### Misc.
@@ -38,7 +38,12 @@ net.ipv6.conf.enp6s0.disable_ipv6 = 1
 
 * Benchmarking run:
 ```
-./benchmark.sh
+./benchmark.sh https://yourservername.com/ping
+```
+My results are around 1,000 requests per second per $ per server per month (AG).
+* Run a test server to proxy to:
+```
+./proxy_server.sh
 ```
 
 
