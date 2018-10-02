@@ -1,46 +1,66 @@
+package main
 
-package main                                                     //   .
-                                                                //   /Ai
-                                                                   ///sx//       WEB SEC /////
-import (	                                                  //m-  -mh.      V 0.23 /////
-	"os"                                                     //o      oN+
-	"log"                                                   //d-        -dh.
-	"fmt"                                                 //o            +X+
-	"flag"                                               ///.   `.----.`   /dd.
-	"os/user"                                                 //  M  M  //
-	"net/url"                                                  //+ M M +/
-	"net/http"                                       ///oshy+- /M X  M MN./-+shsH/N
-	"crypto/tls"                                    /// .hs.   / M M M  -  //sy. `hm-
-	"html/template"                               ///     `:+//:o      o://+-      /Ns:
-	"path/filepath"                              //`          //:      :/           `ym:
-	"net/http/httputil"                        ///             //      //             /Ny:
-	"golang.org/x/crypto/acme/autocert"      //Mdhhhhhhhhhhhhhhhh      hhhhhhhhhhhhhhhhdMN/.
+import (
+	"crypto/tls"
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"log"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"os"
+	"os/user"
+	"path/filepath"
+
+	"golang.org/x/crypto/acme/autocert"
 )
-// 安全 WEB SEC
-func main() {        ///                                                                    //.
-	fmt.Println("       +MM    smNy:          yMm/  dmmmmmmm/            dMd           ")
-	fmt.Println("       oMN     .+dh.      ./:`oMm- ::::::MM+   `////////mMm////////`  ")
-	fmt.Println(" ///  +NMh//MMh///+///`   oMN            MM+   :MM:`````dMd`````:MM:  ")
-	fmt.Println("     /MM+   MMh Mm/       oMN     Web    MM+   :MMmmmmmmMMMmmmmmmMM:  ")
-	fmt.Println("    +NMs   .MMMNs. `/-    oMN     Sec    MM+   .yy-`````dMd`````-yy-  ")
-	fmt.Println("  .yMNo.   .MMh.   -MM.   oMN            MM+            dMd           ")
-	fmt.Println(" sh:       ::yhhhhhh/-    +md         +dddo`            HHH           ")
-	flag.Parse() //// ARGS                                                //###//       ##/
 
-	domains := flag.Args()
-	live_domains := []string{
-		"keykernel.io", "stackfund.com", "apdex.com", "x.m2fx.co", "m2fx.co",  "x.bitcoinpatent.com" }
+////////////////////////////////////////
+// Get the system setup from the config.json file:
+////////////////////////////////////////
+type Configuration struct {
+	Domains         []string //Domains in Trust
+	ProxyUrl        string   //Forward Address
+	ServicePort     string   //HTTPS Port
+	RedirectPort    string   //HTTP Port
+	StaticDirectory string   //Static FS Directory (./public/)
+	UseTemplates    bool
+	UsePingPong     bool
+}
 
-	domains = append( live_domains , domains...)
-	////////////////////////////////// SSL CERT MANAGER
-	certManager := autocert.Manager{          ///CREATE
-		Prompt:     autocert.AcceptTOS,   /// CACHE
-		HostPolicy: autocert.HostWhitelist(domains...),
-		Cache:      autocert.DirCache( cacheDir() ),
+////////////////////////////////////////
+// Start here
+////////////////////////////////////////
+func main() {
+
+	//////////////////////////////////////// LOAD CONFIG
+	fmt.Println("Starting web service...")
+	file, _ := os.Open("config.json")
+	defer file.Close()
+	decoder := json.NewDecoder(file)
+	configuration := Configuration{}
+	err := decoder.Decode(&configuration)
+	if err != nil {
+		fmt.Println("error:", err)
 	}
-	server := &http.Server{     // HTTP REDIR SSL RENEW
-		Addr: ":https",
-		TLSConfig: &tls.Config{           // SEC PARAMS
+	fmt.Println("Trusted domains: ", configuration.Domains)
+	//log.Fatal(http.Serve(autocert.NewListener("dev.sfproductlabs.com"), http.StripPrefix("/public/", http.FileServer(http.Dir(configuration.StaticDirectory)))))
+
+	cache := cacheDir()
+	if cache == "" {
+		log.Fatal("Bad Cache.")
+	}
+
+	//////////////////////////////////////// SSL CERT MANAGER
+	certManager := autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist(configuration.Domains...),
+		Cache:      autocert.DirCache(cache),
+	}
+	server := &http.Server{ // HTTP REDIR SSL RENEW
+		Addr: configuration.ServicePort,
+		TLSConfig: &tls.Config{ // SEC PARAMS
 			GetCertificate:           certManager.GetCertificate,
 			PreferServerCipherSuites: true,
 			CipherSuites: []uint16{
@@ -54,55 +74,73 @@ func main() {        ///                                                        
 			//CurvePreferences:       []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
 		},
 	}
+
 	//////////////////////////////////////// PROXY ROUTE
-	origin, _ := url.Parse("http://pyweb:8851/")
-	director := func(req *http.Request) {
-		req.Header.Add("X-Forwarded-Host", req.Host)
-		req.Header.Add("X-Origin-Host", origin.Host)
-		req.URL.Scheme = "http"
-		req.URL.Host = origin.Host
+	if configuration.ProxyUrl != "" {
+		fmt.Println("Proxying to:", configuration.ProxyUrl)
+		origin, _ := url.Parse(configuration.ProxyUrl)
+		director := func(req *http.Request) {
+			req.Header.Add("X-Forwarded-Host", req.Host)
+			req.Header.Add("X-Origin-Host", origin.Host)
+			req.URL.Scheme = "http"
+			req.URL.Host = origin.Host
+		}
+		proxy := &httputil.ReverseProxy{Director: director}
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
+			fmt.Println("Incoming HTTP at ", r) // fmt.Fprintf(w, "KEY KERNEL V.23") ///
+			proxy.ServeHTTP(w, r)
+		})
 	}
-	proxy := &httputil.ReverseProxy{Director: director}
-	fs := http.FileServer(http.Dir("static"))
 
-	///////////////////////////////////////////////////////// HTTP HANDLERS
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
-		w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
-		fmt.Println("Incoming HTTP at ",r)   // fmt.Fprintf(w, "KEY KERNEL V.23") ///
-		proxy.ServeHTTP(w, r)
-	})
-	http.Handle("/public/", http.StripPrefix("/public/", fs))
-	http.HandleFunc("/template", serveTemplate)
-	//http.HandleFunc("/graph", graph.BaseHandler )
+	//////////////////////////////////////// PING PONG ROUTE
+	if configuration.UsePingPong {
+		http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("pong"))
+		})
+	}
 
-	// SERVE, REDIRECT AUTO to HTTPS
+	//////////////////////////////////////// PUBLIC ROUTE (Static FS)
+	if configuration.StaticDirectory != "" {
+		fmt.Println("Serving static content in:", configuration.StaticDirectory)
+		fs := http.FileServer(http.Dir(configuration.StaticDirectory))
+		http.Handle("/public/", http.StripPrefix("/public/", fs))
+	}
+
+	//////////////////////////////////////// TEMPLATE ROUTE
+	if configuration.UseTemplates {
+		fmt.Println("Serving templates in: templates")
+		http.HandleFunc("/template", serveTemplate)
+	}
+
+	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
 	go func() {
-		http.ListenAndServe(":http", certManager.HTTPHandler(nil) )
+		fmt.Println("Serving HTTP Redirect on:", configuration.RedirectPort)
+		http.ListenAndServe(configuration.RedirectPort, certManager.HTTPHandler(nil))
 	}()
-	log.Fatal( server.ListenAndServeTLS("", "") ) // SERVE HTTPS!
-	fmt.Println("安全 WebSec Golang.    ", domains)
-
-
-
+	fmt.Println("Serving TLS requests on:", configuration.ServicePort)
+	log.Fatal(server.ListenAndServeTLS("", "")) // SERVE HTTPS!
 }
 
-// cacheDir MAKES CONSISTENT CACHE DIRECTORY IN /tmp. RETURNS "" ON ERROR.
+////////////////////////////////////////
+// cacheDir in /tmp for SSL
+////////////////////////////////////////
 func cacheDir() (dir string) {
 	if u, _ := user.Current(); u != nil {
-		fmt.Println(os.TempDir() )
-		//dir = filepath.Join(os.TempDir(), "cache-golang-autocert-"+u.Username)
-		dir = filepath.Join(".", "cache-golang-autocert-"+u.Username)
-		fmt.Println( "Should be saving cache-go-lang-autocert-u.username to: " )
-		fmt.Println( dir )
+		dir = filepath.Join(os.TempDir(), "cache-golang-autocert-"+u.Username)
+		//dir = filepath.Join(".", "cache-golang-autocert-"+u.Username)
+		fmt.Println("Saving cache-go-lang-autocert-u.username to: ", dir)
 		if err := os.MkdirAll(dir, 0700); err == nil {
-			return dir }}
+			return dir
+		}
+	}
 	return ""
 }
 
-
-
 func serveTemplate(w http.ResponseWriter, r *http.Request) {
-	lp := filepath.Join("templates", "layout.html")
+	//http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+	//return
+	lp := filepath.Join("templates", "default.tmpl")
 	fp := filepath.Join("templates", filepath.Clean(r.URL.Path))
 
 	// Return a 404 if the template doesn't exist
@@ -129,28 +167,19 @@ func serveTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := tmpl.ExecuteTemplate(w, "layout", nil); err != nil {
+	data := struct {
+		Title string
+		Items []string
+	}{
+		Title: "My page",
+		Items: []string{
+			"My photos",
+			"My blog",
+		},
+	}
+
+	if err := tmpl.ExecuteTemplate(w, "default", data); err != nil {
 		log.Println(err.Error())
 		http.Error(w, http.StatusText(500), 500)
 	}
-}
-
-
-
-
-
-
-func main_proxy_base() {
-	origin, _ := url.Parse("http://localhost:5000/")
-	director := func(req *http.Request) {
-		req.Header.Add("X-Forwarded-Host", req.Host)
-		req.Header.Add("X-Origin-Host", origin.Host)
-		req.URL.Scheme = "http"
-		req.URL.Host = origin.Host
-	}
-	proxy := &httputil.ReverseProxy{Director: director}
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		proxy.ServeHTTP(w, r)
-	})
-	log.Fatal(http.ListenAndServe(":9003", nil))
 }
