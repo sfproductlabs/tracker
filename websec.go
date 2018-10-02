@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -176,6 +177,10 @@ func serveTemplate(w http.ResponseWriter, r *http.Request) {
 	// 	http.Error(w, http.StatusText(500), 500)
 	// 	return
 	// }
+
+	pattern := filepath.Join("templates", "*.html")
+
+	tmpl := template.Must(template.ParseGlob(pattern))
 
 	data := struct {
 		Title string
