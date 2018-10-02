@@ -151,7 +151,7 @@ func cacheDir() (dir string) {
 func serveTemplate(w http.ResponseWriter, r *http.Request) {
 	//http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
 	//return
-	lp := filepath.Join("templates", "default.tmpl")
+	lp := filepath.Join("templates", "default.html")
 	fp := filepath.Join("templates", filepath.Clean(r.URL.Path))
 
 	// Return a 404 if the template doesn't exist
