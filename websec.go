@@ -12,7 +12,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -121,7 +120,7 @@ func main() {
 	//////////////////////////////////////// TEMPLATE ROUTE
 	if configuration.UseTemplates {
 		fmt.Println("Serving templates in: templates")
-		http.HandleFunc("/template", serveTemplate)
+		http.HandleFunc("/template/default.html", serveTemplate)
 	}
 
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
@@ -152,31 +151,31 @@ func serveTemplate(w http.ResponseWriter, r *http.Request) {
 	//http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
 	//return
 	lp := filepath.Join("templates", "default.html")
-	fp := filepath.Join("templates", filepath.Clean(r.URL.Path))
+	// fp := filepath.Join("templates", filepath.Clean(r.URL.Path))
 
-	// Return a 404 if the template doesn't exist
-	info, err := os.Stat(fp)
-	if err != nil {
-		if os.IsNotExist(err) {
-			http.NotFound(w, r)
-			return
-		}
-	}
+	// // Return a 404 if the template doesn't exist
+	// info, err := os.Stat(fp)
+	// if err != nil {
+	// 	if os.IsNotExist(err) {
+	// 		http.NotFound(w, r)
+	// 		return
+	// 	}
+	// }
 
-	// Return a 404 if the request is for a directory
-	if info.IsDir() {
-		http.NotFound(w, r)
-		return
-	}
+	// // Return a 404 if the request is for a directory
+	// if info.IsDir() {
+	// 	http.NotFound(w, r)
+	// 	return
+	// }
 
-	tmpl, err := template.ParseFiles(lp, fp)
-	if err != nil {
-		// Log the detailed error
-		log.Println(err.Error())
-		// Return a generic "Internal Server Error" message
-		http.Error(w, http.StatusText(500), 500)
-		return
-	}
+	// tmpl, err := template.ParseFiles(lp, fp)
+	// if err != nil {
+	// 	// Log the detailed error
+	// 	log.Println(err.Error())
+	// 	// Return a generic "Internal Server Error" message
+	// 	http.Error(w, http.StatusText(500), 500)
+	// 	return
+	// }
 
 	data := struct {
 		Title string
