@@ -1,6 +1,6 @@
 /*===----------- dragongate.go - nginx alternative written in go  ----------===
  *
- *                     DragonGate Simple WebServer
+ *    DragonGate Simple WebServer with LetsEncrypt Auto-configuration
  *
  * This file is licensed under the Apache 2 License. See LICENSE for details.
  *
