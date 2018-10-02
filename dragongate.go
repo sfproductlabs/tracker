@@ -1,8 +1,28 @@
-/*===------- websec.go - nginx alternative written in go  -----------------===
+/*===----------- dragongate.go - nginx alternative written in go  ----------===
  *
  *                     DragonGate Simple WebServer
  *
  * This file is licensed under the Apache 2 License. See LICENSE for details.
+ *
+ *  Copyright (c) 2018 Mico Malecki; Andrew Grosser. All Rights Reserved.
+ *
+ *
+ *                  NM+                 :::::::::::   :::::::::::.
+ *       oddddddddddMMmdddddddddd:     `MMhhhhhhdMM  `MMhhhhhhhMM+
+ *       .---:mMs---------dNh----`     `MM-     -MM  `MM.      NM+
+ *            -MM:       sMd.          `MMNmmmmmNMM  `MMmmmmmmmMM+
+ *     smdddddmNNmddddddmNMmddddddd:   `MM-     -MM  `MM.      NM+
+ *     ............................`   `MMysssssyMM  `MMsssssssMM+
+ *        .ddddddddddddddddddddd`      `MMo++++++++  `+++++++++MM+
+ *        -MM-......NMo......+MM`      `MM-                    NM+
+ *        -MMsooooooNMhooooooyMM`      `MM-                    NM+
+ *        -MM+//////NMy//////sMM`      `MM-                    NM+
+ *        -MM-......NMo......+MM`      `MM-                    NM+
+ *        -MMdddddddMMmddddddddh`.:`   `MM-                    NM+
+ *        `++`      NM+          sMs   `MM-                    NM+
+ *                  oMNhhhhhhhhhdMm.   `MM-              -NNNNMMm.
+ *                   `.----------.      --`               .--..`
+ *
  *
  *===----------------------------------------------------------------------===
  */
@@ -34,8 +54,10 @@ type Configuration struct {
 	Tracker         string
 }
 
+//////////////////////////////////////// PING-PONG return string
 const PONG string = "pong"
 
+//////////////////////////////////////// Transparent GIF
 var TRACKING_GIF = []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x1, 0x0, 0x1, 0x0, 0x80, 0x0, 0x0, 0xff, 0xff, 0xff, 0x0, 0x0, 0x0, 0x2c, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x2, 0x2, 0x44, 0x1, 0x0, 0x3b}
 
 ////////////////////////////////////////
