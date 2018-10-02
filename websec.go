@@ -12,7 +12,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -28,12 +27,9 @@ import (
 // Get the system setup from the config.json file:
 ////////////////////////////////////////
 type Configuration struct {
-	Domains         []string //Domains in Trust
+	Domains         []string //Domains in Trust, LetsEncrypt domains
 	ProxyUrl        string   //Forward Address
-	ServicePort     string   //HTTPS Port
-	RedirectPort    string   //HTTP Port
 	StaticDirectory string   //Static FS Directory (./public/)
-	UseTemplates    bool
 	UsePingPong     bool
 }
 
@@ -70,7 +66,7 @@ func main() {
 		Cache:      autocert.DirCache(cache),
 	}
 	server := &http.Server{ // HTTP REDIR SSL RENEW
-		Addr: configuration.ServicePort,
+		Addr: ":https",
 		TLSConfig: &tls.Config{ // SEC PARAMS
 			GetCertificate:           certManager.GetCertificate,
 			PreferServerCipherSuites: true,
@@ -118,18 +114,12 @@ func main() {
 		http.Handle("/public/", http.StripPrefix("/public/", fs))
 	}
 
-	//////////////////////////////////////// TEMPLATE ROUTE
-	if configuration.UseTemplates {
-		fmt.Println("Serving templates in: templates")
-		http.HandleFunc("/template/default.html", serveTemplate)
-	}
-
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
 	go func() {
-		fmt.Println("Serving HTTP Redirect on:", configuration.RedirectPort)
-		http.ListenAndServe(configuration.RedirectPort, certManager.HTTPHandler(nil))
+		fmt.Println("Serving HTTP Redirect on: 80")
+		http.ListenAndServe(":http", certManager.HTTPHandler(nil))
 	}()
-	fmt.Println("Serving TLS requests on:", configuration.ServicePort)
+	fmt.Println("Serving TLS requests on: 443")
 	log.Fatal(server.ListenAndServeTLS("", "")) // SERVE HTTPS!
 }
 
@@ -146,55 +136,4 @@ func cacheDir() (dir string) {
 		}
 	}
 	return ""
-}
-
-func serveTemplate(w http.ResponseWriter, r *http.Request) {
-	//http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
-	//return
-	//lp := filepath.Join("templates", "default.html")
-	// fp := filepath.Join("templates", filepath.Clean(r.URL.Path))
-
-	// // Return a 404 if the template doesn't exist
-	// info, err := os.Stat(fp)
-	// if err != nil {
-	// 	if os.IsNotExist(err) {
-	// 		http.NotFound(w, r)
-	// 		return
-	// 	}
-	// }
-
-	// // Return a 404 if the request is for a directory
-	// if info.IsDir() {
-	// 	http.NotFound(w, r)
-	// 	return
-	// }
-
-	// tmpl, err := template.ParseFiles(lp, fp)
-	// if err != nil {
-	// 	// Log the detailed error
-	// 	log.Println(err.Error())
-	// 	// Return a generic "Internal Server Error" message
-	// 	http.Error(w, http.StatusText(500), 500)
-	// 	return
-	// }
-
-	pattern := filepath.Join("templates", "*.tmpl")
-
-	tmpl := template.Must(template.ParseGlob(pattern))
-
-	data := struct {
-		Title string
-		Items []string
-	}{
-		Title: "My page",
-		Items: []string{
-			"My photos",
-			"My blog",
-		},
-	}
-
-	if err := tmpl.ExecuteTemplate(w, "default.tmpl", data); err != nil {
-		log.Println(err.Error())
-		http.Error(w, http.StatusText(500), 500)
-	}
 }
