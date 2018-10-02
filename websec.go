@@ -178,7 +178,7 @@ func serveTemplate(w http.ResponseWriter, r *http.Request) {
 	// 	return
 	// }
 
-	pattern := filepath.Join("templates", "*.html")
+	pattern := filepath.Join("templates", "*.tmpl")
 
 	tmpl := template.Must(template.ParseGlob(pattern))
 
