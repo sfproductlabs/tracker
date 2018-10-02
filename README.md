@@ -40,7 +40,7 @@ net.ipv6.conf.enp6s0.disable_ipv6 = 1
 ```
 ./benchmark.sh https://yourservername.com/ping
 ```
-My results are around 1,000 requests per $ per server per month.
+My results are around 1,000 requests per second per $ per server per month.
 * Run a test server to proxy to:
 ```
 ./proxy_server.sh
