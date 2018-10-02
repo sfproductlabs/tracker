@@ -41,7 +41,7 @@ net.ipv6.conf.enp6s0.disable_ipv6 = 1
 ```
 ./benchmark.sh https://yourservername.com/ping
 ```
-My results are around 1,000 requests per second per $ per server per month (https://github.com/dioptre/).
+My results are around 1,000 requests per second per $ per server per month ([@dioptre](https://github.com/dioptre/)).
 * Run a test server to proxy to:
 ```
 ./proxy_server.sh
