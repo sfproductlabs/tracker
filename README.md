@@ -38,7 +38,7 @@ net.ipv6.conf.enp6s0.disable_ipv6 = 1
 
 * Benchmarking run:
 ```
-./benchmark.sh
+./benchmark.sh https://yourservername.com/ping
 ```
 
 
