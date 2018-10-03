@@ -1,4 +1,4 @@
-/*===----------- tracker.go - nginx alternative written in go  ----------===
+/*===----------- tracker.go - tracking utility written in go  -------------===
  *
  *
  * This file is licensed under the Apache 2 License. See LICENSE for details.
