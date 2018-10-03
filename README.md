@@ -14,10 +14,10 @@ TBA
 * Deploy on Docker using the following:
 ```
 # Build from src:
-sudo docker build -t dragongate .
+sudo docker build -t tracker .
 # Deploy only:
-# sudo docker build -f Dockerfile.deploy -t dragongate .
-sudo docker run -p 8443:443 dragongate
+# sudo docker build -f Dockerfile.deploy -t tracker .
+sudo docker run -p 8443:443 tracker
 # Connect to it:
 #  sudo docker ps
 #  sudo docker exec -it [container_id] bash
