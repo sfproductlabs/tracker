@@ -1,6 +1,104 @@
 {
-    "Domains": ["dev.sfproductlabs.com"],
-    "UsePingPong" : true,
-    "Tracker" : "/tracker",
-    "UseLocalTLS" : false
+    "Domains": [
+        "dev.sfproductlabs.com"
+    ],
+    "StaticDirectory": "public",
+    "UseLocalTLS": true,
+    "Notify": [
+        {
+            "Service": "cassandra",
+            "Hosts": [
+                "localhost"
+            ],
+            "Context": "sfpla",
+            "CACert": "cstarcacert.pem",
+            "Cert": "cstarcert.pem",
+            "Key": "cstarkey.pem",
+            "Secure": false,
+            "Retry": false
+        },
+        {
+            "Service": "nats",
+            "Hosts": [
+                "nats://localhost:4222"
+            ],
+            "Context": "tic.track.*",
+            "Secure": true,
+            "CACert": "natscacert.pem",
+            "Cert": "natscert.pem",
+            "Key": "natskey.pem",
+            "Format": "json"
+        }
+    ],
+    "Consume": [
+        {
+            "Service": "nats",
+            "Hosts": [
+                "nats://localhost:4222"
+            ],
+            "Secure": true,
+            "CACert": "natscacert.pem",
+            "Cert": "natscert.pem",
+            "Key": "natskey.pem",
+            "Format": "json",
+            "MessageLimit": 65536,
+            "BytesLimit": 67108864,
+            "Filter": [
+                {
+                    "Alias": "log",
+                    "Type": "chan",
+                    "Id": "tic.log.*",
+                    "Fields": [
+                        {
+                            "Type": "string",
+                            "Id": "name"
+                        },
+                        {
+                            "Type": "string",
+                            "Id": "hostname"
+                        },
+                        {
+                            "Type": "int",
+                            "Id": "level"
+                        },
+                        {
+                            "Type": "string",
+                            "Id": "msg"
+                        },
+                        {
+                            "Type": "string",
+                            "Id": "ip"
+                        },
+                        {
+                            "Type": "string",
+                            "Id": "username"
+                        },
+                        {
+                            "Type": "int",
+                            "Id": "ldate"
+                        },
+                        {
+                            "Type": "int",
+                            "Id": "ltime"
+                        }
+                    ]
+                },
+                {
+                    "Alias": "count",
+                    "Type": "chan",
+                    "Id": "tic.count.*"
+                },
+                {
+                    "Alias": "update",
+                    "Type": "chan",
+                    "Id": "tic.update.*"
+                },
+                {
+                    "Alias": "event",
+                    "Type": "chan",
+                    "Id": "tic.event.*"
+                }
+            ]
+        }
+    ]
 }
