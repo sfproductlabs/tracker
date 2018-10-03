@@ -1,6 +1,6 @@
 ####################################################################################
 # DragonGate NGINX Replacement written in Go
-# Build with: sudo docker build -t dragongate .
+# Build with: sudo docker build -f Dockerfile.deploy -t dragongate .
 ####################################################################################
 
 FROM debian:stable-slim
@@ -32,9 +32,7 @@ RUN bash -c 'echo "net.core.somaxconn = 8192" >> /etc/sysctl.conf' \
 
 # update packages and install required ones
 RUN apt update && apt upgrade -y && apt install -y \
-  golang-1.8-go \
   supervisor \
-  git \
   libssl-dev \
   python-pip \
   jq \
@@ -45,11 +43,6 @@ RUN apt autoclean -y && apt autoremove -y
 
 # install latest AWS CLI
 RUN pip install awscli --upgrade
-
-# build app in production mode
-RUN /usr/lib/go-1.8/bin/go get github.com/dioptre/dragongate
-RUN /usr/lib/go-1.8/bin/go install github.com/dioptre/dragongate
-RUN /usr/lib/go-1.8/bin/go build
 
 ####################################################################################
 

@@ -44,6 +44,7 @@ My results are around 1,000 requests per second per $ per server per month ([@di
 ```
 * Test key (outside of LetsEncrypt)
 ```
+# You can also use the helper genkey.sh
 openssl ecparam -genkey -name secp384r1 -out server.key
 openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
 ```
@@ -56,8 +57,16 @@ openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
 * Update **config.json** to **UseLocalTLS=true** if required.
 * Deploy on Docker using the following:
 ```
+# Build from src:
 sudo docker build -t dragongate .
+# Deploy only:
+# sudo docker build -f Dockerfile.deploy -t dragongate .
 sudo docker run -p 8443:443 dragongate
+# Connect to it:
+#  sudo docker ps
+#  sudo docker exec -it [container_id] bash
+# Remove all your images (warning):
+#  sudo docker system prune -a
 ```
 * Then upload/use (try AWS ECS).
 
