@@ -4,5 +4,5 @@
     "StaticDirectory" : "public",
     "UsePingPong" : true,
     "Tracker" : "/tracker",
-    "UseLocalTLS" : true
+    "UseLocalTLS" : false
 }
