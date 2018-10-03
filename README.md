@@ -1,5 +1,5 @@
 # DragonGate
-A pure Go lang replacement for NGINX in one page of code with proxying, tracking urls, file server, benchmarks, templates and automatic TLS support using LetsEncrypt (or normal certificates or using AWS ECS secure parameters). A docker deployment option is also mentioned below.
+A pure Go lang replacement for NGINX in one page of code with proxying,file server, benchmarks, templates and automatic TLS support using LetsEncrypt (or normal certificates or using AWS ECS secure parameters). A docker deployment option is also mentioned below.
 
 ## Instructions
 
