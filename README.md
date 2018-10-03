@@ -22,12 +22,8 @@ go install
 ./debug.sh
 ```
 
-### Misc.
-* Update your config parameters in conjunction with KMS on ECS on Amazon AWS https://hackernoon.com/you-should-use-ssm-parameter-store-over-lambda-env-variables-5197fc6ea45b
-
-
 ### Troubleshooting
-I had to disable ipv6 (error during LetsEncrypt init phase) also.
+I had to disable ipv6 (error during LetsEncrypt init phase) also, this has been done in the docker image also.
 
 * Edit /etc/sysctl.conf:
 ```
@@ -46,5 +42,27 @@ My results are around 1,000 requests per second per $ per server per month ([@di
 ```
 ./proxy_server.sh
 ```
+* Test key (outside of LetsEncrypt)
+```
+openssl ecparam -genkey -name secp384r1 -out server.key
+openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
+```
 
+### Deploy
+* Get a certificate:
+    * Deploy on AWS with config parameters in conjunction with KMS on ECS on Amazon AWS https://hackernoon.com/you-should-use-ssm-parameter-store-over-lambda-env-variables-5197fc6ea45b (see dockercmd.sh)
+    * Use the above test key **must be server.crt and server.key**
+    * Copy a server.crt and server.key in from sn SSL certificate provider.
+* Update **config.json** to **UseLocalTLS=true** if required.
+* Deploy on Docker using the following:
+```
+sudo docker build -t dragongate .
+sudo docker run -p 8443:443 dragongate
+```
+* Then upload/use (try AWS ECS).
+
+## Credits
+* [@psytron](https://github.com/psytron)
+* [@dioptre](https://github.com/dioptre)
+* [SF Product Labs](https://sfproductlabs.com)
 

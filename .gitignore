@@ -14,3 +14,8 @@
 dragongate
 
 cache*
+
+*.pem
+*.key
+*.crt
+pem/

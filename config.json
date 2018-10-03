@@ -3,5 +3,6 @@
     "ProxyUrl": "http://localhost:8000",
     "StaticDirectory" : "public",
     "UsePingPong" : true,
-    "Tracker" : "/tracker"
+    "Tracker" : "/tracker",
+    "UseLocalTLS" : true
 }
