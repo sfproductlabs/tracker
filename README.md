@@ -35,7 +35,6 @@ go install
    * ProxyUrl (optional) if included proxies connections to a Node.js or other local web service.
    * StaticDirectory (optional) if included serves static files from this subdirectory
    * UsePingPong (optional) if included responds "pong" to https://yourdomain.com/ping
-   * Tracker (optional) if included responds a transparent image (wip).
    * UseLocalTLS (optional) if included and **true** elects to use server.crt, and server.key instead of LetsEncrypt.
 
 ### Troubleshooting
