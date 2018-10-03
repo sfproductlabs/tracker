@@ -58,9 +58,6 @@ type Configuration struct {
 //////////////////////////////////////// PING-PONG return string
 const PONG string = "pong"
 
-//////////////////////////////////////// Transparent GIF
-var TRACKING_GIF = []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x1, 0x0, 0x1, 0x0, 0x80, 0x0, 0x0, 0xff, 0xff, 0xff, 0x0, 0x0, 0x0, 0x2c, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x2, 0x2, 0x44, 0x1, 0x0, 0x3b}
-
 ////////////////////////////////////////
 // Start here
 ////////////////////////////////////////
@@ -133,15 +130,6 @@ func main() {
 		http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(PONG))
 		})
-	}
-
-	//////////////////////////////////////// TRACKING ROUTE
-	if configuration.Tracker != "" {
-		http.HandleFunc("/track/", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("content-type", "image/gif")
-			w.Write(TRACKING_GIF)
-		})
-
 	}
 
 	//////////////////////////////////////// PUBLIC ROUTE (Static FS)
