@@ -28,7 +28,6 @@ go install
     "ProxyUrl": "http://localhost:8000",
     "StaticDirectory" : "public",
     "UsePingPong" : true,
-    "Tracker" : "/tracker",
     "UseLocalTLS" : false
 }
 ```
