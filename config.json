@@ -1,5 +1,6 @@
 {
     "Domains": ["dev.sfproductlabs.com"],
     "UsePingPong" : true,
-    "Tracker" : "/tracker"
+    "Tracker" : "/tracker",
+    "UseLocalTLS" : false
 }

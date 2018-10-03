@@ -52,6 +52,7 @@ type Configuration struct {
 	StaticDirectory string   //Static FS Directory (./public/)
 	UsePingPong     bool
 	Tracker         string
+	UseLocalTLS     bool
 }
 
 //////////////////////////////////////// PING-PONG return string
@@ -156,7 +157,13 @@ func main() {
 		http.ListenAndServe(":http", certManager.HTTPHandler(nil))
 	}()
 	fmt.Println("Serving TLS requests on: 443")
-	log.Fatal(server.ListenAndServeTLS("", "")) // SERVE HTTPS!
+	if configuration.UseLocalTLS {
+		server.TLSConfig.GetCertificate = nil
+		log.Fatal(server.ListenAndServeTLS("server.crt", "server.key")) // SERVE HTTPS!
+	} else {
+		log.Fatal(server.ListenAndServeTLS("", "")) // SERVE HTTPS!
+	}
+
 }
 
 ////////////////////////////////////////
