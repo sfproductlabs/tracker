@@ -8,7 +8,7 @@
         {
             "Service": "cassandra",
             "Hosts": [
-                "localhost"
+                "127.0.0.1"
             ],
             "Context": "sfpla",
             "CACert": "cstarcacert.pem",

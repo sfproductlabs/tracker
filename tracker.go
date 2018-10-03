@@ -164,22 +164,23 @@ func main() {
 	fmt.Println("Trusted domains: ", configuration.Domains)
 
 	//////////////////////////////////////// LOAD NOTIFIERS
-	fmt.Println("Connecting to Cassandra: ", configuration.Notify[0].Hosts)
+	fmt.Println("Connecting to Cassandra Cluster: ", configuration.Notify[0].Hosts)
 	cassandra := CassandraService{
 		Configuration: &configuration.Notify[0],
-	}Error
+	}
 	err = cassandra.connect()
 	if err != nil || configuration.Notify[0].Session == nil {
-		panic("Could not connect to C*")
+		panic("Could not connect to Cassandra Cluster.")
 	}
-	qid, err := gocql.ParseUUID("00000000-0000-0000-0000-000000000000")
-	var domain, filter string
-	if err := cassandra.Session.Query(`SELECT domain, filter FROM queries WHERE id = ? LIMIT 1`,
-		qid).Consistency(gocql.One).Scan(&domain, &filter); err != nil {
-		fmt.Println("[ERROR] ", err)
+	//qid, err := gocql.ParseUUID("00000000-0000-0000-0000-000000000000")
+	var name string
+	var next_seq int
+	if err := cassandra.Session.Query(`SELECT name, next_seq FROM sequences where name='DB_VER' LIMIT 1`).Consistency(gocql.One).Scan(&name, &next_seq); err != nil {
+		fmt.Println("[ERROR] Bad DB_VER", err)
 		panic("ERROR")
+	} else {
+		fmt.Println("Connected to Cassandra: ", name, next_seq)
 	}
-
 
 	//////////////////////////////////////// SSL CERT MANAGER
 	certManager := autocert.Manager{
