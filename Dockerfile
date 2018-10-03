@@ -1,11 +1,11 @@
 ####################################################################################
-# DragonGate NGINX Replacement written in Go
-# Build with: sudo docker build -t dragongate .
+# Tracker
+# Build with: sudo docker build -t tracker .
 ####################################################################################
 
 FROM debian:stable-slim
-WORKDIR /root/dragongate
-ADD . /root/dragongate
+WORKDIR /root/tracker
+ADD . /root/tracker
 EXPOSE 443
 EXPOSE 80
 
@@ -47,15 +47,15 @@ RUN apt autoclean -y && apt autoremove -y
 RUN pip install awscli --upgrade
 
 # build app in production mode
-RUN /usr/lib/go-1.8/bin/go get github.com/dioptre/dragongate
-RUN /usr/lib/go-1.8/bin/go install github.com/dioptre/dragongate
+RUN /usr/lib/go-1.8/bin/go get github.com/dioptre/tracker
+RUN /usr/lib/go-1.8/bin/go install github.com/dioptre/tracker
 RUN /usr/lib/go-1.8/bin/go build
 
 ####################################################################################
 
 # copy files to other locations
 COPY supervisord.conf /etc/supervisor/supervisord.conf
-COPY dragongate.supervisor.conf /etc/supervisor/conf.d/dragongate.supervisor.conf
+COPY tracker.supervisor.conf /etc/supervisor/conf.d/tracker.supervisor.conf
 
 # make startup script executable
 RUN chmod +x dockercmd.sh

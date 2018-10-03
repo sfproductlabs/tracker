@@ -1,2 +1,2 @@
 #!/bin/bash
-go build && ./dragongate
+go build && ./tracker

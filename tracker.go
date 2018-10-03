@@ -1,27 +1,9 @@
-/*===----------- dragongate.go - nginx alternative written in go  ----------===
+/*===----------- tracker.go - nginx alternative written in go  ----------===
  *
- *    DragonGate Simple WebServer with LetsEncrypt Auto-configuration
  *
  * This file is licensed under the Apache 2 License. See LICENSE for details.
  *
- *  Copyright (c) 2018 Mico Malecki; Andrew Grosser. All Rights Reserved.
- *
- *
- *                  NM+                 :::::::::::   :::::::::::.
- *       oddddddddddMMmdddddddddd:     `MMhhhhhhdMM  `MMhhhhhhhMM+
- *       .---:mMs---------dNh----`     `MM-     -MM  `MM.      NM+
- *            -MM:       sMd.          `MMNmmmmmNMM  `MMmmmmmmmMM+
- *     smdddddmNNmddddddmNMmddddddd:   `MM-     -MM  `MM.      NM+
- *     ............................`   `MMysssssyMM  `MMsssssssMM+
- *        .ddddddddddddddddddddd`      `MMo++++++++  `+++++++++MM+
- *        -MM-......NMo......+MM`      `MM-                    NM+
- *        -MMsooooooNMhooooooyMM`      `MM-                    NM+
- *        -MM+//////NMy//////sMM`      `MM-                    NM+
- *        -MM-......NMo......+MM`      `MM-                    NM+
- *        -MMdddddddMMmddddddddh`.:`   `MM-                    NM+
- *        `++`      NM+          sMs   `MM-                    NM+
- *                  oMNhhhhhhhhhdMm.   `MM-              -NNNNMMm.
- *                   `.----------.      --`               .--..`
+ *  Copyright (c) 2018 Andrew Grosser. All Rights Reserved.
  *
  *
  *===----------------------------------------------------------------------===

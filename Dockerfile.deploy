@@ -1,11 +1,11 @@
 ####################################################################################
-# DragonGate NGINX Replacement written in Go
-# Build with: sudo docker build -f Dockerfile.deploy -t dragongate .
+# Tracker
+# Build with: sudo docker build -f Dockerfile.deploy -t tracker .
 ####################################################################################
 
 FROM debian:stable-slim
-WORKDIR /root/dragongate
-ADD . /root/dragongate
+WORKDIR /root/tracker
+ADD . /root/tracker
 EXPOSE 443
 EXPOSE 80
 
@@ -48,7 +48,7 @@ RUN pip install awscli --upgrade
 
 # copy files to other locations
 COPY supervisord.conf /etc/supervisor/supervisord.conf
-COPY dragongate.supervisor.conf /etc/supervisor/conf.d/dragongate.supervisor.conf
+COPY tracker.supervisor.conf /etc/supervisor/conf.d/tracker.supervisor.conf
 
 # make startup script executable
 RUN chmod +x dockercmd.sh

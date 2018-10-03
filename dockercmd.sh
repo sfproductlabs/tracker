@@ -9,9 +9,9 @@
 # (1) retrieve data from aws ssm store
 # (2) extract value from json using jquery (-r is 'raw', no parentheses and proper new lines)
 
-# DRAGONGATE
-# aws ssm get-parameters --names $SSM_ID_DRAGONGATE_CERT --no-with-decryption --region $AWS_REGION --output json | jq -r '.Parameters[0] | .Value' > /root/dragongate/server.crt
-# aws ssm get-parameters --names $SSM_ID_DRAGONGATE_KEY --with-decryption --region $AWS_REGION --output json | jq -r '.Parameters[0] | .Value' > /root/dragongate/server.key
+# TRACKER
+# aws ssm get-parameters --names $SSM_ID_TRACKER_CERT --no-with-decryption --region $AWS_REGION --output json | jq -r '.Parameters[0] | .Value' > /root/tracker/server.crt
+# aws ssm get-parameters --names $SSM_ID_TRACKER_KEY --with-decryption --region $AWS_REGION --output json | jq -r '.Parameters[0] | .Value' > /root/tracker/server.key
 
 ######
 # start supervisor
