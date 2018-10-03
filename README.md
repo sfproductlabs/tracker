@@ -1,5 +1,5 @@
 # DragonGate
-A pure Go lang replacement for NGINX in one page of code with proxying, tracking urls, benchmarks, templates and automatic TLS support using LetsEncrypt.
+A pure Go lang replacement for NGINX in one page of code with proxying, tracking urls, file server, benchmarks, templates and automatic TLS support using LetsEncrypt (or normal certificates or using AWS ECS secure parameters). A docker deployment option is also mentioned below.
 
 ## Instructions
 
@@ -21,6 +21,23 @@ cd ~/go/src/github.com/dioptre/dragongate
 go install
 ./debug.sh
 ```
+* You may want to change the config.json
+```javascript
+{
+    "Domains": ["dev.sfproductlabs.com"],
+    "ProxyUrl": "http://localhost:8000",
+    "StaticDirectory" : "public",
+    "UsePingPong" : true,
+    "Tracker" : "/tracker",
+    "UseLocalTLS" : false
+}
+```
+   * Domains **is required** and is what domains are allowed, and connect automatically to LetsEncrypt.
+   * ProxyUrl (optional) if included proxies connections to a Node.js or other local web service.
+   * StaticDirectory (optional) if included serves static files from this subdirectory
+   * UsePingPong (optional) if included responds "pong" to https://yourdomain.com/ping
+   * Tracker (optional) if included responds a transparent image (wip).
+   * UseLocalTLS (optional) if included and **true** elects to use server.crt, and server.key instead of LetsEncrypt.
 
 ### Troubleshooting
 I had to disable ipv6 (error during LetsEncrypt init phase) also, this has been done in the docker image also.
