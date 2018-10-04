@@ -74,11 +74,11 @@
                             "Id": "username"
                         },
                         {
-                            "Type": "int",
+                            "Type": "date",
                             "Id": "ldate"
                         },
                         {
-                            "Type": "int",
+                            "Type": "time",
                             "Id": "ltime"
                         }
                     ]
