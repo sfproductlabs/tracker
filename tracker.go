@@ -81,7 +81,7 @@ var (
 type session interface {
 	connect() error
 	close() error
-	write(r *http.Request) error
+	write(ev *http.Request) error
 	listen() error
 }
 
@@ -256,8 +256,8 @@ func main() {
 		}
 		proxy := &httputil.ReverseProxy{Director: director}
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			//TODO: Track
 			w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
-			fmt.Println("Incoming HTTP at ", r)
 			proxy.ServeHTTP(w, r)
 		})
 	}
@@ -271,11 +271,13 @@ func main() {
 	fmt.Println("Serving static content in:", configuration.StaticDirectory)
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
 	http.HandleFunc("/img/v1/", func(w http.ResponseWriter, r *http.Request) {
+		//TODO: Track
 		http.StripPrefix("/img/v1/", fs).ServeHTTP(w, r)
 	})
 
 	//////////////////////////////////////// 1x1 PIXEL ROUTE
 	http.HandleFunc("/img/v1", func(w http.ResponseWriter, r *http.Request) {
+		//TODO: Track
 		w.Header().Set("content-type", "image/gif")
 		w.Write(TRACKING_GIF)
 	})
