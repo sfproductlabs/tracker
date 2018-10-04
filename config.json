@@ -5,6 +5,7 @@
     "DatabaseVersion" : 1,
     "ApiVersion" : 1,
     "StaticDirectory": "public",
+    "ProxyUrl" : "http://localhost:3030",
     "UseLocalTLS": true,
     "Notify": [
         {

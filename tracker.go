@@ -84,6 +84,10 @@ type session interface {
 	write(ev *http.Request) error
 	listen() error
 }
+type WriteArgs struct {
+	WriteType int
+	Fields    map[string]interface{}
+}
 
 type Field struct {
 	Type string
@@ -117,20 +121,23 @@ type Service struct {
 	MessageLimit int
 	ByteLimit    int
 
-	Session   session
 	Consumer  bool
 	Ephemeral bool
+
+	Session session
 }
 
 type CassandraService struct { //Implements 'session'
 	Configuration *Service
 	Session       *gocql.Session
+	AppConfig     *Configuration
 }
 
 type NatsService struct { //Implements 'session'
 	Configuration *Service
 	nc            *nats.Conn
 	ec            *nats.EncodedConn
+	AppConfig     *Configuration
 }
 
 type Configuration struct {
@@ -144,8 +151,26 @@ type Configuration struct {
 	ApiVersion      int
 }
 
-//////////////////////////////////////// PING-PONG return string
-const PONG string = "pong"
+//////////////////////////////////////// Constants
+const (
+	PONG string = "pong"
+
+	SERVICE_TYPE_CASSANDRA string = "cassandra"
+	SERVICE_TYPE_NATS      string = "nats"
+
+	NATS_QUEUE_GROUP = "tracker"
+)
+const (
+	WRITE_DESC_LOG    = "log"
+	WRITE_DESC_UPDATE = "update"
+	WRITE_DESC_COUNT  = "count"
+	WRITE_DESC_EVENT  = "event"
+
+	WRITE_LOG    = 1 << iota
+	WRITE_UPDATE = 1 << iota
+	WRITE_COUNT  = 1 << iota
+	WRITE_EVENT  = 1 << iota
+)
 
 //////////////////////////////////////// Transparent GIF
 var TRACKING_GIF = []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x1, 0x0, 0x1, 0x0, 0x80, 0x0, 0x0, 0xff, 0xff, 0xff, 0x0, 0x0, 0x0, 0x2c, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x2, 0x2, 0x44, 0x1, 0x0, 0x3b}
@@ -154,6 +179,13 @@ var TRACKING_GIF = []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x1, 0x0, 0x1, 0x0
 // Start here
 ////////////////////////////////////////
 func main() {
+	fmt.Println("\n\n//////////////////////////////////////////////////////////////")
+	fmt.Println("Tracker.")
+	fmt.Println("Software to track growth and visitor usage")
+	fmt.Println("https://github.com/dioptre/tracker")
+	fmt.Println("(c) Copyright 2018 SF Product Labs LLC.")
+	fmt.Println("Use of this software is subject to the LICENSE agreement.")
+	fmt.Println("//////////////////////////////////////////////////////////////\n\n")
 
 	//////////////////////////////////////// SETUP CACHE
 	cache := cacheDir()
@@ -175,59 +207,62 @@ func main() {
 	apiVersion := "v" + string(configuration.ApiVersion)
 
 	//////////////////////////////////////// LOAD NOTIFIERS
-	fmt.Println("Connecting to Cassandra Cluster: ", configuration.Notify[0].Hosts)
-	cassandra := CassandraService{
-		Configuration: &configuration.Notify[0],
-	}
-	err = cassandra.connect()
-	if err != nil || configuration.Notify[0].Session == nil {
-		panic("Could not connect to Cassandra Cluster.")
-	}
-	//qid, err := gocql.ParseUUID("00000000-0000-0000-0000-000000000000")
-	var seq int
-	if err := cassandra.Session.Query(`SELECT seq FROM sequences where name='DB_VER' LIMIT 1`).Consistency(gocql.One).Scan(&seq); err != nil {
-		fmt.Println("[ERROR] Bad DB_VER", err)
-		panic("[ERROR] Could not connect to Cassandra")
-	} else {
-		fmt.Println("Connected to Cassandra: DB_VER ", seq)
-	}
-
-	//////////////////////////////////////// LOAD RECEIVERS
-	gonats := NatsService{
-		Configuration: &configuration.Consume[0],
-	}
-	err = gonats.connect()
-	if err != nil || configuration.Consume[0].Session == nil {
-		panic("[ERROR] Could not connect to Nats.")
-	} else {
-		fmt.Println("Connected to NATS")
-	}
-
-	gonats.nc.QueueSubscribe("hello.>", "tracker", func(m *nats.Msg) {
-		// i := person{}
-		// json.NewDecoder(bytes.NewReader(m.Data)).Decode(&i)
-		// err := json.Unmarshal(m.Data, &i)
-		j := make(map[string]interface{})
-		if err = json.Unmarshal(m.Data, &j); err == nil {
-			// delete(m, "a")
-			// delete(m, "b")
-			// f.X = m
+	for idx, n := range configuration.Notify {
+		switch n.Service {
+		case SERVICE_TYPE_CASSANDRA:
+			fmt.Printf("Notify #%d: Connecting to Cassandra Cluster: %s\n", idx, n.Hosts)
+			cassandra := CassandraService{
+				Configuration: &n,
+				AppConfig:     &configuration,
+			}
+			err = cassandra.connect()
+			if err != nil || n.Session == nil {
+				fmt.Printf("[ERROR] Notify #%d. Could not connect to Cassandra Cluster. %s\n", idx, err)
+				continue
+			}
+			var seq int
+			if err := cassandra.Session.Query(`SELECT seq FROM sequences where name='DB_VER' LIMIT 1`).Consistency(gocql.One).Scan(&seq); err != nil || seq != configuration.DatabaseVersion {
+				fmt.Println("[CRITICAL] Cassandra Bad DB_VER", err)
+				panic("[CRITICAL] Cassandra DB_VER out of sync")
+			} else {
+				fmt.Printf("Notify #%d: Connected to Cassandra: DB_VER %d\n", idx, seq)
+			}
+		case SERVICE_TYPE_NATS:
+			fmt.Printf("[ERROR] Notify #%d: NATS notifier not implemented\n", idx)
+			// type person struct {
+			// 	Name    string
+			// 	Address string
+			// 	Age     int
+			// }
+			// sendCh := make(chan *person)
+			// gonats.ec.BindSendChan("hello.test", sendCh)
+			// me := &person{Name: "derek", Age: 22, Address: "140 New Montgomery Street"}
+			// // Send via Go channels
+			// sendCh <- me
 		}
-		fmt.Printf("Msg received on [%s] : %s\n", m.Subject, j)
-	})
+	}
 
-	// type person struct {
-	// 	Name    string
-	// 	Address string
-	// 	Age     int
-	// }
-	// sendCh := make(chan *person)
-	// gonats.ec.BindSendChan("hello.test", sendCh)
-	// me := &person{Name: "derek", Age: 22, Address: "140 New Montgomery Street"}
-	// // Send via Go channels
-	// sendCh <- me
-	// sendCh <- me
-	// sendCh <- me
+	//////////////////////////////////////// LOAD CONSUMERS
+	for idx, c := range configuration.Consume {
+		switch c.Service {
+		case SERVICE_TYPE_CASSANDRA:
+			fmt.Printf("[ERROR] Consume #%d: Cassandra consumer not implemented\n", idx)
+		case SERVICE_TYPE_NATS:
+			fmt.Printf("Consume #%d: Connecting to NATS Cluster: %s\n", idx, c.Hosts)
+			gonats := NatsService{
+				Configuration: &c,
+				AppConfig:     &configuration,
+			}
+			err = gonats.connect()
+			if err != nil || c.Session == nil {
+				fmt.Printf("[ERROR] Notify #%d. Could not connect to NATS Cluster. %s\n", idx, err)
+				continue
+			} else {
+				fmt.Printf("Consume #%d: Connected to NATS.\n", idx)
+			}
+			c.Session.listen()
+		}
+	}
 
 	//////////////////////////////////////// SSL CERT MANAGER
 	certManager := autocert.Manager{
@@ -371,7 +406,7 @@ func (i *CassandraService) close() error {
 }
 
 func (i *CassandraService) listen() error {
-	return fmt.Errorf("Cassandra (listen) not implemented")
+	return fmt.Errorf("[ERROR] Cassandra listen not implemented")
 }
 
 //////////////////////////////////////// C*
@@ -495,5 +530,27 @@ func (i *NatsService) write(r *http.Request) error {
 //////////////////////////////////////// NATS
 // Listen
 func (i *NatsService) listen() error {
-	return fmt.Errorf("Nats (listen) not implemented")
+	for _, f := range i.Configuration.Filter {
+		i.nc.QueueSubscribe(f.Id, NATS_QUEUE_GROUP, func(m *nats.Msg) {
+			// json.NewDecoder(bytes.NewReader(m.Data)).Decode(&i)
+			j := make(map[string]interface{})
+			if err := json.Unmarshal(m.Data, &j); err == nil {
+				//TODO: Write to Cassandra
+				switch f.Alias {
+				case WRITE_DESC_COUNT:
+					for _, n := range i.AppConfig.Notify {
+						if n.Session != nil {
+							n.Session.write(nil)
+						}
+					}
+				case WRITE_DESC_LOG:
+				case WRITE_DESC_UPDATE:
+				//case WRITE_EVENT: //TODO:
+				default:
+					fmt.Printf("[WARNING] NATS (listen): unsatisfied condition %s for subject %s in message %s", f.Id, m.Subject, j)
+				}
+			}
+		})
+	}
+	return nil
 }
