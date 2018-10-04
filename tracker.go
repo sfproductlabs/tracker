@@ -57,6 +57,8 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -79,7 +81,7 @@ var (
 type session interface {
 	connect() error
 	close() error
-	write() error
+	write(r *http.Request) error
 	listen() error
 }
 
@@ -132,6 +134,7 @@ type Configuration struct {
 	UseLocalTLS     bool
 	Notify          []Service
 	Consume         []Service
+	ProxyUrl        string
 }
 
 //////////////////////////////////////// PING-PONG return string
@@ -152,7 +155,7 @@ func main() {
 	}
 
 	//////////////////////////////////////// LOAD CONFIG
-	fmt.Println("Starting web service...")
+	fmt.Println("Starting services...")
 	file, _ := os.Open("config.json")
 	defer file.Close()
 	decoder := json.NewDecoder(file)
@@ -173,14 +176,40 @@ func main() {
 		panic("Could not connect to Cassandra Cluster.")
 	}
 	//qid, err := gocql.ParseUUID("00000000-0000-0000-0000-000000000000")
-	var name string
-	var next_seq int
-	if err := cassandra.Session.Query(`SELECT name, next_seq FROM sequences where name='DB_VER' LIMIT 1`).Consistency(gocql.One).Scan(&name, &next_seq); err != nil {
+	var seq int
+	if err := cassandra.Session.Query(`SELECT seq FROM sequences where name='DB_VER' LIMIT 1`).Consistency(gocql.One).Scan(&seq); err != nil {
 		fmt.Println("[ERROR] Bad DB_VER", err)
-		panic("ERROR")
+		panic("[ERROR] Could not connect to Cassandra")
 	} else {
-		fmt.Println("Connected to Cassandra: ", name, next_seq)
+		fmt.Println("Connected to Cassandra: DB_VER ", seq)
 	}
+
+	//////////////////////////////////////// LOAD RECEIVERS
+	gonats := NatsService{
+		Configuration: &configuration.Consume[0],
+	}
+	err = gonats.connect()
+	if err != nil || configuration.Consume[0].Session == nil {
+		panic("[ERROR] Could not connect to Nats.")
+	} else {
+		fmt.Println("Connected to NATS")
+	}
+
+	type person struct {
+		Name    string
+		Address string
+		Age     int
+	}
+
+	gonats.nc.QueueSubscribe("hello.>", "tracker", func(m *nats.Msg) {
+		fmt.Printf("Msg received on [%s] : %s\n", m.Subject, string(m.Data))
+	})
+
+	sendCh := make(chan *person)
+	gonats.ec.BindSendChan("hello.test", sendCh)
+	me := &person{Name: "derek", Age: 22, Address: "140 New Montgomery Street"}
+	// Send via Go channels
+	sendCh <- me
 
 	//////////////////////////////////////// SSL CERT MANAGER
 	certManager := autocert.Manager{
@@ -205,6 +234,24 @@ func main() {
 		},
 	}
 
+	//////////////////////////////////////// PROXY ROUTE
+	if configuration.ProxyUrl != "" {
+		fmt.Println("Proxying to:", configuration.ProxyUrl)
+		origin, _ := url.Parse(configuration.ProxyUrl)
+		director := func(req *http.Request) {
+			req.Header.Add("X-Forwarded-Host", req.Host)
+			req.Header.Add("X-Origin-Host", origin.Host)
+			req.URL.Scheme = "http"
+			req.URL.Host = origin.Host
+		}
+		proxy := &httputil.ReverseProxy{Director: director}
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
+			fmt.Println("Incoming HTTP at ", r)
+			proxy.ServeHTTP(w, r)
+		})
+	}
+
 	//////////////////////////////////////// PING PONG ROUTE
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(PONG))
@@ -212,9 +259,11 @@ func main() {
 
 	fmt.Println("Serving static content in:", configuration.StaticDirectory)
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
-	http.Handle("/public/", http.StripPrefix("/public/", fs))
+	http.HandleFunc("/img/v1/", func(w http.ResponseWriter, r *http.Request) {
+		http.StripPrefix("/img/v1/", fs).ServeHTTP(w, r)
+	})
 
-	http.HandleFunc("/track/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/img/v1", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "image/gif")
 		w.Write(TRACKING_GIF)
 	})
@@ -252,8 +301,8 @@ func cacheDir() (dir string) {
 ////////////////////////////////////////
 // Trace
 ////////////////////////////////////////
-func track(s session) {
-	s.write()
+func track(s session, r *http.Request) {
+	s.write(r)
 }
 
 ////////////////////////////////////////
@@ -302,7 +351,7 @@ func (i *CassandraService) listen() error {
 }
 
 //////////////////////////////////////// C*
-func (i *CassandraService) write() error {
+func (i *CassandraService) write(r *http.Request) error {
 	// //TODO: performance test against batching
 	// //fmt.Fprintf(os.Stderr, "Input packet", metrics)
 	// // This will get set to nil if a successful write occurs
@@ -366,16 +415,16 @@ func (i *CassandraService) write() error {
 //////////////////////////////////////// NATS
 // Connect initiates the primary connection to the range of provided URLs
 func (i *NatsService) connect() error {
-	err := fmt.Errorf("Nats (connect) not implemented")
+	err := fmt.Errorf("Could not connect to NATS")
 
-	certFile := "./configs/certs/client-cert.pem"
-	keyFile := "./configs/certs/client-key.pem"
+	certFile := i.Configuration.Cert
+	keyFile := i.Configuration.Key
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		log.Fatalf("error parsing X509 certificate/key pair: %v", err)
 	}
 
-	rootPEM, err := ioutil.ReadFile("server.crt")
+	rootPEM, err := ioutil.ReadFile(i.Configuration.CACert)
 
 	pool := x509.NewCertPool()
 	ok := pool.AppendCertsFromPEM([]byte(rootPEM))
@@ -384,44 +433,38 @@ func (i *NatsService) connect() error {
 	}
 
 	config := &tls.Config{
-		//ServerName:   opts.Host,
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      pool,
-		MinVersion:   tls.VersionTLS12,
-		//InsecureSkipVerify: true, //SECURITY THREAT
+		//ServerName:         i.Configuration.Hosts[0],
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            pool,
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: i.Configuration.Secure, //TODO: SECURITY THREAT
 	}
 
-	// nc, err = nats.Connect("nats://localhost:4443", nats.Secure(config))
-	// if err != nil {
-	// 	t.Fatalf("Got an error on Connect with Secure Options: %+v\n", err)
-	// }
-
-	i.nc, err = nats.Connect("nats://localhost:4222", nats.Token("S3cretT0ken"), nats.RootCAs("./configs/certs/ca.pem"), nats.ClientCert("./configs/certs/client-cert.pem", "./configs/certs/client-key.pem"), nats.Secure(config))
-	i.ec, _ = nats.NewEncodedConn(i.nc, nats.JSON_ENCODER)
-	defer i.ec.Close()
-	msgCh := make(chan interface{})
-	i.ec.BindRecvChan("hello", msgCh)
-	// Receive via Go channels
-	msg := <-msgCh
-	fmt.Printf("Msg received on [%s] : %s\n", "TEST", msg)
-	return err
+	if i.nc, err = nats.Connect(strings.Join(i.Configuration.Hosts[:], ","), nats.Secure(config)); err != nil {
+		fmt.Println("[ERROR] Connecting to NATS:", err)
+		return err
+	}
+	if i.ec, err = nats.NewEncodedConn(i.nc, nats.JSON_ENCODER); err != nil {
+		fmt.Println("[ERROR] Encoding NATS:", err)
+		return err
+	}
+	i.Configuration.Session = i
+	return nil
 }
 
 //////////////////////////////////////// NATS
 // Close will terminate the session to the backend, returning error if an issue arises
 func (i *NatsService) close() error {
-	// Drain connection (Preferred for responders)
-	// Close() not needed if this is called.
+	// i.ec.Drain()
+	// i.ec.Close()
 	i.nc.Drain()
-
-	// Close connection
 	i.nc.Close()
 	return fmt.Errorf("Nats (close) not implemented")
 }
 
 //////////////////////////////////////// NATS
 // Write
-func (i *NatsService) write() error {
+func (i *NatsService) write(r *http.Request) error {
 	return fmt.Errorf("Nats (write) not implemented")
 }
 

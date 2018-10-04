@@ -20,7 +20,7 @@
         {
             "Service": "nats",
             "Hosts": [
-                "nats://localhost:4222"
+                "tls://localhost:4222"
             ],
             "Context": "tic.track.*",
             "Secure": true,
@@ -34,7 +34,7 @@
         {
             "Service": "nats",
             "Hosts": [
-                "nats://localhost:4222"
+                "tls://localhost:4222"
             ],
             "Secure": true,
             "CACert": "natscacert.pem",
@@ -47,7 +47,7 @@
                 {
                     "Alias": "log",
                     "Type": "chan",
-                    "Id": "tic.log.*",
+                    "Id": "tic.log.>",
                     "Fields": [
                         {
                             "Type": "string",
@@ -86,17 +86,17 @@
                 {
                     "Alias": "count",
                     "Type": "chan",
-                    "Id": "tic.count.*"
+                    "Id": "tic.count.>"
                 },
                 {
                     "Alias": "update",
                     "Type": "chan",
-                    "Id": "tic.update.*"
+                    "Id": "tic.update.>"
                 },
                 {
                     "Alias": "event",
                     "Type": "chan",
-                    "Id": "tic.event.*"
+                    "Id": "tic.event.>"
                 }
             ]
         }
