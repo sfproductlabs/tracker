@@ -195,21 +195,31 @@ func main() {
 		fmt.Println("Connected to NATS")
 	}
 
-	type person struct {
-		Name    string
-		Address string
-		Age     int
-	}
-
 	gonats.nc.QueueSubscribe("hello.>", "tracker", func(m *nats.Msg) {
-		fmt.Printf("Msg received on [%s] : %s\n", m.Subject, string(m.Data))
+		// i := person{}
+		// json.NewDecoder(bytes.NewReader(m.Data)).Decode(&i)
+		// err := json.Unmarshal(m.Data, &i)
+		j := make(map[string]interface{})
+		if err = json.Unmarshal(m.Data, &j); err == nil {
+			// delete(m, "a")
+			// delete(m, "b")
+			// f.X = m
+		}
+		fmt.Printf("Msg received on [%s] : %s\n", m.Subject, j)
 	})
 
-	sendCh := make(chan *person)
-	gonats.ec.BindSendChan("hello.test", sendCh)
-	me := &person{Name: "derek", Age: 22, Address: "140 New Montgomery Street"}
-	// Send via Go channels
-	sendCh <- me
+	// type person struct {
+	// 	Name    string
+	// 	Address string
+	// 	Age     int
+	// }
+	// sendCh := make(chan *person)
+	// gonats.ec.BindSendChan("hello.test", sendCh)
+	// me := &person{Name: "derek", Age: 22, Address: "140 New Montgomery Street"}
+	// // Send via Go channels
+	// sendCh <- me
+	// sendCh <- me
+	// sendCh <- me
 
 	//////////////////////////////////////// SSL CERT MANAGER
 	certManager := autocert.Manager{
@@ -257,12 +267,14 @@ func main() {
 		w.Write([]byte(PONG))
 	})
 
+	//////////////////////////////////////// STATIC CONTENT ROUTE
 	fmt.Println("Serving static content in:", configuration.StaticDirectory)
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
 	http.HandleFunc("/img/v1/", func(w http.ResponseWriter, r *http.Request) {
 		http.StripPrefix("/img/v1/", fs).ServeHTTP(w, r)
 	})
 
+	//////////////////////////////////////// 1x1 PIXEL ROUTE
 	http.HandleFunc("/img/v1", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "image/gif")
 		w.Write(TRACKING_GIF)
