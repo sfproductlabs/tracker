@@ -90,6 +90,11 @@ type Field struct {
 	Id   string
 }
 
+type KeyValue struct {
+	Key   string
+	Value string
+}
+
 type Filter struct {
 	Type   string
 	Alias  string
@@ -135,6 +140,8 @@ type Configuration struct {
 	Notify          []Service
 	Consume         []Service
 	ProxyUrl        string
+	DatabaseVersion int
+	ApiVersion      int
 }
 
 //////////////////////////////////////// PING-PONG return string
@@ -154,7 +161,7 @@ func main() {
 		log.Fatal("Bad Cache.")
 	}
 
-	//////////////////////////////////////// LOAD CONFIG
+	//////////////////////////////////////// LOAD CONFIG & SETUP
 	fmt.Println("Starting services...")
 	file, _ := os.Open("config.json")
 	defer file.Close()
@@ -165,6 +172,7 @@ func main() {
 		fmt.Println("error:", err)
 	}
 	fmt.Println("Trusted domains: ", configuration.Domains)
+	apiVersion := "v" + string(configuration.ApiVersion)
 
 	//////////////////////////////////////// LOAD NOTIFIERS
 	fmt.Println("Connecting to Cassandra Cluster: ", configuration.Notify[0].Hosts)
@@ -255,9 +263,10 @@ func main() {
 			req.URL.Host = origin.Host
 		}
 		proxy := &httputil.ReverseProxy{Director: director}
+		proxyOptions := [1]KeyValue{{Key: "Strict-Transport-Security", Value: "max-age=15768000 ; includeSubDomains"}}
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			//TODO: Track
-			w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
+			w.Header().Set(proxyOptions[0].Key, proxyOptions[0].Value)
 			proxy.ServeHTTP(w, r)
 		})
 	}
@@ -270,13 +279,14 @@ func main() {
 	//////////////////////////////////////// STATIC CONTENT ROUTE
 	fmt.Println("Serving static content in:", configuration.StaticDirectory)
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
-	http.HandleFunc("/img/v1/", func(w http.ResponseWriter, r *http.Request) {
+	pubSlug := "/pub/" + apiVersion + "/"
+	http.HandleFunc(pubSlug, func(w http.ResponseWriter, r *http.Request) {
 		//TODO: Track
-		http.StripPrefix("/img/v1/", fs).ServeHTTP(w, r)
+		http.StripPrefix(pubSlug, fs).ServeHTTP(w, r)
 	})
 
 	//////////////////////////////////////// 1x1 PIXEL ROUTE
-	http.HandleFunc("/img/v1", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/img/v1/", func(w http.ResponseWriter, r *http.Request) {
 		//TODO: Track
 		w.Header().Set("content-type", "image/gif")
 		w.Write(TRACKING_GIF)

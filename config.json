@@ -2,6 +2,8 @@
     "Domains": [
         "dev.sfproductlabs.com"
     ],
+    "DatabaseVersion" : 1,
+    "ApiVersion" : 1,
     "StaticDirectory": "public",
     "UseLocalTLS": true,
     "Notify": [
