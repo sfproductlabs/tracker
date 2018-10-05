@@ -403,7 +403,8 @@ func cacheDir() (dir string) {
 ////////////////////////////////////////
 func track(c *Configuration, r *http.Request) error {
 	//TODO: Extract params from query string instead
-	fmt.Println("MADE IT")
+
+	fmt.Println("MADE IT", r.URL.Query())
 	j := make(map[string]interface{})
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
