@@ -2,10 +2,10 @@
     "Domains": [
         "dev.sfproductlabs.com"
     ],
-    "DatabaseVersion" : 1,
-    "ApiVersion" : 1,
+    "DatabaseVersion": 1,
+    "ApiVersion": 1,
     "StaticDirectory": "public",
-    "ProxyUrl" : "http://localhost:3030",
+    "ProxyUrl": "http://localhost:3030",
     "UseLocalTLS": true,
     "Notify": [
         {
@@ -35,6 +35,10 @@
     ],
     "Consume": [
         {
+            "Service": "http",
+            "Note": "Not implemented"
+        },
+        {
             "Service": "nats",
             "Hosts": [
                 "tls://localhost:4222"
@@ -51,55 +55,94 @@
                     "Alias": "log",
                     "Type": "chan",
                     "Id": "tic.log.>",
-                    "Fields": [
+                    "Queries": [
                         {
-                            "Type": "string",
-                            "Id": "name"
-                        },
-                        {
-                            "Type": "string",
-                            "Id": "hostname"
-                        },
-                        {
-                            "Type": "int",
-                            "Id": "level"
-                        },
-                        {
-                            "Type": "string",
-                            "Id": "msg"
-                        },
-                        {
-                            "Type": "string",
-                            "Id": "ip"
-                        },
-                        {
-                            "Type": "string",
-                            "Id": "username"
-                        },
-                        {
-                            "Type": "date",
-                            "Id": "ldate"
-                        },
-                        {
-                            "Type": "time",
-                            "Id": "ltime"
+                            "Service": "cassandra",
+                            "Statement": "INSERT INTO logs JSON ?",
+                            "QueryType": "json",
+                            "Fields": [
+                                {
+                                    "Type": "string",
+                                    "Id": "name"
+                                },
+                                {
+                                    "Type": "string",
+                                    "Id": "hostname"
+                                },
+                                {
+                                    "Type": "int",
+                                    "Id": "level"
+                                },
+                                {
+                                    "Type": "string",
+                                    "Id": "msg"
+                                },
+                                {
+                                    "Type": "string",
+                                    "Id": "ip"
+                                },
+                                {
+                                    "Type": "string",
+                                    "Id": "username"
+                                },
+                                {
+                                    "Type": "date",
+                                    "Id": "ldate"
+                                },
+                                {
+                                    "Type": "time",
+                                    "Id": "ltime"
+                                }
+                            ]
                         }
                     ]
                 },
                 {
                     "Alias": "count",
                     "Type": "chan",
-                    "Id": "tic.count.>"
+                    "Id": "tic.count.>",
+                    "Queries": [
+                        {
+                            "Service": "cassandra",
+                            "Statement": "UPDATE counters set total=total+1 where id=? AND type=?",
+                            "Fields": [
+                                {
+                                    "Type": "string",
+                                    "Id": "id"
+                                },
+                                {
+                                    "Type": "string",
+                                    "Id": "type"
+                                }
+                            ]
+                        }
+                    ]
                 },
                 {
                     "Alias": "update",
                     "Type": "chan",
-                    "Id": "tic.update.>"
-                },
-                {
-                    "Alias": "event",
-                    "Type": "chan",
-                    "Id": "tic.event.>"
+                    "Id": "tic.update.>",
+                    "Queries": [
+                        {
+                            "Service": "cassandra",
+                            "Statement" : "INSERT INTO updates (id, updated, msg) values (?,?,?)",
+                            "Fields": [
+                                {
+                                    "Type": "string",
+                                    "Id": "id",
+                                    "Default": "id"                                    
+                                },
+                                {
+                                    "Type": "datetime",
+                                    "Id": "updated"
+                                },
+                                {
+                                    "Type": "string",
+                                    "Id": "msg"
+                                }
+                            ]
+                        }
+                    ]
                 }
             ]
         }
