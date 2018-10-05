@@ -56,6 +56,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -117,12 +118,13 @@ type WriteArgs struct {
 }
 
 type Service struct {
-	Service string
-	Hosts   []string
-	CACert  string
-	Cert    string
-	Key     string
-	Secure  bool
+	Service  string
+	Hosts    []string
+	CACert   string
+	Cert     string
+	Key      string
+	Secure   bool
+	Critical bool
 
 	Context      string
 	Filter       []Filter
@@ -158,6 +160,8 @@ type Configuration struct {
 	Notify          []Service
 	Consume         []Service
 	ProxyUrl        string
+	ProxyPort       string
+	ProxyPortTLS    string
 	DatabaseVersion int
 	ApiVersion      int
 }
@@ -198,13 +202,7 @@ func main() {
 	fmt.Println("Use of this software is subject to the LICENSE agreement.")
 	fmt.Println("//////////////////////////////////////////////////////////////\n\n")
 
-	//////////////////////////////////////// SETUP CACHE
-	cache := cacheDir()
-	if cache == "" {
-		log.Fatal("Bad Cache.")
-	}
-
-	//////////////////////////////////////// LOAD CONFIG & SETUP
+	//////////////////////////////////////// LOAD CONFIG
 	fmt.Println("Starting services...")
 	file, _ := os.Open("config.json")
 	defer file.Close()
@@ -214,8 +212,28 @@ func main() {
 	if err != nil {
 		fmt.Println("error:", err)
 	}
+
+	//////////////////////////////////////// SETUP CACHE
+	cache := cacheDir()
+	if cache == "" {
+		log.Fatal("Bad Cache.")
+	}
+
+	//////////////////////////////////////// SETUP CONFIG VARIABLES
 	fmt.Println("Trusted domains: ", configuration.Domains)
 	apiVersion := "v" + string(configuration.ApiVersion)
+	//LetsEncrypt needs 443 & 80, So only override if possible
+	proxyPort := ":http"
+	if configuration.UseLocalTLS && configuration.ProxyPort != "" {
+		proxyPort = configuration.ProxyPort
+	}
+	proxyPortTLS := ":https"
+	if configuration.UseLocalTLS && configuration.ProxyPort != "" {
+		proxyPortTLS = configuration.ProxyPortTLS
+	}
+	if !configuration.UseLocalTLS && (configuration.ProxyPort != "" || configuration.ProxyPortTLS != "") {
+		log.Fatalln("[CRITICAL] Can not use non-standard ports with LetsEncyrpt")
+	}
 
 	//////////////////////////////////////// LOAD NOTIFIERS
 	for idx, n := range configuration.Notify {
@@ -228,8 +246,12 @@ func main() {
 			}
 			err = cassandra.connect()
 			if err != nil || n.Session == nil {
-				fmt.Printf("[ERROR] Notify #%d. Could not connect to Cassandra Cluster. %s\n", idx, err)
-				continue
+				if n.Critical {
+					log.Fatalf("[CRITICAL] Notify #%d. Could not connect to Cassandra Cluster. %s\n", idx, err)
+				} else {
+					fmt.Printf("[ERROR] Notify #%d. Could not connect to Cassandra Cluster. %s\n", idx, err)
+					continue
+				}
 			}
 			var seq int
 			if err := cassandra.Session.Query(`SELECT seq FROM sequences where name='DB_VER' LIMIT 1`).Consistency(gocql.One).Scan(&seq); err != nil || seq != configuration.DatabaseVersion {
@@ -257,8 +279,13 @@ func main() {
 			}
 			err = gonats.connect()
 			if err != nil || c.Session == nil {
-				fmt.Printf("[ERROR] Notify #%d. Could not connect to NATS Cluster. %s\n", idx, err)
-				continue
+				if c.Critical {
+					log.Fatalf("[CRITICAL] Notify #%d. Could not connect to NATS Cluster. %s\n", idx, err)
+				} else {
+					fmt.Printf("[ERROR] Notify #%d. Could not connect to NATS Cluster. %s\n", idx, err)
+					continue
+				}
+
 			} else {
 				fmt.Printf("Consume #%d: Connected to NATS.\n", idx)
 			}
@@ -276,7 +303,7 @@ func main() {
 		Cache:      autocert.DirCache(cache),
 	}
 	server := &http.Server{ // HTTP REDIR SSL RENEW
-		Addr: ":https",
+		Addr: proxyPortTLS,
 		TLSConfig: &tls.Config{ // SEC PARAMS
 			GetCertificate:           certManager.GetCertificate,
 			PreferServerCipherSuites: true,
@@ -334,10 +361,19 @@ func main() {
 
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
 	go func() {
-		fmt.Println("Serving HTTP Redirect on: 80")
-		http.ListenAndServe(":http", certManager.HTTPHandler(nil))
+		fmt.Printf("Serving HTTP Redirect on: %s\n", proxyPort)
+		if configuration.UseLocalTLS {
+			http.ListenAndServe(proxyPort, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				addr, _, _ := net.SplitHostPort(req.Host)
+				http.Redirect(w, req, "https://"+addr+proxyPortTLS+req.RequestURI, http.StatusFound)
+			}))
+
+		} else {
+			http.ListenAndServe(proxyPort, certManager.HTTPHandler(nil))
+		}
+
 	}()
-	fmt.Println("Serving TLS requests on: 443")
+	fmt.Printf("Serving TLS requests on: %s\n", proxyPortTLS)
 	if configuration.UseLocalTLS {
 		server.TLSConfig.GetCertificate = nil
 		log.Fatal(server.ListenAndServeTLS("server.crt", "server.key")) // SERVE HTTPS!
@@ -367,6 +403,7 @@ func cacheDir() (dir string) {
 ////////////////////////////////////////
 func track(c *Configuration, r *http.Request) error {
 	//TODO: Extract params from query string instead
+	fmt.Println("MADE IT")
 	j := make(map[string]interface{})
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
