@@ -305,7 +305,7 @@ func main() {
 		proxy := &httputil.ReverseProxy{Director: director}
 		proxyOptions := [1]KeyValue{{Key: "Strict-Transport-Security", Value: "max-age=15768000 ; includeSubDomains"}}
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			//TODO: Track
+			track(&configuration, r)
 			w.Header().Set(proxyOptions[0].Key, proxyOptions[0].Value)
 			proxy.ServeHTTP(w, r)
 		})
@@ -321,13 +321,13 @@ func main() {
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
 	pubSlug := "/pub/" + apiVersion + "/"
 	http.HandleFunc(pubSlug, func(w http.ResponseWriter, r *http.Request) {
-		//TODO: Track
+		track(&configuration, r)
 		http.StripPrefix(pubSlug, fs).ServeHTTP(w, r)
 	})
 
 	//////////////////////////////////////// 1x1 PIXEL ROUTE
 	http.HandleFunc("/img/v1/", func(w http.ResponseWriter, r *http.Request) {
-		//TODO: Track
+		track(&configuration, r)
 		w.Header().Set("content-type", "image/gif")
 		w.Write(TRACKING_GIF)
 	})
@@ -365,7 +365,7 @@ func cacheDir() (dir string) {
 ////////////////////////////////////////
 // Trace
 ////////////////////////////////////////
-func track(s session, r *http.Request) error {
+func track(c *Configuration, r *http.Request) error {
 	//TODO: Extract params from query string instead
 	j := make(map[string]interface{})
 	body, err := ioutil.ReadAll(r.Body)
@@ -378,7 +378,9 @@ func track(s session, r *http.Request) error {
 			Values:    &j,
 			WriteType: WRITE_EVENT,
 		}
-		s.write(&wargs)
+		for _, s := range c.Notify {
+			s.Session.write(&wargs)
+		}
 		return nil
 	}
 	return err
