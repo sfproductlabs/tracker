@@ -82,7 +82,7 @@ var (
 type session interface {
 	connect() error
 	close() error
-	write(wargs *WriteArgs) error
+	write(w *WriteArgs) error
 	listen() error
 }
 
@@ -162,7 +162,7 @@ type Configuration struct {
 	ProxyUrl        string
 	ProxyPort       string
 	ProxyPortTLS    string
-	DatabaseVersion int
+	SchemaVersion   int
 	ApiVersion      int
 }
 
@@ -236,17 +236,18 @@ func main() {
 	}
 
 	//////////////////////////////////////// LOAD NOTIFIERS
-	for idx, n := range configuration.Notify {
-		switch n.Service {
+	for idx := range configuration.Notify {
+		s := &configuration.Notify[idx]
+		switch s.Service {
 		case SERVICE_TYPE_CASSANDRA:
-			fmt.Printf("Notify #%d: Connecting to Cassandra Cluster: %s\n", idx, n.Hosts)
+			fmt.Printf("Notify #%d: Connecting to Cassandra Cluster: %s\n", idx, s.Hosts)
 			cassandra := CassandraService{
-				Configuration: &n,
+				Configuration: s,
 				AppConfig:     &configuration,
 			}
 			err = cassandra.connect()
-			if err != nil || n.Session == nil {
-				if n.Critical {
+			if err != nil || s.Session == nil {
+				if s.Critical {
 					log.Fatalf("[CRITICAL] Notify #%d. Could not connect to Cassandra Cluster. %s\n", idx, err)
 				} else {
 					fmt.Printf("[ERROR] Notify #%d. Could not connect to Cassandra Cluster. %s\n", idx, err)
@@ -254,7 +255,7 @@ func main() {
 				}
 			}
 			var seq int
-			if err := cassandra.Session.Query(`SELECT seq FROM sequences where name='DB_VER' LIMIT 1`).Consistency(gocql.One).Scan(&seq); err != nil || seq != configuration.DatabaseVersion {
+			if err := cassandra.Session.Query(`SELECT seq FROM sequences where name='DB_VER' LIMIT 1`).Consistency(gocql.One).Scan(&seq); err != nil || seq != configuration.SchemaVersion {
 				log.Fatalln("[CRITICAL] Cassandra Bad DB_VER", err)
 			} else {
 				fmt.Printf("Notify #%d: Connected to Cassandra: DB_VER %d\n", idx, seq)
@@ -262,24 +263,25 @@ func main() {
 		case SERVICE_TYPE_NATS:
 			fmt.Printf("[ERROR] Notify #%d: NATS notifier not implemented\n", idx)
 		default:
-			fmt.Printf("[ERROR] %s #%d Notifier not implemented\n", n.Service, idx)
+			fmt.Printf("[ERROR] %s #%d Notifier not implemented\n", s.Service, idx)
 		}
 	}
 
 	//////////////////////////////////////// LOAD CONSUMERS
-	for idx, c := range configuration.Consume {
-		switch c.Service {
+	for idx := range configuration.Consume {
+		s := &configuration.Consume[idx]
+		switch s.Service {
 		case SERVICE_TYPE_CASSANDRA:
 			fmt.Printf("[ERROR] Consume #%d: Cassandra consumer not implemented\n", idx)
 		case SERVICE_TYPE_NATS:
-			fmt.Printf("Consume #%d: Connecting to NATS Cluster: %s\n", idx, c.Hosts)
+			fmt.Printf("Consume #%d: Connecting to NATS Cluster: %s\n", idx, s.Hosts)
 			gonats := NatsService{
-				Configuration: &c,
+				Configuration: s,
 				AppConfig:     &configuration,
 			}
 			err = gonats.connect()
-			if err != nil || c.Session == nil {
-				if c.Critical {
+			if err != nil || s.Session == nil {
+				if s.Critical {
 					log.Fatalf("[CRITICAL] Notify #%d. Could not connect to NATS Cluster. %s\n", idx, err)
 				} else {
 					fmt.Printf("[ERROR] Notify #%d. Could not connect to NATS Cluster. %s\n", idx, err)
@@ -289,9 +291,9 @@ func main() {
 			} else {
 				fmt.Printf("Consume #%d: Connected to NATS.\n", idx)
 			}
-			c.Session.listen()
+			s.Session.listen()
 		default:
-			fmt.Printf("[ERROR] %s #%d Consumer not implemented\n", c.Service, idx)
+			fmt.Printf("[ERROR] %s #%d Consumer not implemented\n", s.Service, idx)
 		}
 
 	}
@@ -402,26 +404,45 @@ func cacheDir() (dir string) {
 // Trace
 ////////////////////////////////////////
 func track(c *Configuration, r *http.Request) error {
-	//TODO: Extract params from query string instead
-
-	fmt.Println("MADE IT", r.URL.Query())
-	j := make(map[string]interface{})
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return fmt.Errorf("Could not read body of JS")
+	//Setup
+	wargs := WriteArgs{
+		WriteType: WRITE_EVENT,
 	}
-	//r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-	if err := json.Unmarshal(body, &j); err == nil {
-		wargs := WriteArgs{
-			Values:    &j,
-			WriteType: WRITE_EVENT,
+	//Process
+	switch r.Method {
+	case http.MethodGet:
+		j := make(map[string]interface{})
+		k := r.URL.Query()
+		for idx := range k {
+			j[idx] = k[idx]
 		}
-		for _, s := range c.Notify {
-			s.Session.write(&wargs)
+		wargs.Values = &j
+	case http.MethodPost:
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return fmt.Errorf("Bad JS (body)")
 		}
+		if len(body) > 0 {
+			j := make(map[string]interface{})
+			//r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+			if err := json.Unmarshal(body, &j); err != nil {
+				return fmt.Errorf("Bad JS (parse)")
+			}
+			wargs.Values = &j
+		}
+	default:
 		return nil
 	}
-	return err
+	for idx := range c.Notify {
+		s := &c.Notify[idx]
+		if s.Session != nil {
+			if err := s.Session.write(&wargs); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+
 }
 
 ////////////////////////////////////////
@@ -471,8 +492,9 @@ func (i *CassandraService) listen() error {
 }
 
 //////////////////////////////////////// C*
-func (i *CassandraService) write(r *WriteArgs) error {
+func (i *CassandraService) write(w *WriteArgs) error {
 	err := fmt.Errorf("Could not write to any cassandra server in cluster")
+	fmt.Println("Writing to cassandra left")
 	// counters := make(map[string]int)
 	// regexCount, _ := regexp.Compile(`\.count\.(.*)`)
 	// regexUpdate, _ := regexp.Compile(`\.update\.(.*)`)
@@ -578,25 +600,19 @@ func (i *NatsService) close() error {
 
 //////////////////////////////////////// NATS
 // Write
-func (i *NatsService) write(r *WriteArgs) error {
-	return fmt.Errorf("Nats (write) not implemented")
-	//TODO:
-	// type person struct {
-	// 	Name    string
-	// 	Address string
-	// 	Age     int
-	// }
-	// sendCh := make(chan *person)
-	// gonats.ec.BindSendChan("hello.test", sendCh)
-	// me := &person{Name: "derek", Age: 22, Address: "140 New Montgomery Street"}
-	// // Send via Go channels
-	// sendCh <- me
+func (i *NatsService) write(w *WriteArgs) error {
+	// sendCh := make(chan *map[string]interface{})
+	// i.ec.Publish(i.Configuration.Context, w.Values)
+	// i.ec.BindSendChan(i.Configuration.Context, sendCh)
+	// sendCh <- w.Values
+	return i.ec.Publish(i.Configuration.Context, w.Values)
 }
 
 //////////////////////////////////////// NATS
 // Listen
 func (i *NatsService) listen() error {
-	for _, f := range i.Configuration.Filter {
+	for idx := range i.Configuration.Filter {
+		f := &i.Configuration.Filter[idx]
 		i.nc.QueueSubscribe(f.Id, NATS_QUEUE_GROUP, func(m *nats.Msg) {
 			j := make(map[string]interface{})
 			if err := json.Unmarshal(m.Data, &j); err == nil {
@@ -614,7 +630,8 @@ func (i *NatsService) listen() error {
 				default:
 				}
 				if wargs.WriteType != 0 {
-					for _, n := range i.AppConfig.Notify {
+					for idx2 := range i.AppConfig.Notify {
+						n := &i.AppConfig.Notify[idx2]
 						if n.Session != nil {
 							n.Session.write(&wargs)
 						}
