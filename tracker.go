@@ -162,6 +162,7 @@ type Configuration struct {
 	ProxyPortTLS    string
 	SchemaVersion   int
 	ApiVersion      int
+	Debug           bool
 }
 
 //////////////////////////////////////// Constants
@@ -444,6 +445,9 @@ func track(c *Configuration, r *http.Request) error {
 		s := &c.Notify[idx]
 		if s.Session != nil {
 			if err := s.Session.write(&wargs); err != nil {
+				if c.Debug {
+					fmt.Printf("[ERROR] Writing to %s: %s\n", s.Service, err)
+				}
 				return err
 			}
 		}
@@ -501,14 +505,33 @@ func (i *CassandraService) listen() error {
 //////////////////////////////////////// C*
 func (i *CassandraService) write(w *WriteArgs) error {
 	err := fmt.Errorf("Could not write to any cassandra server in cluster")
-	fmt.Printf("PERSIST %s", w)
+	v := *w.Values
+	switch w.WriteType {
+	case WRITE_COUNT:
+		return i.Session.Query(`UPDATE counters set total=total+1 where id=? AND type=?;`, v["id"], v["type"]).Exec()
+	case WRITE_LOG:
+		//TODO:
+		// id, ok := v["id"].(string)
+		// if !ok {
+		// 	return fmt.Errorf("Bad (id) in Count\n")
+		// }
+		fmt.Printf("LOG %s\n", w)
+	case WRITE_UPDATE:
+		//TODO:
+		fmt.Printf("UPDATE %s\n", w)
+	case WRITE_EVENT:
+		//TODO:
+		fmt.Printf("EVENT %s\n", w)
+	default:
+		//TODO: Manually run query via query in config.json
+	}
 	// counters := make(map[string]int)
 	// regexCount, _ := regexp.Compile(`\.count\.(.*)`)
 	// regexUpdate, _ := regexp.Compile(`\.update\.(.*)`)
 	// //insertBatch := i.session.NewBatch(gocql.UnloggedBatch)
 	// for _, metric := range metrics {
 	// 	var tags = metric.Tags()
-	// 	//fmt.Println("%s", tags) //Debugging only
+	// 	//fmt.Println("%s", tags) //Debugging only(*w.Values)
 	// 	if regexCount.MatchString(tags["name"]) {
 	// 		counter := regexCount.FindStringSubmatch(tags["name"])[1]
 	// 		counters[counter] = counters[counter] + 1
