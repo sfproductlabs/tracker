@@ -261,6 +261,7 @@ func main() {
 				fmt.Printf("Notify #%d: Connected to Cassandra: DB_VER %d\n", idx, seq)
 			}
 		case SERVICE_TYPE_NATS:
+			//TODO:
 			fmt.Printf("[ERROR] Notify #%d: NATS notifier not implemented\n", idx)
 		default:
 			fmt.Printf("[ERROR] %s #%d Notifier not implemented\n", s.Service, idx)
@@ -272,6 +273,7 @@ func main() {
 		s := &configuration.Consume[idx]
 		switch s.Service {
 		case SERVICE_TYPE_CASSANDRA:
+			//TODO:
 			fmt.Printf("[ERROR] Consume #%d: Cassandra consumer not implemented\n", idx)
 		case SERVICE_TYPE_NATS:
 			fmt.Printf("Consume #%d: Connecting to NATS Cluster: %s\n", idx, s.Hosts)
