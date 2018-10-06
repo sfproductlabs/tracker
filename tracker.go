@@ -411,21 +411,28 @@ func track(c *Configuration, r *http.Request) error {
 		WriteType: WRITE_EVENT,
 	}
 	//Process
+	j := make(map[string]interface{})
+	//Path
+	p := strings.Split(r.URL.Path, "/")
+	pmax := (len(p) - 2)
+	for i := 1; i < pmax; i += 2 {
+		j[p[i]] = p[i+1]
+	}
 	switch r.Method {
 	case http.MethodGet:
-		j := make(map[string]interface{})
+		//Query
 		k := r.URL.Query()
 		for idx := range k {
 			j[idx] = k[idx]
 		}
 		wargs.Values = &j
 	case http.MethodPost:
+		//Json (POST)
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return fmt.Errorf("Bad JS (body)")
 		}
 		if len(body) > 0 {
-			j := make(map[string]interface{})
 			//r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 			if err := json.Unmarshal(body, &j); err != nil {
 				return fmt.Errorf("Bad JS (parse)")
@@ -496,7 +503,7 @@ func (i *CassandraService) listen() error {
 //////////////////////////////////////// C*
 func (i *CassandraService) write(w *WriteArgs) error {
 	err := fmt.Errorf("Could not write to any cassandra server in cluster")
-	fmt.Println("Writing to cassandra left")
+	fmt.Printf("PERSIST %s", w)
 	// counters := make(map[string]int)
 	// regexCount, _ := regexp.Compile(`\.count\.(.*)`)
 	// regexUpdate, _ := regexp.Compile(`\.update\.(.*)`)
