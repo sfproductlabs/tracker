@@ -535,10 +535,15 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			timestamp,
 			v["msg"]).Exec()
 	case WRITE_LOG:
-		//TODO:
 		if i.AppConfig.Debug {
 			fmt.Printf("LOG %s\n", w)
 		}
+		_, ok := v["id"].(string)
+		if !ok {
+			v["id"] = gocql.TimeUUID().String()
+		}
+		serialized, _ := json.Marshal(v)
+		return i.Session.Query(`INSERT INTO logs JSON ?`, string(serialized)).Exec()
 	case WRITE_EVENT:
 		//TODO:
 		if i.AppConfig.Debug {
@@ -550,53 +555,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			fmt.Printf("UNHANDLED %s\n", w)
 		}
 	}
-	// counters := make(map[string]int)
-	// regexCount, _ := regexp.Compile(`\.count\.(.*)`)
-	// regexUpdate, _ := regexp.Compile(`\.update\.(.*)`)
-	// //insertBatch := i.session.NewBatch(gocql.UnloggedBatch)
-	// for _, metric := range metrics {
-	// 	var tags = metric.Tags()
-	// 	//fmt.Println("%s", tags) //Debugging only(*w.Values)
-	// 	if regexCount.MatchString(tags["name"]) {
-	// 		counter := regexCount.FindStringSubmatch(tags["name"])[1]
-	// 		counters[counter] = counters[counter] + 1
-	// 	} else if regexUpdate.MatchString(tags["name"]) && tags["msg"] != "" {
-	// 		timestamp := time.Now().UTC()
-	// 		if tags["updated"] != "" {
-	// 			millis, err := strconv.ParseInt(tags["updated"], 10, 64)
-	// 			if err == nil {
-	// 				timestamp = time.Unix(0, millis*int64(time.Millisecond))
-	// 			}
-	// 		}
-	// 		if rowError := i.session.Query(`INSERT INTO updates (id, updated, msg) values (?,?,?)`,
-	// 			regexUpdate.FindStringSubmatch(tags["name"])[1],
-	// 			timestamp,
-	// 			tags["msg"]).Exec(); rowError != nil {
-	// 			err = rowError //And let it continue
-	// 		} else {
-	// 			err = nil
-	// 		}
-	// 	} else {
-	// 		if tags["id"] == "" {
-	// 			tags["id"] = gocql.TimeUUID().String()
-	// 		}
-	// 		serialized, _ := json.Marshal(tags)
-	// 		//insertBatch.Query(`INSERT INTO logs JSON ?`, string(serialized))
-	// 		if rowError := i.session.Query(`INSERT INTO logs JSON ?`, string(serialized)).Exec(); rowError != nil {
-	// 			err = rowError //And let it continue
-	// 		} else {
-	// 			err = nil
-	// 		}
-	// 	}
-	// }
-
-	// for key, value := range counters {
-	// 	if rowError := i.session.Query(`UPDATE counters set total=total+? where id=?;`, value, key).Exec(); rowError != nil {
-	// 		err = rowError //And let it continue
-	// 	} else {
-	// 		err = nil
-	// 	}
-	// }
 
 	//TODO: Retries
 	return err
