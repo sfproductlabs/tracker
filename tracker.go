@@ -63,17 +63,14 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gocql/gocql"
 	"github.com/nats-io/go-nats"
 	"golang.org/x/crypto/acme/autocert"
-)
-
-var (
-	// Quote Ident replacer.
-	qiReplacer = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
 )
 
 ////////////////////////////////////////
@@ -184,6 +181,13 @@ const (
 	WRITE_UPDATE = 1 << iota
 	WRITE_COUNT  = 1 << iota
 	WRITE_EVENT  = 1 << iota
+)
+
+var (
+	// Quote Ident replacer.
+	qiReplacer     = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
+	regexCount, _  = regexp.Compile(`\.count\.(.*)`)
+	regexUpdate, _ = regexp.Compile(`\.update\.(.*)`)
 )
 
 //////////////////////////////////////// Transparent GIF
@@ -511,20 +515,29 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if i.AppConfig.Debug {
 			fmt.Printf("LOG %s\n", w)
 		}
-		return i.Session.Query(`UPDATE counters set total=total+1 where id=? AND type=?;`, v["id"], v["type"]).Exec()
-	case WRITE_LOG:
-		//TODO:
-		// id, ok := v["id"].(string)
-		// if !ok {
-		// 	return fmt.Errorf("Bad (id) in Count\n")
-		// }
-		if i.AppConfig.Debug {
-			fmt.Printf("LOG %s\n", w)
-		}
+		return i.Session.Query(`UPDATE counters set total=total+1 where id=? AND type=?;`,
+			v["id"],
+			v["type"]).Exec()
 	case WRITE_UPDATE:
-		//TODO:
 		if i.AppConfig.Debug {
 			fmt.Printf("UPDATE %s\n", w)
+		}
+		timestamp := time.Now().UTC()
+		updated, ok := v["updated"].(string)
+		if ok {
+			millis, err := strconv.ParseInt(updated, 10, 64)
+			if err == nil {
+				timestamp = time.Unix(0, millis*int64(time.Millisecond))
+			}
+		}
+		return i.Session.Query(`INSERT INTO updates (id, updated, msg) values (?,?,?)`,
+			v["id"],
+			timestamp,
+			v["msg"]).Exec()
+	case WRITE_LOG:
+		//TODO:
+		if i.AppConfig.Debug {
+			fmt.Printf("LOG %s\n", w)
 		}
 	case WRITE_EVENT:
 		//TODO:
