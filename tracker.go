@@ -508,6 +508,9 @@ func (i *CassandraService) write(w *WriteArgs) error {
 	v := *w.Values
 	switch w.WriteType {
 	case WRITE_COUNT:
+		if i.AppConfig.Debug {
+			fmt.Printf("LOG %s\n", w)
+		}
 		return i.Session.Query(`UPDATE counters set total=total+1 where id=? AND type=?;`, v["id"], v["type"]).Exec()
 	case WRITE_LOG:
 		//TODO:
@@ -515,15 +518,24 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		// if !ok {
 		// 	return fmt.Errorf("Bad (id) in Count\n")
 		// }
-		fmt.Printf("LOG %s\n", w)
+		if i.AppConfig.Debug {
+			fmt.Printf("LOG %s\n", w)
+		}
 	case WRITE_UPDATE:
 		//TODO:
-		fmt.Printf("UPDATE %s\n", w)
+		if i.AppConfig.Debug {
+			fmt.Printf("UPDATE %s\n", w)
+		}
 	case WRITE_EVENT:
 		//TODO:
-		fmt.Printf("EVENT %s\n", w)
+		if i.AppConfig.Debug {
+			fmt.Printf("EVENT %s\n", w)
+		}
 	default:
 		//TODO: Manually run query via query in config.json
+		if i.AppConfig.Debug {
+			fmt.Printf("UNHANDLED %s\n", w)
+		}
 	}
 	// counters := make(map[string]int)
 	// regexCount, _ := regexp.Compile(`\.count\.(.*)`)
