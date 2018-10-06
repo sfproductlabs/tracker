@@ -98,7 +98,6 @@ type Field struct {
 }
 
 type Query struct {
-	Service   string
 	Statement string
 	QueryType string
 	Fields    []Field
@@ -114,7 +113,6 @@ type Filter struct {
 type WriteArgs struct {
 	WriteType int
 	Values    *map[string]interface{}
-	Queries   *[]Query
 }
 
 type Service struct {
@@ -626,8 +624,7 @@ func (i *NatsService) listen() error {
 			j := make(map[string]interface{})
 			if err := json.Unmarshal(m.Data, &j); err == nil {
 				wargs := WriteArgs{
-					Values:  &j,
-					Queries: &f.Queries,
+					Values: &j,
 				}
 				switch f.Alias {
 				case WRITE_DESC_COUNT:
