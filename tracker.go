@@ -157,6 +157,7 @@ type Configuration struct {
 	ProxyUrl        string
 	ProxyPort       string
 	ProxyPortTLS    string
+	ProxyDailyLimit int
 	SchemaVersion   int
 	ApiVersion      int
 	Debug           bool
@@ -340,6 +341,7 @@ func main() {
 		proxyOptions := [1]KeyValue{{Key: "Strict-Transport-Security", Value: "max-age=15768000 ; includeSubDomains"}}
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			track(&configuration, r)
+			//TODO: Check Dailies
 			w.Header().Set(proxyOptions[0].Key, proxyOptions[0].Value)
 			proxy.ServeHTTP(w, r)
 		})
@@ -419,7 +421,7 @@ func track(c *Configuration, r *http.Request) error {
 	p := strings.Split(r.URL.Path, "/")
 	pmax := (len(p) - 2)
 	for i := 1; i < pmax; i += 2 {
-		j[p[i]] = p[i+1]
+		j[p[i]] = p[i+1][0] //TODO: Handle arrays
 	}
 	switch r.Method {
 	case http.MethodGet:
@@ -549,6 +551,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if i.AppConfig.Debug {
 			fmt.Printf("EVENT %s\n", w)
 		}
+		//TODO: Add dailies regardless
+		//TODO: Check first: false
+		go func() {
+			//TODO: Put it in a new thread
+		}()
 	default:
 		//TODO: Manually run query via query in config.json
 		if i.AppConfig.Debug {

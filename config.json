@@ -9,6 +9,7 @@
     "UseLocalTLS": true,
     "ProxyPortTLS" : ":8443",
     "ProxyPort" : ":8080",
+    "ProxyDailyLimit" : 0,
     "Debug" : true,
     "Notify": [
         {
