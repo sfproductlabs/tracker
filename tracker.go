@@ -110,6 +110,7 @@ type Filter struct {
 type WriteArgs struct {
 	WriteType int
 	Values    *map[string]interface{}
+	Caller    string
 }
 
 type Service struct {
@@ -149,23 +150,26 @@ type NatsService struct { //Implements 'session'
 }
 
 type Configuration struct {
-	Domains         []string //Domains in Trust, LetsEncrypt domains
-	StaticDirectory string   //Static FS Directory (./public/)
-	UseLocalTLS     bool
-	Notify          []Service
-	Consume         []Service
-	ProxyUrl        string
-	ProxyPort       string
-	ProxyPortTLS    string
-	ProxyDailyLimit int
-	SchemaVersion   int
-	ApiVersion      int
-	Debug           bool
+	Domains                []string //Domains in Trust, LetsEncrypt domains
+	StaticDirectory        string   //Static FS Directory (./public/)
+	UseLocalTLS            bool
+	Notify                 []Service
+	Consume                []Service
+	ProxyUrl               string
+	ProxyPort              string
+	ProxyPortTLS           string
+	ProxyDailyLimit        uint64
+	ProxyDailyLimitChecker string //Service, Ex. casssandra
+	ProxyDailyLimitCheck   func(string) uint64
+	SchemaVersion          int
+	ApiVersion             int
+	Debug                  bool
 }
 
 //////////////////////////////////////// Constants
 const (
-	PONG string = "pong"
+	PONG              string = "pong"
+	API_LIMIT_REACHED string = "API Limit Reached"
 
 	SERVICE_TYPE_CASSANDRA string = "cassandra"
 	SERVICE_TYPE_NATS      string = "nats"
@@ -340,14 +344,27 @@ func main() {
 		proxy := &httputil.ReverseProxy{Director: director}
 		proxyOptions := [1]KeyValue{{Key: "Strict-Transport-Security", Value: "max-age=15768000 ; includeSubDomains"}}
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if err := check(&configuration, r); err != nil {
+				w.WriteHeader(http.StatusLocked)
+				w.Write([]byte(API_LIMIT_REACHED))
+				return
+			}
 			track(&configuration, r)
-			//TODO: Check Dailies
 			w.Header().Set(proxyOptions[0].Key, proxyOptions[0].Value)
 			proxy.ServeHTTP(w, r)
 		})
 	}
 
-	//////////////////////////////////////// PING PONG ROUTE
+	//////////////////////////////////////// STATUS TEST ROUTE
+	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+		json, _ := json.Marshal(&KeyValue{Key: "client", Value: ip})
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(json)
+	})
+
+	//////////////////////////////////////// PING PONG TEST ROUTE
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(PONG))
 	})
@@ -408,12 +425,26 @@ func cacheDir() (dir string) {
 }
 
 ////////////////////////////////////////
+// Check
+////////////////////////////////////////
+func check(c *Configuration, r *http.Request) error {
+	//Precheck
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if c.ProxyDailyLimit > 0 && c.ProxyDailyLimitCheck != nil && c.ProxyDailyLimitCheck(ip+r.Header.Get("X-Forwarded-For")) > c.ProxyDailyLimit {
+		return fmt.Errorf("API Limit Reached")
+	}
+	return nil
+}
+
+////////////////////////////////////////
 // Trace
 ////////////////////////////////////////
 func track(c *Configuration, r *http.Request) error {
 	//Setup
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	wargs := WriteArgs{
 		WriteType: WRITE_EVENT,
+		Caller:    ip + r.Header.Get("X-Forwarded-For"),
 	}
 	//Process
 	j := make(map[string]interface{})
@@ -490,7 +521,20 @@ func (i *CassandraService) connect() error {
 		return err
 	}
 	i.Configuration.Session = i
+
+	//Setup rand
 	rand.Seed(time.Now().UnixNano())
+
+	//Setup limit checker (cassandra)
+	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CASSANDRA {
+		i.AppConfig.ProxyDailyLimitCheck = func(ip string) uint64 {
+			var total uint64
+			if i.Session.Query(`SELECT total FROM dailies where ip=? AND day=?`, ip, time.Now()).Consistency(gocql.One).Scan(&total); err != nil {
+				return 0xFFFFFFFFFFFFFFFF
+			}
+			return total
+		}
+	}
 	return nil
 }
 
@@ -519,7 +563,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 		return i.Session.Query(`UPDATE counters set total=total+1 where id=? AND type=?;`,
 			v["id"],
-			v["type"]).Exec()
+			v["type"]).Consistency(gocql.One).Exec()
 	case WRITE_UPDATE:
 		if i.AppConfig.Debug {
 			fmt.Printf("UPDATE %s\n", w)
@@ -535,7 +579,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		return i.Session.Query(`INSERT INTO updates (id, updated, msg) values (?,?,?)`,
 			v["id"],
 			timestamp,
-			v["msg"]).Exec()
+			v["msg"]).Consistency(gocql.One).Exec()
 	case WRITE_LOG:
 		if i.AppConfig.Debug {
 			fmt.Printf("LOG %s\n", w)
@@ -545,17 +589,18 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["id"] = gocql.TimeUUID().String()
 		}
 		serialized, _ := json.Marshal(v)
-		return i.Session.Query(`INSERT INTO logs JSON ?`, string(serialized)).Exec()
+		return i.Session.Query(`INSERT INTO logs JSON ?`, string(serialized)).Consistency(gocql.One).Exec()
 	case WRITE_EVENT:
-		//TODO:
 		if i.AppConfig.Debug {
 			fmt.Printf("EVENT %s\n", w)
 		}
-		//TODO: Add dailies regardless
-		//TODO: Check first: false
 		go func() {
-			//TODO: Put it in a new thread
+			//Add dailies regardless
+			i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, time.Now()).Consistency(gocql.One).Exec()
+			//TODO: Check first: false
+			//TODO:
 		}()
+		return nil
 	default:
 		//TODO: Manually run query via query in config.json
 		if i.AppConfig.Debug {

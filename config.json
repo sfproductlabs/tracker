@@ -10,6 +10,7 @@
     "ProxyPortTLS" : ":8443",
     "ProxyPort" : ":8080",
     "ProxyDailyLimit" : 0,
+    "ProxyDailyLimitChecker" : "cassandra",
     "Debug" : true,
     "Notify": [
         {
