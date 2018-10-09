@@ -1,5 +1,5 @@
 # Tracker
-Track every user click, setup growth experiments and measure every outcome all in house without any external tools at scale. 
+Track every user click, setup growth experiments and measure every user outcome all in house without any external tools at unlimited scale (it's the same infrastructure that the big boys use: CERN, Netflix, Apple, Github). It's not going to be a drop in replacement for Google Analytics, but it will go far beyond it to help you understand your users experience.
 
 ## Features
 * Tracking API Calls & URLs
