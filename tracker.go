@@ -673,6 +673,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 		go func() {
 			//Add dailies regardless
+			//[Daily]
 			updated := time.Now()
 			i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Consistency(gocql.One).Exec()
 
@@ -756,6 +757,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				if ct, oktz := countries[tz]; oktz {
 					country = &ct
 				}
+			}
+
+			//[Outcome]
+			if outcome, ok := v["outcome"].(string); ok {
+				i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["next"]).Consistency(gocql.One).Exec()
 			}
 
 			//////////////////////////////////////////////
