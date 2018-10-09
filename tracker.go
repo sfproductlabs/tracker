@@ -392,7 +392,16 @@ func main() {
 
 	//////////////////////////////////////// Tracking Route
 	http.HandleFunc("/tr/v1/", func(w http.ResponseWriter, r *http.Request) {
-		track(&configuration, r)
+		if r.Method == http.MethodOptions {
+			//Lets just allow requests to this endpoint
+			w.Header().Set("access-control-allow-origin", "*") //TODO Security Threat
+			w.Header().Set("access-control-allow-credentials", "true")
+			w.Header().Set("access-control-allow-headers", "Authorization,Accept")
+			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
+			w.Header().Set("access-control-max-age", "1728000")
+		} else {
+			track(&configuration, r)
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -591,6 +600,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["id"],
 			timestamp,
 			v["msg"]).Consistency(gocql.One).Exec()
+
 	case WRITE_LOG:
 		if i.AppConfig.Debug {
 			fmt.Printf("LOG %s\n", w)
@@ -623,7 +633,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			level = &temp
 		}
 
-		err := i.Session.Query(`INSERT INTO logs
+		return i.Session.Query(`INSERT INTO logs
 		(
 			id, 
 			ldate,
@@ -650,7 +660,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["msg"],
 			&params).Consistency(gocql.One).Exec()
 
-		fmt.Println(err)
 	case WRITE_EVENT:
 		if i.AppConfig.Debug {
 			fmt.Printf("EVENT %s\n", w)
@@ -684,8 +693,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if d, ok := v["duration"].(string); ok {
 				temp, _ := strconv.ParseInt(d, 10, 64)
 				duration = &temp
-				v["duration"] = duration
 			}
+			if d, ok := v["duration"].(float64); ok {
+				temp := int64(d)
+				duration = &temp
+			}
+
 			//[ver]
 			var version *int64
 			if ver, ok := v["version"].(string); ok {
@@ -702,17 +715,9 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 			//Force reset the following types...
 			//[sid]
-			var sid *gocql.UUID
-			if s, ok := v["sid"].(string); ok {
-				if temp, err := gocql.ParseUUID(s); err != nil {
-					temp = gocql.TimeUUID()
-					sid = &temp
-				}
-			} else {
-				temp := gocql.TimeUUID()
-				sid = &temp
+			if _, ok := v["sid"].(string); !ok {
+				v["sid"] = gocql.TimeUUID()
 			}
-			v["sid"] = sid
 			//Params
 			var params *map[string]string
 			if ps, ok := v["params"].(string); ok {
@@ -724,7 +729,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//////////////////////////////////////////////
 			//Persist
 			//////////////////////////////////////////////
-			//TODO:
 			if first {
 				//acquisitions
 				i.Session.Query(`INSERT into acquisitions 
@@ -767,8 +771,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["sink"],
 					v["ver"],
 					v["score"],
-					params, //params
-					v["duration"],
+					&params, //params
+					&duration,
 					w.IP,
 					&latlon,
 					v["country"],
@@ -780,11 +784,46 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["device"],
 					v["browser"],
 					v["os"],
-					email).Consistency(gocql.One).Exec()
+					&email).Consistency(gocql.One).Exec()
 
 				//starts
+
 			}
 			//events
+			i.Session.Query(`INSERT into events 
+			(
+				vid, 
+				sid, 
+				eid, 
+				etyp,
+				created,
+				uid,
+				last,
+				next,
+				sink,
+				ver,
+				score,							
+				params,
+				duration,
+				ip,
+				latlon
+			) 
+			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //15
+				v["vid"],
+				v["sid"],
+				v["eid"],
+				v["etyp"],
+				time.Now(),
+				v["uid"],
+				v["last"],
+				v["next"],
+				v["sink"],
+				v["ver"],
+				v["score"],
+				&params, //params
+				&duration,
+				w.IP,
+				&latlon).Consistency(gocql.One).Exec()
 			//ends
 			//nodes
 			//locations
@@ -795,7 +834,9 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//browsers
 			//referrers
 			//referrals
+
 			fmt.Println(err)
+
 		}()
 		return nil
 	default:
