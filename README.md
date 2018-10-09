@@ -1,9 +1,26 @@
 # Tracker
-TBA
+Track every user click, setup growth experiments and measure every outcome all in house without any external tools at scale. 
+
+## Features
+* Tracking API Calls & URLs
+* Tracking Images (for Emails)
+* Proxy (NGINX replacement)
+* LetsEncrypt one line configuration
+* Rate Limiting
+* Horizontally Scalable (Clustered NATS, Clustered Cassandra, Dockerized App Swarm - Good for ECS).
+* File Server (w. Caching)
+* Pluggable (Easily build more than Nats, Cassandra plugins)
+* Server logging,counter and update messages built-in
+* Works with REST & JSON out of the box
+* Uncomplicated config.json one file configuration
 
 ## Instructions
 
-TBA
+* Install Cassandra or Elassandra
+* Install Schema to Cassandra https://github.com/dioptre/tracker/blob/master/.setup/schema.1.cql
+* Install Nats
+* Go through the config.json file and change what you want.
+* Use Spark, Kibana, etc to interrogate & ETL to your warehouse
 
 ### Deploy
 * Get a certificate:
