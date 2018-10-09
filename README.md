@@ -15,7 +15,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Server logging,counter and update messages built-in
 * Works with REST & JSON out of the box
 * Uncomplicated config.json one file configuration
-* Initial tests show around 1,000 connections per second per dollar server month
+* Initial tests show around 1,000 connections per second per server month dollar
 * Written entirely in Golang
 
 ## Instructions
