@@ -15,7 +15,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Server logging,counter and update messages built-in
 * Works with REST & JSON out of the box
 * Uncomplicated config.json one file configuration
-* All in Golang
+* Written entirely in Golang
 
 ## Instructions
 
