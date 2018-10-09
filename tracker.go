@@ -111,6 +111,7 @@ type WriteArgs struct {
 	WriteType int
 	Values    *map[string]interface{}
 	Caller    string
+	IP        string
 }
 
 type Service struct {
@@ -344,12 +345,16 @@ func main() {
 		proxy := &httputil.ReverseProxy{Director: director}
 		proxyOptions := [1]KeyValue{{Key: "Strict-Transport-Security", Value: "max-age=15768000 ; includeSubDomains"}}
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			//TODO: Check certificate in cookie
+			//Check API Limit
 			if err := check(&configuration, r); err != nil {
 				w.WriteHeader(http.StatusLocked)
 				w.Write([]byte(API_LIMIT_REACHED))
 				return
 			}
+			//Track
 			track(&configuration, r)
+			//Proxy
 			w.Header().Set(proxyOptions[0].Key, proxyOptions[0].Value)
 			proxy.ServeHTTP(w, r)
 		})
@@ -383,6 +388,12 @@ func main() {
 		track(&configuration, r)
 		w.Header().Set("content-type", "image/gif")
 		w.Write(TRACKING_GIF)
+	})
+
+	//////////////////////////////////////// Tracking Route
+	http.HandleFunc("/tr/v1/", func(w http.ResponseWriter, r *http.Request) {
+		track(&configuration, r)
+		w.WriteHeader(http.StatusOK)
 	})
 
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
@@ -430,7 +441,7 @@ func cacheDir() (dir string) {
 func check(c *Configuration, r *http.Request) error {
 	//Precheck
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	if c.ProxyDailyLimit > 0 && c.ProxyDailyLimitCheck != nil && c.ProxyDailyLimitCheck(ip+r.Header.Get("X-Forwarded-For")) > c.ProxyDailyLimit {
+	if c.ProxyDailyLimit > 0 && c.ProxyDailyLimitCheck != nil && c.ProxyDailyLimitCheck(ip+";"+r.Header.Get("X-Forwarded-For")) > c.ProxyDailyLimit {
 		return fmt.Errorf("API Limit Reached")
 	}
 	return nil
@@ -444,15 +455,16 @@ func track(c *Configuration, r *http.Request) error {
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	wargs := WriteArgs{
 		WriteType: WRITE_EVENT,
-		Caller:    ip + r.Header.Get("X-Forwarded-For"),
+		Caller:    ip + ";" + r.Header.Get("X-Forwarded-For"),
+		IP:        ip,
 	}
 	//Process
 	j := make(map[string]interface{})
 	//Path
 	p := strings.Split(r.URL.Path, "/")
 	pmax := (len(p) - 2)
-	for i := 1; i < pmax; i += 2 {
-		j[p[i]] = p[i+1][0] //TODO: Handle arrays
+	for i := 1; i <= pmax; i += 2 {
+		j[p[i]] = p[i+1] //TODO: Handle arrays
 	}
 	switch r.Method {
 	case http.MethodGet:
@@ -559,11 +571,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 	switch w.WriteType {
 	case WRITE_COUNT:
 		if i.AppConfig.Debug {
-			fmt.Printf("LOG %s\n", w)
+			fmt.Printf("COUNT %s\n", w)
 		}
-		return i.Session.Query(`UPDATE counters set total=total+1 where id=? AND type=?;`,
-			v["id"],
-			v["type"]).Consistency(gocql.One).Exec()
+		return i.Session.Query(`UPDATE counters set total=total+1 where id=?`,
+			v["id"]).Consistency(gocql.One).Exec()
 	case WRITE_UPDATE:
 		if i.AppConfig.Debug {
 			fmt.Printf("UPDATE %s\n", w)
@@ -584,21 +595,207 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if i.AppConfig.Debug {
 			fmt.Printf("LOG %s\n", w)
 		}
+		//////////////////////////////////////////////
+		//FIX VARS
+		//////////////////////////////////////////////
+		//[id]
 		_, ok := v["id"].(string)
 		if !ok {
 			v["id"] = gocql.TimeUUID().String()
 		}
-		serialized, _ := json.Marshal(v)
-		return i.Session.Query(`INSERT INTO logs JSON ?`, string(serialized)).Consistency(gocql.One).Exec()
+		//[params]
+		var params *map[string]string
+		if ps, ok := v["params"].(string); ok {
+			temp := make(map[string]string)
+			json.Unmarshal([]byte(ps), &temp)
+			params = &temp
+		}
+		//[ltimenss] ltime as nanosecond string
+		var ltime time.Duration
+		if lts, ok := v["ltimenss"].(string); ok {
+			ns, _ := strconv.ParseInt(lts, 10, 64)
+			ltime = time.Duration(ns)
+		}
+		//[level]
+		var level *int64
+		if lvl, ok := v["level"].(float64); ok {
+			temp := int64(lvl)
+			level = &temp
+		}
+
+		err := i.Session.Query(`INSERT INTO logs
+		(
+			id, 
+			ldate,
+			ltime,
+			name, 
+			host, 
+			hostname, 
+			owner,
+			ip,
+			level, 
+			msg,
+			params
+		) 
+		values (?,?,?,?,?,?,?,?,?,? ,?)`, //11
+			v["id"],
+			v["ldate"],
+			ltime,
+			v["name"],
+			v["host"],
+			v["hostname"],
+			v["owner"],
+			v["ip"],
+			&level,
+			v["msg"],
+			&params).Consistency(gocql.One).Exec()
+
+		fmt.Println(err)
 	case WRITE_EVENT:
 		if i.AppConfig.Debug {
 			fmt.Printf("EVENT %s\n", w)
 		}
 		go func() {
 			//Add dailies regardless
-			i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, time.Now()).Consistency(gocql.One).Exec()
-			//TODO: Check first: false
+			updated := time.Now()
+			i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Consistency(gocql.One).Exec()
+
+			//////////////////////////////////////////////
+			//FIX VARS
+			//////////////////////////////////////////////
+			//[first]
+			first := v["first"] != "false"
+			//[email]
+			var email *time.Time
+			if _, ok := v["email"].(string); ok {
+				email = &updated
+			}
+			//[latlon]
+			var latlon *geo_point
+			lat, oklat := v["lat"].(string)
+			lon, oklon := v["lon"].(string)
+			if oklat && oklon {
+				latlon = &geo_point{}
+				latlon.Lat, _ = strconv.ParseFloat(lat, 64)
+				latlon.Lon, _ = strconv.ParseFloat(lon, 64)
+			}
+			//[duration]
+			var duration *int64
+			if d, ok := v["duration"].(string); ok {
+				temp, _ := strconv.ParseInt(d, 10, 64)
+				duration = &temp
+				v["duration"] = duration
+			}
+			//[ver]
+			var version *int64
+			if ver, ok := v["version"].(string); ok {
+				temp, _ := strconv.ParseInt(ver, 10, 32)
+				version = &temp
+				v["ver"] = version
+			}
+			//[score]
+			var score *float64
+			if s, ok := v["score"].(string); ok {
+				temp, _ := strconv.ParseFloat(s, 64)
+				score = &temp
+				v["score"] = score
+			}
+			//Force reset the following types...
+			//[sid]
+			var sid *gocql.UUID
+			if s, ok := v["sid"].(string); ok {
+				if temp, err := gocql.ParseUUID(s); err != nil {
+					temp = gocql.TimeUUID()
+					sid = &temp
+				}
+			} else {
+				temp := gocql.TimeUUID()
+				sid = &temp
+			}
+			v["sid"] = sid
+			//Params
+			var params *map[string]string
+			if ps, ok := v["params"].(string); ok {
+				temp := make(map[string]string)
+				json.Unmarshal([]byte(ps), &temp)
+				params = &temp
+			}
+
+			//////////////////////////////////////////////
+			//Persist
+			//////////////////////////////////////////////
 			//TODO:
+			if first {
+				//acquisitions
+				i.Session.Query(`INSERT into acquisitions 
+                        (
+                            vid, 
+                            sid, 
+							eid, 
+							etyp,
+							created,
+							uid,
+                            last,
+							next,
+							sink,
+							ver,
+							score,							
+                            params,
+                            duration,
+                            ip,
+							latlon,
+							country,
+							culture,
+							gender,
+							source,
+							medium,
+							campaign,
+							device,
+							browser,
+							os,
+							email
+                        ) 
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //25
+					v["vid"],
+					v["sid"],
+					v["eid"],
+					v["etyp"],
+					time.Now(),
+					v["uid"],
+					v["last"],
+					v["next"],
+					v["sink"],
+					v["ver"],
+					v["score"],
+					params, //params
+					v["duration"],
+					w.IP,
+					&latlon,
+					v["country"],
+					v["culture"],
+					v["gender"],
+					v["source"],
+					v["medium"],
+					v["campaign"],
+					v["device"],
+					v["browser"],
+					v["os"],
+					email).Consistency(gocql.One).Exec()
+
+				//starts
+			}
+			//events
+			//ends
+			//nodes
+			//locations
+			//alias
+			//hits
+			//ips
+			//reqs
+			//browsers
+			//referrers
+			//referrals
+			fmt.Println(err)
 		}()
 		return nil
 	default:
