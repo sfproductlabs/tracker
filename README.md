@@ -26,6 +26,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Go through the config.json file and change what you want.
 * Deploy using Docker or ```go build```
 * Use Spark, Kibana, etc to interrogate & ETL to your warehouse
+
 Send the server something to track:
 ### REST Payload Example
 In the following example, we use tuplets to persist what's needed to track (Ex. {"tr":"v1"})
