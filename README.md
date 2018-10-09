@@ -8,7 +8,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Tracking Images (for Emails)
 * Proxy included (Drop in NGINX replacement for your Node, Python, etc. API backend)
 * LetsEncrypt one line configuration
-* Rate Limiting
+* API & Request Rate Limiting
 * Horizontally Scalable (Clustered NATS, Clustered Cassandra, Dockerized App Swarm - Good for ECS).
 * File Server (w. Caching)
 * Pluggable (Easily build more than Nats, Cassandra plugins)
