@@ -65,4 +65,5 @@ sudo docker run -p 8443:443 tracker
 
 ## Notes
 * **This project is new** Please give me your feedback! We welcome PRs.
+* This project is sort of the opposite to my horizontal web scraper in go https://github.com/dioptre/scrp
 
