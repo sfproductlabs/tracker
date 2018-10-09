@@ -6,7 +6,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 ## Features
 * Tracking API Calls & URLs
 * Tracking Images (for Emails)
-* Proxy (NGINX replacement)
+* Proxy (Drop in NGINX replacement)
 * LetsEncrypt one line configuration
 * Rate Limiting
 * Horizontally Scalable (Clustered NATS, Clustered Cassandra, Dockerized App Swarm - Good for ECS).
@@ -15,6 +15,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Server logging,counter and update messages built-in
 * Works with REST & JSON out of the box
 * Uncomplicated config.json one file configuration
+* All in Golang
 
 ## Instructions
 
@@ -22,6 +23,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Install Schema to Cassandra https://github.com/dioptre/tracker/blob/master/.setup/schema.1.cql
 * Install Nats
 * Go through the config.json file and change what you want.
+* Deploy using Docker or ```go build```
 * Use Spark, Kibana, etc to interrogate & ETL to your warehouse
 
 ### Deploy
@@ -48,4 +50,7 @@ sudo docker run -p 8443:443 tracker
 ## Credits
 * [DragonGate](https://github.com/dioptre/DragonGate)
 * [SF Product Labs](https://sfproductlabs.com)
+
+## Notes
+* **This project is new** Please give me your feedback! We welcome PRs.
 
