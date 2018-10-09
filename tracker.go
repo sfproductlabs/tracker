@@ -682,11 +682,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//////////////////////////////////////////////
 			//[first]
 			first := v["first"] != "false"
-			//[email]
-			var email *time.Time
-			if _, ok := v["email"].(string); ok {
-				email = &updated
-			}
 			//[latlon]
 			var latlon *geo_point
 			latf, oklatf := v["lat"].(float64)
@@ -788,7 +783,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							latlon,
 							country,
 							culture,
-							gender,
 							source,
 							medium,
 							campaign,
@@ -796,7 +790,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							browser,
 							os,
 							tz,
-							email
+							email,
+							gender
                         ) 
                         values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?) IF NOT EXISTS`, //26
 					v["vid"],
@@ -816,7 +811,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					&latlon,
 					&country,
 					&culture,
-					v["gender"],
 					v["source"],
 					v["medium"],
 					v["campaign"],
@@ -824,7 +818,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					w.Browser,
 					v["os"],
 					v["tz"],
-					&email).Consistency(gocql.One).Exec()
+					v["email"],
+					v["gender"]).Consistency(gocql.One).Exec()
 
 				//starts
 				i.Session.Query(`INSERT into starts 
@@ -846,7 +841,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							latlon,
 							country,
 							culture,
-							gender,
 							source,
 							medium,
 							campaign,
@@ -855,7 +849,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							os,
 							tz
                         ) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //25
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) IF NOT EXISTS`, //24
 					v["vid"],
 					v["sid"],
 					v["eid"],
@@ -873,7 +867,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					&latlon,
 					&country,
 					&culture,
-					v["gender"],
 					v["source"],
 					v["medium"],
 					v["campaign"],
@@ -918,6 +911,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				&duration,
 				w.IP,
 				&latlon).Consistency(gocql.One).Exec()
+
 			//ends
 			i.Session.Query(`INSERT into ends 
 			(
@@ -953,6 +947,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				&duration,
 				w.IP,
 				&latlon).Consistency(gocql.One).Exec()
+
 			//nodes
 			i.Session.Query(`INSERT into nodes 
 			(

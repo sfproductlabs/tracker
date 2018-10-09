@@ -78,9 +78,8 @@ create table acquisitions (
   ip text, --ip
   latlon frozen<geo_point>, --location
   --Detail Fields
-  country text, --ISO-3
+  country text, --ISO-2
   culture text, --EN-US
-  gender text,
   source text, --referring domain, user, service
   medium text, --email,sms,ad,etc
   campaign text, --marketing campaign name  
@@ -88,8 +87,10 @@ create table acquisitions (
   browser text,
   os text,  
   tz text,
-  --EXCEPTIONS
-  email timestamp, --when we got their email EXCEPTION TO THE RULE OF WRITE ONCE
+  --TODO: Add your own variables here or in params
+  --Updateable
+  email text, --when we got their email EXCEPTION TO THE RULE OF WRITE ONCE
+  gender text,
 
   PRIMARY KEY ((vid))
 );
@@ -114,7 +115,6 @@ create table starts (
   --Detail Fields
   country text, 
   culture text, 
-  gender text,
   source text,
   medium text,
   campaign text,
@@ -164,9 +164,6 @@ create table ends (
   PRIMARY KEY ((vid), sid)
 );
 
-
-
-
 create table nodes (
   vid text, 
   uid text,
@@ -196,7 +193,6 @@ create table users (
   sid timeuuid, 
   PRIMARY KEY ((uid), vid)
 );
-
 
 create table dailies (  
   ip text, 
