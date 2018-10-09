@@ -112,6 +112,7 @@ type WriteArgs struct {
 	Values    *map[string]interface{}
 	Caller    string
 	IP        string
+	Browser   string
 }
 
 type Service struct {
@@ -391,6 +392,9 @@ func main() {
 	})
 
 	//////////////////////////////////////// Tracking Route
+	// Ex. https://localhost:8443/tr/v1/vid/accad/ROCK/ON/lat/5/lon/6/first/true/score/6
+	// OR
+	// {"last":"https://localhost:5001/maps","next":"https://localhost:5001/error/maps/request/unauthorized","params":{"type":"b","origin":"maps","error":"unauthorized","method":"request"},"created":1539072857869,"duration":1959,"vid":"4883a4c0-cb96-11e8-afac-bb666b9727ed","first":"false","sid":"4883cbd0-cb96-11e8-afac-bb666b9727ed"}
 	http.HandleFunc("/tr/v1/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
@@ -466,6 +470,7 @@ func track(c *Configuration, r *http.Request) error {
 		WriteType: WRITE_EVENT,
 		Caller:    ip + ";" + r.Header.Get("X-Forwarded-For"),
 		IP:        ip,
+		Browser:   r.Header.Get("user-agent"),
 	}
 	//Process
 	j := make(map[string]interface{})
@@ -614,11 +619,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["id"] = gocql.TimeUUID().String()
 		}
 		//[params]
-		var params *map[string]string
 		if ps, ok := v["params"].(string); ok {
 			temp := make(map[string]string)
 			json.Unmarshal([]byte(ps), &temp)
-			params = &temp
+			v["params"] = &temp
 		}
 		//[ltimenss] ltime as nanosecond string
 		var ltime time.Duration
@@ -658,7 +662,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["ip"],
 			&level,
 			v["msg"],
-			&params).Consistency(gocql.One).Exec()
+			v["params"]).Consistency(gocql.One).Exec()
 
 	case WRITE_EVENT:
 		if i.AppConfig.Debug {
@@ -681,12 +685,22 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 			//[latlon]
 			var latlon *geo_point
-			lat, oklat := v["lat"].(string)
-			lon, oklon := v["lon"].(string)
-			if oklat && oklon {
+			latf, oklatf := v["lat"].(float64)
+			lonf, oklonf := v["lon"].(float64)
+			if oklatf && oklonf {
+				//Float
 				latlon = &geo_point{}
-				latlon.Lat, _ = strconv.ParseFloat(lat, 64)
-				latlon.Lon, _ = strconv.ParseFloat(lon, 64)
+				latlon.Lat = latf
+				latlon.Lon = lonf
+			} else {
+				//String
+				lats, oklats := v["lat"].(string)
+				lons, oklons := v["lon"].(string)
+				if oklats && oklons {
+					latlon = &geo_point{}
+					latlon.Lat, _ = strconv.ParseFloat(lats, 64)
+					latlon.Lon, _ = strconv.ParseFloat(lons, 64)
+				}
 			}
 			//[duration]
 			var duration *int64
@@ -704,14 +718,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if ver, ok := v["version"].(string); ok {
 				temp, _ := strconv.ParseInt(ver, 10, 32)
 				version = &temp
-				v["ver"] = version
+			}
+			if ver, ok := v["version"].(float64); ok {
+				temp := int64(ver)
+				version = &temp
 			}
 			//[score]
 			var score *float64
 			if s, ok := v["score"].(string); ok {
 				temp, _ := strconv.ParseFloat(s, 64)
 				score = &temp
-				v["score"] = score
 			}
 			//Force reset the following types...
 			//[sid]
@@ -719,11 +735,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["sid"] = gocql.TimeUUID()
 			}
 			//Params
-			var params *map[string]string
 			if ps, ok := v["params"].(string); ok {
 				temp := make(map[string]string)
 				json.Unmarshal([]byte(ps), &temp)
-				params = &temp
+				v["params"] = &temp
 			}
 
 			//////////////////////////////////////////////
@@ -769,9 +784,9 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["last"],
 					v["next"],
 					v["sink"],
-					v["ver"],
-					v["score"],
-					&params, //params
+					&version,
+					&score,
+					v["params"],
 					&duration,
 					w.IP,
 					&latlon,
@@ -782,11 +797,63 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["medium"],
 					v["campaign"],
 					v["device"],
-					v["browser"],
+					w.Browser,
 					v["os"],
 					&email).Consistency(gocql.One).Exec()
 
 				//starts
+				i.Session.Query(`INSERT into starts 
+                        (
+                            vid, 
+                            sid, 
+							eid, 
+							etyp,
+							created,
+							uid,
+                            last,
+							next,
+							sink,
+							ver,
+							score,							
+                            params,
+                            duration,
+                            ip,
+							latlon,
+							country,
+							culture,
+							gender,
+							source,
+							medium,
+							campaign,
+							device,
+							browser,
+							os
+                        ) 
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) IF NOT EXISTS`, //24
+					v["vid"],
+					v["sid"],
+					v["eid"],
+					v["etyp"],
+					time.Now(),
+					v["uid"],
+					v["last"],
+					v["next"],
+					v["sink"],
+					&version,
+					&score,
+					v["params"],
+					&duration,
+					w.IP,
+					&latlon,
+					v["country"],
+					v["culture"],
+					v["gender"],
+					v["source"],
+					v["medium"],
+					v["campaign"],
+					v["device"],
+					w.Browser,
+					v["os"]).Consistency(gocql.One).Exec()
 
 			}
 			//events
@@ -818,24 +885,130 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["last"],
 				v["next"],
 				v["sink"],
-				v["ver"],
-				v["score"],
-				&params, //params
+				&version,
+				&score,
+				v["params"],
 				&duration,
 				w.IP,
 				&latlon).Consistency(gocql.One).Exec()
 			//ends
+			i.Session.Query(`INSERT into ends 
+			(
+				vid, 
+				sid, 
+				eid, 
+				etyp,
+				created,
+				uid,
+				last,
+				next,
+				sink,
+				ver,
+				score,							
+				params,
+				duration,
+				ip,
+				latlon
+			) 
+			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //15
+				v["vid"],
+				v["sid"],
+				v["eid"],
+				v["etyp"],
+				time.Now(),
+				v["uid"],
+				v["last"],
+				v["next"],
+				v["sink"],
+				&version,
+				&score,
+				v["params"],
+				&duration,
+				w.IP,
+				&latlon).Consistency(gocql.One).Exec()
 			//nodes
-			//locations
-			//alias
-			//hits
-			//ips
-			//reqs
-			//browsers
-			//referrers
-			//referrals
+			i.Session.Query(`INSERT into nodes 
+			(
+				vid, 
+				uid,
+				ip,
+				sid
+			) 
+			values (?,?,?,?)`, //4
+				v["vid"],
+				v["uid"],
+				w.IP,
+				v["sid"]).Consistency(gocql.One).Exec()
 
-			fmt.Println(err)
+			//locations
+			i.Session.Query(`INSERT into nodes 
+			(
+				vid, 
+				latlon,
+				uid,
+				sid
+			) 
+			values (?,?,?,?)`, //4
+				v["vid"],
+				&latlon,
+				v["uid"],
+				v["sid"]).Consistency(gocql.One).Exec()
+
+			//alias
+			i.Session.Query(`INSERT into aliases 
+			(
+				vid, 
+				uid,
+				sid
+			) 
+			values (?,?,?)`, //3
+				v["vid"],
+				v["uid"],
+				v["sid"]).Consistency(gocql.One).Exec()
+
+			//users
+			i.Session.Query(`INSERT into users 
+				(
+					vid, 
+					uid,
+					sid
+				) 
+				values (?,?,?)`, //3
+				v["vid"],
+				v["uid"],
+				v["sid"]).Consistency(gocql.One).Exec()
+
+			//hits
+			i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
+				v["next"]).Consistency(gocql.One).Exec()
+
+			//ips
+			i.Session.Query(`UPDATE ips set total=total+1 where ip=?`,
+				w.IP).Consistency(gocql.One).Exec()
+
+			//reqs
+			i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
+				v["vid"]).Consistency(gocql.One).Exec()
+
+			//browsers
+			i.Session.Query(`UPDATE browsers set total=total+1 where browser=?`,
+				w.Browser).Consistency(gocql.One).Exec()
+
+			//referrers
+			i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
+				v["last"]).Consistency(gocql.One).Exec()
+
+			//referrals
+			if v["ref"] != nil {
+				i.Session.Query(`INSERT into referrals 
+			(
+				vid, 
+				ref
+			) 
+			values (?,?) IF NOT EXISTS`, //2
+					v["vid"],
+					v["ref"]).Consistency(gocql.One).Exec()
+			}
 
 		}()
 		return nil
