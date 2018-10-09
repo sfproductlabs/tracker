@@ -113,6 +113,7 @@ type WriteArgs struct {
 	Caller    string
 	IP        string
 	Browser   string
+	Language  string
 }
 
 type Service struct {
@@ -471,7 +472,9 @@ func track(c *Configuration, r *http.Request) error {
 		Caller:    ip + ";" + r.Header.Get("X-Forwarded-For"),
 		IP:        ip,
 		Browser:   r.Header.Get("user-agent"),
+		Language:  r.Header.Get("accept-language"),
 	}
+
 	//Process
 	j := make(map[string]interface{})
 	//Path
@@ -740,6 +743,20 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				json.Unmarshal([]byte(ps), &temp)
 				v["params"] = &temp
 			}
+			//Culture
+			var culture *string
+			c := strings.Split(w.Language, ",")
+			if len(c) > 0 {
+				culture = &c[0]
+			}
+			//Country
+			//TODO: Use GeoIP too
+			var country *string
+			if tz, ok := v["tz"].(string); ok {
+				if ct, oktz := countries[tz]; oktz {
+					country = &ct
+				}
+			}
 
 			//////////////////////////////////////////////
 			//Persist
@@ -772,9 +789,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							device,
 							browser,
 							os,
+							tz,
 							email
                         ) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //25
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?) IF NOT EXISTS`, //26
 					v["vid"],
 					v["sid"],
 					v["eid"],
@@ -790,8 +808,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					&duration,
 					w.IP,
 					&latlon,
-					v["country"],
-					v["culture"],
+					&country,
+					&culture,
 					v["gender"],
 					v["source"],
 					v["medium"],
@@ -799,6 +817,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["device"],
 					w.Browser,
 					v["os"],
+					v["tz"],
 					&email).Consistency(gocql.One).Exec()
 
 				//starts
@@ -827,9 +846,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							campaign,
 							device,
 							browser,
-							os
+							os,
+							tz
                         ) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) IF NOT EXISTS`, //24
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //25
 					v["vid"],
 					v["sid"],
 					v["eid"],
@@ -845,15 +865,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					&duration,
 					w.IP,
 					&latlon,
-					v["country"],
-					v["culture"],
+					&country,
+					&culture,
 					v["gender"],
 					v["source"],
 					v["medium"],
 					v["campaign"],
 					v["device"],
 					w.Browser,
-					v["os"]).Consistency(gocql.One).Exec()
+					v["os"],
+					v["tz"]).Consistency(gocql.One).Exec()
 
 			}
 			//events

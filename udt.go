@@ -1,4 +1,4 @@
-/*===----------- tracker.go - tracking utility written in go  -------------===
+/*===----------- udt.go - udt for cassandra data types      -------------===
  *
  *
  * This file is licensed under the Apache 2 License. See LICENSE for details.
