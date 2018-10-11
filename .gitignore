@@ -19,3 +19,4 @@ cache*
 *.key
 *.crt
 pem/
+*.swp
