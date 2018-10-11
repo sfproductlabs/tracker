@@ -131,6 +131,7 @@ type Service struct {
 	Format       string
 	MessageLimit int
 	ByteLimit    int
+	Timeout      time.Duration
 
 	Consumer  bool
 	Ephemeral bool
@@ -533,7 +534,7 @@ func (i *CassandraService) connect() error {
 	cluster := gocql.NewCluster(i.Configuration.Hosts...)
 	cluster.Keyspace = i.Configuration.Context
 	cluster.Consistency = gocql.One
-	cluster.Timeout = 0 //5000 * time.Millisecond
+	cluster.Timeout = i.Configuration.Timeout * time.Millisecond
 	cluster.NumConns = 2
 	if i.Configuration.CACert != "" {
 		sslOpts := &gocql.SslOptions{

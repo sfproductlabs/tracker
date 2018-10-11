@@ -19,6 +19,7 @@
                 "127.0.0.1"
             ],
             "Context": "sfpla",
+            "Timeout" : 30,
             "CACert": "cstarcacert.pem",
             "Cert": "cstarcert.pem",
             "Key": "cstarkey.pem",
