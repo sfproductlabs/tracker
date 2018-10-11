@@ -58,7 +58,7 @@ create table acquisitions (
   os text,  
   tz text,
   --TODO: Add your own variables here or in params
-  --Updateable
+  --[Optional/Updateable]
   email text, --when we got their email EXCEPTION TO THE RULE OF WRITE ONCE
   gender text,
 
