@@ -532,7 +532,9 @@ func (i *CassandraService) connect() error {
 	err := fmt.Errorf("Could not connect to cassandra")
 	cluster := gocql.NewCluster(i.Configuration.Hosts...)
 	cluster.Keyspace = i.Configuration.Context
-	cluster.Consistency = gocql.Quorum
+	cluster.Consistency = gocql.One
+	cluster.Timeout = 0 //5000 * time.Millisecond
+	cluster.NumConns = 2
 	if i.Configuration.CACert != "" {
 		sslOpts := &gocql.SslOptions{
 			CaPath:                 i.Configuration.CACert,
@@ -826,7 +828,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["tz"],
 					v["email"],
 					v["gender"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println(xerr)
+					fmt.Println("C*[acquistions]:", xerr)
 				}
 
 				//starts
@@ -882,7 +884,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					w.Browser,
 					v["os"],
 					v["tz"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println(xerr)
+					fmt.Println("C*[starts]:", xerr)
 				}
 
 			}
@@ -921,7 +923,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				&duration,
 				w.IP,
 				&latlon).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[events]:", xerr)
 			}
 
 			//ends
@@ -959,7 +961,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				&duration,
 				w.IP,
 				&latlon).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[ends]:", xerr)
 			}
 
 			//nodes
@@ -975,11 +977,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["uid"],
 				w.IP,
 				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[nodes]:", xerr)
 			}
 
 			//locations
-			if xerr := i.Session.Query(`INSERT into nodes 
+			if xerr := i.Session.Query(`INSERT into locations 
 			(
 				vid, 
 				latlon,
@@ -991,7 +993,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				&latlon,
 				v["uid"],
 				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[locations]:", xerr)
 			}
 
 			//alias
@@ -1005,7 +1007,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["vid"],
 				v["uid"],
 				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[aliases]:", xerr)
 			}
 
 			//users
@@ -1019,37 +1021,37 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["vid"],
 				v["uid"],
 				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[users]:", xerr)
 			}
 
 			//hits
 			if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
 				v["next"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[hits]:", xerr)
 			}
 
 			//ips
 			if xerr := i.Session.Query(`UPDATE ips set total=total+1 where ip=?`,
 				w.IP).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[ips]:", xerr)
 			}
 
 			//reqs
 			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
 				v["vid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[reqs]:", xerr)
 			}
 
 			//browsers
 			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=?`,
 				w.Browser).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[browsers]:", xerr)
 			}
 
 			//referrers
 			if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
 				v["last"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
+				fmt.Println("C*[referrers]:", xerr)
 			}
 
 			//referrals
@@ -1062,7 +1064,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					values (?,?) IF NOT EXISTS`, //2
 					v["vid"],
 					v["ref"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println(xerr)
+					fmt.Println("C*[referrals]:", xerr)
 				}
 			}
 
