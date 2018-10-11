@@ -120,7 +120,7 @@
             "Hosts": [
                 "tls://localhost:4222"
             ],
-            "Context": "tic.track.*",
+            "Context": "toc.track.notify",
             "Secure": true,
             "CACert": "natscacert.pem",
             "Cert": "natscert.pem",

@@ -642,9 +642,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		return i.Session.Query(`INSERT INTO logs
 		(
-			id, 
 			ldate,
+			created,
 			ltime,
+			id, 
 			name, 
 			host, 
 			hostname, 
@@ -654,10 +655,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			msg,
 			params
 		) 
-		values (?,?,?,?,?,?,?,?,?,? ,?)`, //11
-			v["id"],
+		values (?,?,?,?,?,?,?,?,?,? ,?,?)`, //12
 			v["ldate"],
+			time.Now().UTC(),
 			ltime,
+			v["id"],
 			v["name"],
 			v["host"],
 			v["hostname"],
@@ -674,7 +676,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		go func() {
 			//Add dailies regardless
 			//[Daily]
-			updated := time.Now()
+			updated := time.Now().UTC()
 			i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Consistency(gocql.One).Exec()
 
 			//////////////////////////////////////////////
@@ -798,7 +800,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["sid"],
 					v["eid"],
 					v["etyp"],
-					time.Now(),
+					updated,
 					v["uid"],
 					v["last"],
 					v["next"],
@@ -854,7 +856,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["sid"],
 					v["eid"],
 					v["etyp"],
-					time.Now(),
+					updated,
 					v["uid"],
 					v["last"],
 					v["next"],
@@ -900,7 +902,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["sid"],
 				v["eid"],
 				v["etyp"],
-				time.Now(),
+				updated,
 				v["uid"],
 				v["last"],
 				v["next"],
@@ -936,7 +938,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["sid"],
 				v["eid"],
 				v["etyp"],
-				time.Now(),
+				updated,
 				v["uid"],
 				v["last"],
 				v["next"],

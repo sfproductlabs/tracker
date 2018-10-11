@@ -16,36 +16,6 @@ create table sequences (
 );
 insert into sequences (name, seq) values('DB_VER',1);
 
-
-create table counters (  
-  id text,   
-  total counter,
-  primary key((id)) 
-);
-
-create table logs (  
-  id text, 
-  ldate date,
-  ltime time,
-  name text, 
-  host text, 
-  hostname text, 
-  owner text,
-  ip text,
-  level int, 
-  msg text,
-  params frozen<map<text,text>>,
-  primary key((id, ldate, ltime)) 
-);
-
-create table updates (
-  id text,
-  updated timestamp,
-  msg text,
-  primary key(id)
-);
-
-
 create type geo_point (
  lat double,
  lon double
@@ -123,7 +93,8 @@ create table starts (
   os text,  
   tz text,
   PRIMARY KEY ((vid), sid)
-);
+)
+WITH CLUSTERING ORDER BY (sid DESC);
 
 create table events (
   vid text, 
@@ -142,7 +113,8 @@ create table events (
   ip text, 
   latlon frozen<geo_point>, 
   PRIMARY KEY ((vid, sid), created) --perhaps move sid from ck into pk
-);
+)
+WITH CLUSTERING ORDER BY (created DESC);
 
 --Session ends
 create table ends (
@@ -162,7 +134,8 @@ create table ends (
   ip text,
   latlon frozen<geo_point>,
   PRIMARY KEY ((vid), sid)
-);
+)
+WITH CLUSTERING ORDER BY (sid DESC);
 
 create table nodes (
   vid text, 
@@ -199,7 +172,8 @@ create table dailies (
   day date,
   total counter,
   primary key((ip),day) 
-);
+)
+WITH CLUSTERING ORDER BY (day DESC);
 
 create table hits (  
   url text, 
@@ -237,3 +211,37 @@ create table referrals (
   primary key((vid)) 
 );
 
+--NATS Specializations
+
+-- Esp. Server Debugging
+create table counters (  
+  id text,   
+  total counter,
+  primary key((id)) 
+);
+
+-- Esp. Server Debugging
+create table logs (  
+  ldate date,
+  created timestamp,
+  ltime time, --nanosecond time for detailed server debugging
+  id text, 
+  name text, 
+  host text, 
+  hostname text, 
+  owner text,
+  ip text,
+  level int, 
+  msg text,
+  params frozen<map<text,text>>,
+  primary key((ldate), created, ltime, id) 
+)
+WITH CLUSTERING ORDER BY (created DESC); --We make an exception here for using a clustered key instead of a PK so we can do realtime debugging
+
+-- Esp. Server Debugging
+create table updates (
+  id text,
+  updated timestamp,
+  msg text,
+  primary key(id)
+);
