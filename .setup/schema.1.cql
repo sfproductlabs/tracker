@@ -43,7 +43,7 @@ create table acquisitions (
   sink text, --local-optimum/experiment
   ver int, --sink version/variation
   score double, --score
-  params frozen<map<text,text>>, --all experiment params, (include global-optimum-experimentid[outcome], a/b[type])
+  params map<text,text>, --all experiment params, (include global-optimum-experimentid[outcome], a/b[type])
   duration bigint, --time since last click
   ip text, --ip
   latlon frozen<geo_point>, --location
@@ -78,7 +78,7 @@ create table starts (
   sink text,
   ver int, 
   score double,
-  params frozen<map<text,text>>, 
+  params map<text,text>, 
   duration bigint,
   ip text,
   latlon frozen<geo_point>,
@@ -108,7 +108,7 @@ create table events (
   sink text, 
   ver int, 
   score double, 
-  params frozen<map<text,text>>, --filter? experiment params, (global-optimum-experimentid[outcome], a/b[type])
+  params map<text,text>, --filter? experiment params, (global-optimum-experimentid[outcome], a/b[type])
   duration bigint, 
   ip text, 
   latlon frozen<geo_point>, 
@@ -129,7 +129,7 @@ create table ends (
   sink text,
   ver int, 
   score double,
-  params frozen<map<text,text>>, 
+  params map<text,text>, 
   duration bigint,
   ip text,
   latlon frozen<geo_point>,
@@ -233,7 +233,7 @@ create table logs (
   ip text,
   level int, 
   msg text,
-  params frozen<map<text,text>>,
+  params map<text,text>,
   primary key((ldate), created, ltime, id) 
 )
 WITH CLUSTERING ORDER BY (created DESC); --We make an exception here for using a clustered key instead of a PK so we can do realtime debugging
