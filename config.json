@@ -7,6 +7,8 @@
     "StaticDirectory": "public",
     "ProxyUrl": "http://localhost:3030",
     "UseLocalTLS": true,
+    "TLSCert" : "./server.crt",
+    "TLSKey" : "./server.key",
     "ProxyPortTLS" : ":8443",
     "ProxyPort" : ":8080",
     "ProxyDailyLimit" : 0,

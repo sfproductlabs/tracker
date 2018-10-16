@@ -154,6 +154,8 @@ type Configuration struct {
 	Domains                []string //Domains in Trust, LetsEncrypt domains
 	StaticDirectory        string   //Static FS Directory (./public/)
 	UseLocalTLS            bool
+	TLSCert                string
+	TLSKey                 string
 	Notify                 []Service
 	Consume                []Service
 	ProxyUrl               string
@@ -425,7 +427,7 @@ func main() {
 	fmt.Printf("Serving TLS requests on: %s\n", proxyPortTLS)
 	if configuration.UseLocalTLS {
 		server.TLSConfig.GetCertificate = nil
-		log.Fatal(server.ListenAndServeTLS("server.crt", "server.key")) // SERVE HTTPS!
+		log.Fatal(server.ListenAndServeTLS(configuration.TLSCert, configuration.TLSKey)) // SERVE HTTPS!
 	} else {
 		log.Fatal(server.ListenAndServeTLS("", "")) // SERVE HTTPS!
 	}
