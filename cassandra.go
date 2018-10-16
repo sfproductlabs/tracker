@@ -1,0 +1,619 @@
+/*===----------- cassandra.go - cassandra interface   in go  -------------===
+ *
+ *
+ * This file is licensed under the Apache 2 License. See LICENSE for details.
+ *
+ *  Copyright (c) 2018 Andrew Grosser. All Rights Reserved.
+ *
+ *                                     `...
+ *                                    yNMMh`
+ *                                    dMMMh`
+ *                                    dMMMh`
+ *                                    dMMMh`
+ *                                    dMMMd`
+ *                                    dMMMm.
+ *                                    dMMMm.
+ *                                    dMMMm.               /hdy.
+ *                  ohs+`             yMMMd.               yMMM-
+ *                 .mMMm.             yMMMm.               oMMM/
+ *                 :MMMd`             sMMMN.               oMMMo
+ *                 +MMMd`             oMMMN.               oMMMy
+ *                 sMMMd`             /MMMN.               oMMMh
+ *                 sMMMd`             /MMMN-               oMMMd
+ *                 oMMMd`             :NMMM-               oMMMd
+ *                 /MMMd`             -NMMM-               oMMMm
+ *                 :MMMd`             .mMMM-               oMMMm`
+ *                 -NMMm.             `mMMM:               oMMMm`
+ *                 .mMMm.              dMMM/               +MMMm`
+ *                 `hMMm.              hMMM/               /MMMm`
+ *                  yMMm.              yMMM/               /MMMm`
+ *                  oMMm.              oMMMo               -MMMN.
+ *                  +MMm.              +MMMo               .MMMN-
+ *                  +MMm.              /MMMo               .NMMN-
+ *           `      +MMm.              -MMMs               .mMMN:  `.-.
+ *          /hys:`  +MMN-              -NMMy               `hMMN: .yNNy
+ *          :NMMMy` sMMM/              .NMMy                yMMM+-dMMMo
+ *           +NMMMh-hMMMo              .mMMy                +MMMmNMMMh`
+ *            /dMMMNNMMMs              .dMMd                -MMMMMNm+`
+ *             .+mMMMMMN:              .mMMd                `NMNmh/`
+ *               `/yhhy:               `dMMd                 /+:`
+ *                                     `hMMm`
+ *                                     `hMMm.
+ *                                     .mMMm:
+ *                                     :MMMd-
+ *                                     -NMMh.
+ *                                      ./:.
+ *
+ *===----------------------------------------------------------------------===
+ */
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"math/rand"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gocql/gocql"
+)
+
+////////////////////////////////////////
+// Interface Implementations
+////////////////////////////////////////
+
+//////////////////////////////////////// C*
+// Connect initiates the primary connection to the range of provided URLs
+func (i *CassandraService) connect() error {
+	err := fmt.Errorf("Could not connect to cassandra")
+	cluster := gocql.NewCluster(i.Configuration.Hosts...)
+	cluster.Keyspace = i.Configuration.Context
+	cluster.Consistency = gocql.One
+	cluster.Timeout = i.Configuration.Timeout * time.Millisecond
+	cluster.NumConns = 2
+	if i.Configuration.CACert != "" {
+		sslOpts := &gocql.SslOptions{
+			CaPath:                 i.Configuration.CACert,
+			EnableHostVerification: i.Configuration.Secure, //TODO: SECURITY THREAT
+		}
+		if i.Configuration.Cert != "" && i.Configuration.Key != "" {
+			sslOpts.CertPath = i.Configuration.Cert
+			sslOpts.KeyPath = i.Configuration.Key
+		}
+		cluster.SslOpts = sslOpts
+	}
+
+	if i.Session, err = cluster.CreateSession(); err != nil {
+		fmt.Println("[ERROR] Connecting to C*:", err)
+		return err
+	}
+	i.Configuration.Session = i
+
+	//Setup rand
+	rand.Seed(time.Now().UnixNano())
+
+	//Setup limit checker (cassandra)
+	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CASSANDRA {
+		i.AppConfig.ProxyDailyLimitCheck = func(ip string) uint64 {
+			var total uint64
+			if i.Session.Query(`SELECT total FROM dailies where ip=? AND day=?`, ip, time.Now()).Consistency(gocql.One).Scan(&total); err != nil {
+				return 0xFFFFFFFFFFFFFFFF
+			}
+			return total
+		}
+	}
+	return nil
+}
+
+//////////////////////////////////////// C*
+// Close will terminate the session to the backend, returning error if an issue arises
+func (i *CassandraService) close() error {
+	if !i.Session.Closed() {
+		i.Session.Close()
+	}
+	return nil
+}
+
+func (i *CassandraService) listen() error {
+	//TODO: Listen for cassandra triggers
+	return fmt.Errorf("[ERROR] Cassandra listen not implemented")
+}
+
+//////////////////////////////////////// C*
+func (i *CassandraService) write(w *WriteArgs) error {
+	err := fmt.Errorf("Could not write to any cassandra server in cluster")
+	v := *w.Values
+	switch w.WriteType {
+	case WRITE_COUNT:
+		if i.AppConfig.Debug {
+			fmt.Printf("COUNT %s\n", w)
+		}
+		return i.Session.Query(`UPDATE counters set total=total+1 where id=?`,
+			v["id"]).Consistency(gocql.One).Exec()
+	case WRITE_UPDATE:
+		if i.AppConfig.Debug {
+			fmt.Printf("UPDATE %s\n", w)
+		}
+		timestamp := time.Now().UTC()
+		updated, ok := v["updated"].(string)
+		if ok {
+			millis, err := strconv.ParseInt(updated, 10, 64)
+			if err == nil {
+				timestamp = time.Unix(0, millis*int64(time.Millisecond))
+			}
+		}
+		return i.Session.Query(`INSERT INTO updates (id, updated, msg) values (?,?,?)`,
+			v["id"],
+			timestamp,
+			v["msg"]).Consistency(gocql.One).Exec()
+
+	case WRITE_LOG:
+		if i.AppConfig.Debug {
+			fmt.Printf("LOG %s\n", w)
+		}
+		//////////////////////////////////////////////
+		//FIX VARS
+		//////////////////////////////////////////////
+		//[id]
+		_, ok := v["id"].(string)
+		if !ok {
+			v["id"] = gocql.TimeUUID().String()
+		}
+		//[params]
+		if ps, ok := v["params"].(string); ok {
+			temp := make(map[string]string)
+			json.Unmarshal([]byte(ps), &temp)
+			v["params"] = &temp
+		}
+		//[ltimenss] ltime as nanosecond string
+		var ltime time.Duration
+		if lts, ok := v["ltimenss"].(string); ok {
+			ns, _ := strconv.ParseInt(lts, 10, 64)
+			ltime = time.Duration(ns)
+		}
+		//[level]
+		var level *int64
+		if lvl, ok := v["level"].(float64); ok {
+			temp := int64(lvl)
+			level = &temp
+		}
+
+		return i.Session.Query(`INSERT INTO logs
+		(
+			ldate,
+			created,
+			ltime,
+			id, 
+			name, 
+			host, 
+			hostname, 
+			owner,
+			ip,
+			level, 
+			msg,
+			params
+		) 
+		values (?,?,?,?,?,?,?,?,?,? ,?,?)`, //12
+			v["ldate"],
+			time.Now().UTC(),
+			ltime,
+			v["id"],
+			v["name"],
+			v["host"],
+			v["hostname"],
+			v["owner"],
+			v["ip"],
+			&level,
+			v["msg"],
+			v["params"]).Consistency(gocql.One).Exec()
+
+	case WRITE_EVENT:
+		if i.AppConfig.Debug {
+			fmt.Printf("EVENT %s\n", w)
+		}
+		go func() {
+			//Add dailies regardless
+			//[Daily]
+			updated := time.Now().UTC()
+			if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println(xerr)
+			}
+
+			//////////////////////////////////////////////
+			//FIX VARS
+			//////////////////////////////////////////////
+			//[first]
+			first := v["first"] != "false"
+			//[latlon]
+			var latlon *geo_point
+			latf, oklatf := v["lat"].(float64)
+			lonf, oklonf := v["lon"].(float64)
+			if oklatf && oklonf {
+				//Float
+				latlon = &geo_point{}
+				latlon.Lat = latf
+				latlon.Lon = lonf
+			} else {
+				//String
+				lats, oklats := v["lat"].(string)
+				lons, oklons := v["lon"].(string)
+				if oklats && oklons {
+					latlon = &geo_point{}
+					latlon.Lat, _ = strconv.ParseFloat(lats, 64)
+					latlon.Lon, _ = strconv.ParseFloat(lons, 64)
+				}
+			}
+			//[duration]
+			var duration *int64
+			if d, ok := v["duration"].(string); ok {
+				temp, _ := strconv.ParseInt(d, 10, 64)
+				duration = &temp
+			}
+			if d, ok := v["duration"].(float64); ok {
+				temp := int64(d)
+				duration = &temp
+			}
+
+			//[ver]
+			var version *int64
+			if ver, ok := v["version"].(string); ok {
+				temp, _ := strconv.ParseInt(ver, 10, 32)
+				version = &temp
+			}
+			if ver, ok := v["version"].(float64); ok {
+				temp := int64(ver)
+				version = &temp
+			}
+			//[score]
+			var score *float64
+			if s, ok := v["score"].(string); ok {
+				temp, _ := strconv.ParseFloat(s, 64)
+				score = &temp
+			}
+			//Force reset the following types...
+			//[sid]
+			if _, ok := v["sid"].(string); !ok {
+				v["sid"] = gocql.TimeUUID()
+			}
+			//Params
+			if ps, ok := v["params"].(string); ok {
+				temp := make(map[string]string)
+				json.Unmarshal([]byte(ps), &temp)
+				v["params"] = &temp
+			}
+			//Culture
+			var culture *string
+			c := strings.Split(w.Language, ",")
+			if len(c) > 0 {
+				culture = &c[0]
+			}
+			//Country
+			//TODO: Use GeoIP too
+			var country *string
+			if tz, ok := v["tz"].(string); ok {
+				if ct, oktz := countries[tz]; oktz {
+					country = &ct
+				}
+			}
+
+			//[Outcome]
+			if outcome, ok := v["outcome"].(string); ok {
+				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["next"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println(xerr)
+				}
+			}
+
+			//////////////////////////////////////////////
+			//Persist
+			//////////////////////////////////////////////
+			if first {
+				//acquisitions
+				if xerr := i.Session.Query(`INSERT into acquisitions 
+                        (
+                            vid, 
+                            sid, 
+							eid, 
+							etyp,
+							created,
+							uid,
+                            last,
+							next,
+							sink,
+							ver,
+							score,							
+                            params,
+                            duration,
+                            ip,
+							latlon,
+							country,
+							culture,
+							source,
+							medium,
+							campaign,
+							device,
+							browser,
+							os,
+							tz,
+							email,
+							gender
+                        ) 
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?) IF NOT EXISTS`, //26
+					v["vid"],
+					v["sid"],
+					v["eid"],
+					v["etyp"],
+					updated,
+					v["uid"],
+					v["last"],
+					v["next"],
+					v["sink"],
+					&version,
+					&score,
+					v["params"],
+					&duration,
+					w.IP,
+					&latlon,
+					&country,
+					&culture,
+					v["source"],
+					v["medium"],
+					v["campaign"],
+					v["device"],
+					w.Browser,
+					v["os"],
+					v["tz"],
+					v["email"],
+					v["gender"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[acquistions]:", xerr)
+				}
+
+				//starts
+				if xerr := i.Session.Query(`INSERT into starts 
+                        (
+                            vid, 
+                            sid, 
+							eid, 
+							etyp,
+							created,
+							uid,
+                            last,
+							next,
+							sink,
+							ver,
+							score,							
+                            params,
+                            duration,
+                            ip,
+							latlon,
+							country,
+							culture,
+							source,
+							medium,
+							campaign,
+							device,
+							browser,
+							os,
+							tz
+                        ) 
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) IF NOT EXISTS`, //24
+					v["vid"],
+					v["sid"],
+					v["eid"],
+					v["etyp"],
+					updated,
+					v["uid"],
+					v["last"],
+					v["next"],
+					v["sink"],
+					&version,
+					&score,
+					v["params"],
+					&duration,
+					w.IP,
+					&latlon,
+					&country,
+					&culture,
+					v["source"],
+					v["medium"],
+					v["campaign"],
+					v["device"],
+					w.Browser,
+					v["os"],
+					v["tz"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[starts]:", xerr)
+				}
+
+			}
+			//events
+			if xerr := i.Session.Query(`INSERT into events 
+			(
+				vid, 
+				sid, 
+				eid, 
+				etyp,
+				created,
+				uid,
+				last,
+				next,
+				sink,
+				ver,
+				score,							
+				params,
+				duration,
+				ip,
+				latlon
+			) 
+			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //15
+				v["vid"],
+				v["sid"],
+				v["eid"],
+				v["etyp"],
+				updated,
+				v["uid"],
+				v["last"],
+				v["next"],
+				v["sink"],
+				&version,
+				&score,
+				v["params"],
+				&duration,
+				w.IP,
+				&latlon).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[events]:", xerr)
+			}
+
+			//ends
+			if xerr := i.Session.Query(`INSERT into ends 
+			(
+				vid, 
+				sid, 
+				eid, 
+				etyp,
+				created,
+				uid,
+				last,
+				next,
+				sink,
+				ver,
+				score,							
+				params,
+				duration,
+				ip,
+				latlon
+			) 
+			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //15
+				v["vid"],
+				v["sid"],
+				v["eid"],
+				v["etyp"],
+				updated,
+				v["uid"],
+				v["last"],
+				v["next"],
+				v["sink"],
+				&version,
+				&score,
+				v["params"],
+				&duration,
+				w.IP,
+				&latlon).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[ends]:", xerr)
+			}
+
+			//nodes
+			if xerr := i.Session.Query(`INSERT into nodes 
+			(
+				vid, 
+				uid,
+				ip,
+				sid
+			) 
+			values (?,?,?,?)`, //4
+				v["vid"],
+				v["uid"],
+				w.IP,
+				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[nodes]:", xerr)
+			}
+
+			//locations
+			if xerr := i.Session.Query(`INSERT into locations 
+			(
+				vid, 
+				latlon,
+				uid,
+				sid
+			) 
+			values (?,?,?,?)`, //4
+				v["vid"],
+				&latlon,
+				v["uid"],
+				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[locations]:", xerr)
+			}
+
+			//alias
+			if xerr := i.Session.Query(`INSERT into aliases 
+			(
+				vid, 
+				uid,
+				sid
+			) 
+			values (?,?,?)`, //3
+				v["vid"],
+				v["uid"],
+				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[aliases]:", xerr)
+			}
+
+			//users
+			if xerr := i.Session.Query(`INSERT into users 
+				(
+					vid, 
+					uid,
+					sid
+				) 
+				values (?,?,?)`, //3
+				v["vid"],
+				v["uid"],
+				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[users]:", xerr)
+			}
+
+			//hits
+			if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
+				v["next"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[hits]:", xerr)
+			}
+
+			//ips
+			if xerr := i.Session.Query(`UPDATE ips set total=total+1 where ip=?`,
+				w.IP).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[ips]:", xerr)
+			}
+
+			//reqs
+			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
+				v["vid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[reqs]:", xerr)
+			}
+
+			//browsers
+			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=?`,
+				w.Browser).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[browsers]:", xerr)
+			}
+
+			//referrers
+			if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
+				v["last"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[referrers]:", xerr)
+			}
+
+			//referrals
+			if v["ref"] != nil {
+				if xerr := i.Session.Query(`INSERT into referrals 
+					(
+						vid, 
+						ref
+					) 
+					values (?,?) IF NOT EXISTS`, //2
+					v["vid"],
+					v["ref"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[referrals]:", xerr)
+				}
+			}
+
+		}()
+		return nil
+	default:
+		//TODO: Manually run query via query in config.json
+		if i.AppConfig.Debug {
+			fmt.Printf("UNHANDLED %s\n", w)
+		}
+	}
+
+	//TODO: Retries
+	return err
+}
