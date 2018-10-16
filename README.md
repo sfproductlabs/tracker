@@ -18,6 +18,11 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Initial tests show around 1,000 connections per second per server month dollar
 * Written entirely in Golang
 
+## Todo
+* Kafka plugin
+* NATS/Kafka converter/repeater
+* Flink plugin
+
 ## Instructions
 
 * Install Cassandra or Elassandra
