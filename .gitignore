@@ -20,3 +20,4 @@ cache*
 *.crt
 pem/
 *.swp
+config.*.json

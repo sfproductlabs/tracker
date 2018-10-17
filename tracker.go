@@ -215,7 +215,12 @@ func main() {
 
 	//////////////////////////////////////// LOAD CONFIG
 	fmt.Println("Starting services...")
-	file, _ := os.Open("config.json")
+	configFile := "config.json"
+	if len(os.Args) > 1 {
+		configFile = os.Args[1]
+	}
+	fmt.Println("Configuration file: ", configFile)
+	file, _ := os.Open(configFile)
 	defer file.Close()
 	decoder := json.NewDecoder(file)
 	configuration := Configuration{}
