@@ -69,7 +69,7 @@ func (i *CassandraService) connect() error {
 	err := fmt.Errorf("Could not connect to cassandra")
 	cluster := gocql.NewCluster(i.Configuration.Hosts...)
 	cluster.Keyspace = i.Configuration.Context
-	cluster.Consistency = gocql.One
+	cluster.Consistency = gocql.LocalOne
 	cluster.Timeout = i.Configuration.Timeout * time.Millisecond
 	cluster.NumConns = 2
 	if i.Configuration.CACert != "" {
@@ -97,7 +97,7 @@ func (i *CassandraService) connect() error {
 	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CASSANDRA {
 		i.AppConfig.ProxyDailyLimitCheck = func(ip string) uint64 {
 			var total uint64
-			if i.Session.Query(`SELECT total FROM dailies where ip=? AND day=?`, ip, time.Now()).Consistency(gocql.One).Scan(&total); err != nil {
+			if i.Session.Query(`SELECT total FROM dailies where ip=? AND day=?`, ip, time.Now()).Scan(&total); err != nil {
 				return 0xFFFFFFFFFFFFFFFF
 			}
 			return total
@@ -130,7 +130,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			fmt.Printf("COUNT %s\n", w)
 		}
 		return i.Session.Query(`UPDATE counters set total=total+1 where id=?`,
-			v["id"]).Consistency(gocql.One).Exec()
+			v["id"]).Exec()
 	case WRITE_UPDATE:
 		if i.AppConfig.Debug {
 			fmt.Printf("UPDATE %s\n", w)
@@ -146,7 +146,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		return i.Session.Query(`INSERT INTO updates (id, updated, msg) values (?,?,?)`,
 			v["id"],
 			timestamp,
-			v["msg"]).Consistency(gocql.One).Exec()
+			v["msg"]).Exec()
 
 	case WRITE_LOG:
 		if i.AppConfig.Debug {
@@ -206,7 +206,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["ip"],
 			&level,
 			v["msg"],
-			v["params"]).Consistency(gocql.One).Exec()
+			v["params"]).Exec()
 
 	case WRITE_EVENT:
 		if i.AppConfig.Debug {
@@ -216,7 +216,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//Add dailies regardless
 			//[Daily]
 			updated := time.Now().UTC()
-			if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println(xerr)
 			}
 
@@ -309,7 +309,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//[outcome]
 			if outcome, ok := v["outcome"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["next"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println(xerr)
 				}
 			}
@@ -384,7 +384,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					w.Browser,
 					v["os"],
 					v["tz"],
-					&vp).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					&vp).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[acquistions]:", xerr)
 				}
 
@@ -442,7 +442,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					w.Browser,
 					v["os"],
 					v["tz"],
-					&vp).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					&vp).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[starts]:", xerr)
 				}
 
@@ -481,7 +481,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["params"],
 				&duration,
 				w.IP,
-				&latlon).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				&latlon).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[events]:", xerr)
 			}
 
@@ -519,7 +519,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["params"],
 				&duration,
 				w.IP,
-				&latlon).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				&latlon).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[ends]:", xerr)
 			}
 
@@ -535,7 +535,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["vid"],
 				v["uid"],
 				w.IP,
-				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[nodes]:", xerr)
 			}
 
@@ -552,7 +552,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["vid"],
 					&latlon,
 					v["uid"],
-					v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[locations]:", xerr)
 				}
 			}
@@ -568,7 +568,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			values (?,?,?)`, //3
 					v["vid"],
 					v["uid"],
-					v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[aliases]:", xerr)
 				}
 			}
@@ -584,38 +584,38 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				values (?,?,?)`, //3
 					v["vid"],
 					v["uid"],
-					v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[users]:", xerr)
 				}
 			}
 
 			//hits
 			if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
-				v["next"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[hits]:", xerr)
 			}
 
 			//ips
 			if xerr := i.Session.Query(`UPDATE ips set total=total+1 where ip=?`,
-				w.IP).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[ips]:", xerr)
 			}
 
 			//reqs
 			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
-				v["vid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[reqs]:", xerr)
 			}
 
 			//browsers
 			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=?`,
-				w.Browser).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				w.Browser).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[browsers]:", xerr)
 			}
 
 			//referrers
 			if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
-				v["last"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+				v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[referrers]:", xerr)
 			}
 
@@ -628,7 +628,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					) 
 					values (?,?) IF NOT EXISTS`, //2
 					v["vid"],
-					v["ref"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					v["ref"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[referrals]:", xerr)
 				}
 			}
