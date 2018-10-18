@@ -167,6 +167,8 @@ type Configuration struct {
 	SchemaVersion          int
 	ApiVersion             int
 	Debug                  bool
+	UrlPrefixFilter        string
+	FilterPrefix           bool
 }
 
 //////////////////////////////////////// Constants
@@ -196,6 +198,7 @@ var (
 	qiReplacer     = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
 	regexCount, _  = regexp.Compile(`\.count\.(.*)`)
 	regexUpdate, _ = regexp.Compile(`\.update\.(.*)`)
+	urlPrefix, _   = regexp.Compile(`(.*)`)
 )
 
 //////////////////////////////////////// Transparent GIF
@@ -233,6 +236,13 @@ func main() {
 	cache := cacheDir()
 	if cache == "" {
 		log.Fatal("Bad Cache.")
+	}
+
+	////////////////////////////////////////SETUP FILTER
+	if configuration.UrlPrefixFilter != "" {
+		fmt.Println("Setting up URL prefix filter...")
+		configuration.FilterPrefix = true
+		urlPrefix, _ = regexp.Compile(configuration.UrlPrefixFilter)
 	}
 
 	//////////////////////////////////////// SETUP CONFIG VARIABLES
@@ -525,4 +535,16 @@ func track(c *Configuration, r *http.Request) error {
 	}
 	return nil
 
+}
+
+////////////////////////////////////////
+// FilterUrlPrefix
+////////////////////////////////////////
+func filterUrlPrefix(c *Configuration, s *string) error {
+	matches := urlPrefix.FindStringSubmatch(*s)
+	mi := len(matches)
+	if mi > 0 {
+		*s = matches[mi-1]
+	}
+	return nil
 }

@@ -14,6 +14,7 @@
     "ProxyDailyLimit" : 0,
     "ProxyDailyLimitChecker" : "cassandra",
     "Debug" : true,
+    "UrlPrefixFilter" : "http(s|)://(localhost|dev\\.sfproductlabs\\.com)(:[0-9]*|)(/.*)",
     "Notify": [
         {
             "Service": "cassandra",

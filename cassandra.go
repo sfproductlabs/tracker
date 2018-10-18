@@ -244,6 +244,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					latlon.Lon, _ = strconv.ParseFloat(lons, 64)
 				}
 			}
+			//[vp]
+			var vp *viewport
+			width, okwf := v["w"].(float64)
+			height, okhf := v["h"].(float64)
+			if okwf && okhf {
+				//Float
+				vp = &viewport{}
+				vp.H = int64(height)
+				vp.W = int64(width)
+			}
 			//[duration]
 			var duration *int64
 			if d, ok := v["duration"].(string); ok {
@@ -276,19 +286,19 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if _, ok := v["sid"].(string); !ok {
 				v["sid"] = gocql.TimeUUID()
 			}
-			//Params
+			//[params]
 			if ps, ok := v["params"].(string); ok {
 				temp := make(map[string]string)
 				json.Unmarshal([]byte(ps), &temp)
 				v["params"] = &temp
 			}
-			//Culture
+			//[culture]
 			var culture *string
 			c := strings.Split(w.Language, ",")
 			if len(c) > 0 {
 				culture = &c[0]
 			}
-			//Country
+			//[country]
 			//TODO: Use GeoIP too
 			var country *string
 			if tz, ok := v["tz"].(string); ok {
@@ -297,10 +307,22 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 
-			//[Outcome]
+			//[outcome]
 			if outcome, ok := v["outcome"].(string); ok {
 				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["next"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println(xerr)
+				}
+			}
+
+			//[last],[next]
+			if i.AppConfig.FilterPrefix {
+				if last, ok := v["last"].(string); ok {
+					filterUrlPrefix(i.AppConfig, &last)
+					v["last"] = last
+				}
+				if next, ok := v["next"].(string); ok {
+					filterUrlPrefix(i.AppConfig, &next)
+					v["next"] = next
 				}
 			}
 
@@ -335,10 +357,9 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							browser,
 							os,
 							tz,
-							email,
-							gender
+							vp
                         ) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?) IF NOT EXISTS`, //26
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //25
 					v["vid"],
 					v["sid"],
 					v["eid"],
@@ -363,8 +384,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					w.Browser,
 					v["os"],
 					v["tz"],
-					v["email"],
-					v["gender"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					&vp).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[acquistions]:", xerr)
 				}
 
@@ -394,9 +414,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							device,
 							browser,
 							os,
-							tz
+							tz,
+							vp
                         ) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) IF NOT EXISTS`, //24
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //24
 					v["vid"],
 					v["sid"],
 					v["eid"],
@@ -420,7 +441,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["device"],
 					w.Browser,
 					v["os"],
-					v["tz"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					v["tz"],
+					&vp).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[starts]:", xerr)
 				}
 
@@ -518,47 +540,53 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 
 			//locations
-			if xerr := i.Session.Query(`INSERT into locations 
-			(
-				vid, 
-				latlon,
-				uid,
-				sid
-			) 
-			values (?,?,?,?)`, //4
-				v["vid"],
-				&latlon,
-				v["uid"],
-				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[locations]:", xerr)
+			if latlon != nil {
+				if xerr := i.Session.Query(`INSERT into locations 
+					(
+						vid, 
+						latlon,
+						uid,
+						sid
+					) 
+					values (?,?,?,?)`, //4
+					v["vid"],
+					&latlon,
+					v["uid"],
+					v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[locations]:", xerr)
+				}
 			}
 
 			//alias
-			if xerr := i.Session.Query(`INSERT into aliases 
+			if v["uid"] != nil {
+				if xerr := i.Session.Query(`INSERT into aliases 
 			(
 				vid, 
 				uid,
 				sid
 			) 
 			values (?,?,?)`, //3
-				v["vid"],
-				v["uid"],
-				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[aliases]:", xerr)
+					v["vid"],
+					v["uid"],
+					v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[aliases]:", xerr)
+				}
 			}
 
 			//users
-			if xerr := i.Session.Query(`INSERT into users 
+			if v["uid"] != nil {
+				if xerr := i.Session.Query(`INSERT into users 
 				(
 					vid, 
 					uid,
 					sid
 				) 
 				values (?,?,?)`, //3
-				v["vid"],
-				v["uid"],
-				v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[users]:", xerr)
+					v["vid"],
+					v["uid"],
+					v["sid"]).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[users]:", xerr)
+				}
 			}
 
 			//hits

@@ -5,7 +5,7 @@
 
 -- SFPLA
 drop keyspace sfpla;
-create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'DC1':'1' };
+create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'DC1':'1' }; --analytics
 
 use sfpla;
 
@@ -20,6 +20,12 @@ create type geo_point (
  lat double,
  lon double
 );
+
+create type viewport (
+ w bigint,
+ h bigint
+);
+
 
 create table outcomes (
   outcome text,
@@ -57,10 +63,11 @@ create table acquisitions (
   browser text,
   os text,  
   tz text,
+  vp frozen<viewport>,
   --TODO: Add your own variables here or in params
   --[Optional/Updateable]
-  email text, --when we got their email EXCEPTION TO THE RULE OF WRITE ONCE
-  gender text,
+  -- email text, --when we got their email EXCEPTION TO THE RULE OF WRITE ONCE
+  -- gender text,
 
   PRIMARY KEY ((vid))
 );
@@ -92,6 +99,7 @@ create table starts (
   browser text,
   os text,  
   tz text,
+  vp frozen<viewport>,
   PRIMARY KEY ((vid), sid)
 )
 WITH CLUSTERING ORDER BY (sid DESC);

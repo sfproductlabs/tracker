@@ -59,6 +59,11 @@ type geo_point struct {
 	Lon float64 `cql:"lon"`
 }
 
+type viewport struct {
+	W int64 `cql:"w"`
+	H int64 `cql:"h"`
+}
+
 // NOTE: due to current implementation details it is not currently possible to use
 // a pointer receiver type for the UDTMarshaler interface to handle UDT's
 func (p geo_point) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) {
