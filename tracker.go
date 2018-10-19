@@ -62,6 +62,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -250,7 +251,7 @@ func main() {
 
 	//////////////////////////////////////// SETUP CONFIG VARIABLES
 	fmt.Println("Trusted domains: ", configuration.Domains)
-	apiVersion := "v" + string(configuration.ApiVersion)
+	apiVersion := "v" + strconv.Itoa(configuration.ApiVersion)
 	//LetsEncrypt needs 443 & 80, So only override if possible
 	proxyPort := ":http"
 	if configuration.UseLocalTLS && configuration.ProxyPort != "" {
@@ -412,15 +413,29 @@ func main() {
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
 	pubSlug := "/pub/" + apiVersion + "/"
 	http.HandleFunc(pubSlug, func(w http.ResponseWriter, r *http.Request) {
-		track(&configuration, w, r)
-		http.StripPrefix(pubSlug, fs).ServeHTTP(w, r)
+		select {
+		case <-connc:
+			track(&configuration, w, r)
+			http.StripPrefix(pubSlug, fs).ServeHTTP(w, r)
+			connc <- struct{}{}
+		default:
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+		}
 	})
 
 	//////////////////////////////////////// 1x1 PIXEL ROUTE
 	http.HandleFunc("/img/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
-		track(&configuration, w, r)
-		w.Header().Set("content-type", "image/gif")
-		w.Write(TRACKING_GIF)
+		select {
+		case <-connc:
+			track(&configuration, w, r)
+			w.Header().Set("content-type", "image/gif")
+			w.Write(TRACKING_GIF)
+			connc <- struct{}{}
+		default:
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+		}
 	})
 
 	//////////////////////////////////////// Tracking Route
@@ -435,10 +450,19 @@ func main() {
 			w.Header().Set("access-control-allow-headers", "Authorization,Accept")
 			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
 			w.Header().Set("access-control-max-age", "1728000")
+			w.WriteHeader(http.StatusOK)
 		} else {
-			track(&configuration, w, r)
+			select {
+			case <-connc:
+				track(&configuration, w, r)
+				w.WriteHeader(http.StatusOK)
+				connc <- struct{}{}
+			default:
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+			}
 		}
-		w.WriteHeader(http.StatusOK)
+
 	})
 
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
