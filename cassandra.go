@@ -213,12 +213,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			fmt.Printf("EVENT %s\n", w)
 		}
 		go func() {
-			//Add dailies regardless
-			//[Daily]
-			updated := time.Now().UTC()
-			if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
-			}
 
 			//////////////////////////////////////////////
 			//FIX VARS
@@ -264,7 +258,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				temp := int64(d)
 				duration = &temp
 			}
-
 			//[ver]
 			var version *int64
 			if ver, ok := v["version"].(string); ok {
@@ -307,13 +300,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 
-			//[outcome]
-			if outcome, ok := v["outcome"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println(xerr)
-				}
-			}
-
 			//[last],[next]
 			if i.AppConfig.FilterPrefix {
 				if last, ok := v["last"].(string); ok {
@@ -323,12 +309,50 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				if next, ok := v["next"].(string); ok {
 					filterUrlPrefix(i.AppConfig, &next)
 					v["next"] = next
+				} else {
+					//check for /tr/ /pub/ /img/ (ignore)
+					if !regexInternalURI.MatchString(w.URI) {
+						filterUrlPrefix(i.AppConfig, &w.URI)
+						v["next"] = w.URI
+					}
 				}
 			}
 
 			//////////////////////////////////////////////
 			//Persist
 			//////////////////////////////////////////////
+
+			//daily
+			updated := time.Now().UTC()
+			if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println(xerr)
+			}
+
+			//outcome
+			if outcome, ok := v["outcome"].(string); ok {
+				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println(xerr)
+				}
+			}
+
+			//ips
+			if xerr := i.Session.Query(`UPDATE ips set total=total+1 where ip=?`,
+				w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[ips]:", xerr)
+			}
+
+			//browsers
+			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=?`,
+				w.Browser).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[browsers]:", xerr)
+			}
+
+			//Everything after here needs vid
+			if _, ok := v["vid"].(string); !ok {
+				//TODO: Could log this
+				return
+			}
+
 			if first {
 				//acquisitions
 				if xerr := i.Session.Query(`INSERT into acquisitions 
@@ -589,34 +613,24 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 
-			//hits
-			if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
-				v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[hits]:", xerr)
-			}
-
-			//ips
-			if xerr := i.Session.Query(`UPDATE ips set total=total+1 where ip=?`,
-				w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[ips]:", xerr)
-			}
-
 			//reqs
 			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
 				v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[reqs]:", xerr)
 			}
 
-			//browsers
-			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=?`,
-				w.Browser).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[browsers]:", xerr)
+			//hits
+			if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
+				v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[hits]:", xerr)
 			}
 
 			//referrers
-			if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
-				v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[referrers]:", xerr)
+			if _, ok := v["last"].(string); ok {
+				if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
+					v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[referrers]:", xerr)
+				}
 			}
 
 			//referrals

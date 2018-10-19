@@ -111,6 +111,7 @@ type WriteArgs struct {
 	IP        string
 	Browser   string
 	Language  string
+	URI       string
 }
 
 type Service struct {
@@ -195,10 +196,11 @@ const (
 
 var (
 	// Quote Ident replacer.
-	qiReplacer     = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
-	regexCount, _  = regexp.Compile(`\.count\.(.*)`)
-	regexUpdate, _ = regexp.Compile(`\.update\.(.*)`)
-	urlPrefix, _   = regexp.Compile(`(.*)`)
+	qiReplacer          = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
+	regexCount, _       = regexp.Compile(`\.count\.(.*)`)
+	regexUpdate, _      = regexp.Compile(`\.update\.(.*)`)
+	urlPrefix, _        = regexp.Compile(`(.*)`)
+	regexInternalURI, _ = regexp.Compile(`.*(/tr/|/img/|/pub/).*`)
 )
 
 //////////////////////////////////////// Transparent GIF
@@ -349,6 +351,13 @@ func main() {
 		},
 	}
 
+	//////////////////////////////////////// MAX CHANNELS
+	maxConns := 1
+	connc := make(chan struct{}, maxConns)
+	for i := 0; i < maxConns; i++ {
+		connc <- struct{}{}
+	}
+
 	//////////////////////////////////////// PROXY ROUTE
 	if configuration.ProxyUrl != "" {
 		fmt.Println("Proxying to:", configuration.ProxyUrl)
@@ -363,17 +372,24 @@ func main() {
 		proxyOptions := [1]KeyValue{{Key: "Strict-Transport-Security", Value: "max-age=15768000 ; includeSubDomains"}}
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			//TODO: Check certificate in cookie
-			//Check API Limit
-			if err := check(&configuration, r); err != nil {
-				w.WriteHeader(http.StatusLocked)
-				w.Write([]byte(API_LIMIT_REACHED))
-				return
+			select {
+			case <-connc:
+				//Check API Limit
+				if err := check(&configuration, r); err != nil {
+					w.WriteHeader(http.StatusTooManyRequests)
+					w.Write([]byte(API_LIMIT_REACHED))
+					return
+				}
+				//Track
+				track(&configuration, w, r)
+				//Proxy
+				w.Header().Set(proxyOptions[0].Key, proxyOptions[0].Value)
+				proxy.ServeHTTP(w, r)
+				connc <- struct{}{}
+			default:
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 			}
-			//Track
-			track(&configuration, r)
-			//Proxy
-			w.Header().Set(proxyOptions[0].Key, proxyOptions[0].Value)
-			proxy.ServeHTTP(w, r)
 		})
 	}
 
@@ -396,13 +412,13 @@ func main() {
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
 	pubSlug := "/pub/" + apiVersion + "/"
 	http.HandleFunc(pubSlug, func(w http.ResponseWriter, r *http.Request) {
-		track(&configuration, r)
+		track(&configuration, w, r)
 		http.StripPrefix(pubSlug, fs).ServeHTTP(w, r)
 	})
 
 	//////////////////////////////////////// 1x1 PIXEL ROUTE
-	http.HandleFunc("/img/v1/", func(w http.ResponseWriter, r *http.Request) {
-		track(&configuration, r)
+	http.HandleFunc("/img/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+		track(&configuration, w, r)
 		w.Header().Set("content-type", "image/gif")
 		w.Write(TRACKING_GIF)
 	})
@@ -411,7 +427,7 @@ func main() {
 	// Ex. https://localhost:8443/tr/v1/vid/accad/ROCK/ON/lat/5/lon/6/first/true/score/6
 	// OR
 	// {"last":"https://localhost:5001/maps","next":"https://localhost:5001/error/maps/request/unauthorized","params":{"type":"b","origin":"maps","error":"unauthorized","method":"request"},"created":1539072857869,"duration":1959,"vid":"4883a4c0-cb96-11e8-afac-bb666b9727ed","first":"false","sid":"4883cbd0-cb96-11e8-afac-bb666b9727ed"}
-	http.HandleFunc("/tr/v1/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/tr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", "*") //TODO Security Threat
@@ -420,7 +436,7 @@ func main() {
 			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
 			w.Header().Set("access-control-max-age", "1728000")
 		} else {
-			track(&configuration, r)
+			track(&configuration, w, r)
 		}
 		w.WriteHeader(http.StatusOK)
 	})
@@ -479,7 +495,7 @@ func check(c *Configuration, r *http.Request) error {
 ////////////////////////////////////////
 // Trace
 ////////////////////////////////////////
-func track(c *Configuration, r *http.Request) error {
+func track(c *Configuration, w http.ResponseWriter, r *http.Request) error {
 	//Setup
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	wargs := WriteArgs{
@@ -488,10 +504,16 @@ func track(c *Configuration, r *http.Request) error {
 		IP:        ip,
 		Browser:   r.Header.Get("user-agent"),
 		Language:  r.Header.Get("accept-language"),
+		URI:       r.RequestURI,
 	}
 
 	//Process
 	j := make(map[string]interface{})
+	//Try to get vid from cookie
+	cookie, cerr := r.Cookie("vid")
+	if cerr == nil {
+		j["vid"] = cookie.Value
+	}
 	//Path
 	p := strings.Split(r.URL.Path, "/")
 	pmax := (len(p) - 2)
@@ -502,8 +524,13 @@ func track(c *Configuration, r *http.Request) error {
 	case http.MethodGet:
 		//Query
 		k := r.URL.Query()
+		qp := make(map[string]interface{})
 		for idx := range k {
-			j[idx] = k[idx]
+			j[idx] = k[idx][0]
+			qp[idx] = k[idx][0]
+		}
+		if params, err := json.Marshal(qp); err == nil {
+			j["params"] = string(params)
 		}
 		wargs.Values = &j
 	case http.MethodPost:
@@ -533,6 +560,11 @@ func track(c *Configuration, r *http.Request) error {
 			}
 		}
 	}
+	if vid, ok := j["vid"].(string); ok {
+		expiration := time.Now().Add(365 * 24 * time.Hour)
+		cookie := http.Cookie{Name: "vid", Value: vid, Expires: expiration, Path: "/"}
+		http.SetCookie(w, &cookie)
+	}
 	return nil
 
 }
@@ -545,6 +577,10 @@ func filterUrlPrefix(c *Configuration, s *string) error {
 	mi := len(matches)
 	if mi > 0 {
 		*s = matches[mi-1]
+	}
+	i := strings.Index(*s, "?")
+	if i > -1 {
+		*s = (*s)[:i]
 	}
 	return nil
 }
