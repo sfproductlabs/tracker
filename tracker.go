@@ -533,16 +533,20 @@ func track(c *Configuration, w http.ResponseWriter, r *http.Request) error {
 
 	//Process
 	j := make(map[string]interface{})
-	//Try to get vid from cookie
-	cookie, cerr := r.Cookie("vid")
-	if cerr == nil {
-		j["vid"] = cookie.Value
-	}
 	//Path
 	p := strings.Split(r.URL.Path, "/")
 	pmax := (len(p) - 2)
 	for i := 1; i <= pmax; i += 2 {
 		j[p[i]] = p[i+1] //TODO: Handle arrays
+	}
+	//Inject Params
+	if params, err := json.Marshal(j); err == nil {
+		j["params"] = string(params)
+	}
+	//Try to get vid from cookie
+	cookie, cerr := r.Cookie("vid")
+	if cerr == nil {
+		j["vid"] = cookie.Value
 	}
 	switch r.Method {
 	case http.MethodGet:
@@ -553,8 +557,10 @@ func track(c *Configuration, w http.ResponseWriter, r *http.Request) error {
 			j[idx] = k[idx][0]
 			qp[idx] = k[idx][0]
 		}
-		if params, err := json.Marshal(qp); err == nil {
-			j["params"] = string(params)
+		if len(qp) > 0 {
+			if params, err := json.Marshal(qp); err == nil {
+				j["params"] = string(params)
+			}
 		}
 		wargs.Values = &j
 	case http.MethodPost:

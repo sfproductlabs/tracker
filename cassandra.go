@@ -620,9 +620,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 
 			//hits
-			if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
-				v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[hits]:", xerr)
+			if _, ok := v["next"].(string); ok {
+				if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
+					v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[hits]:", xerr)
+				}
 			}
 
 			//referrers
