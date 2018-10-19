@@ -558,6 +558,7 @@ func track(c *Configuration, w http.ResponseWriter, r *http.Request) error {
 			qp[idx] = k[idx][0]
 		}
 		if len(qp) > 0 {
+			//If we have query params **OVERWRITE** the split URL ones
 			if params, err := json.Marshal(qp); err == nil {
 				j["params"] = string(params)
 			}
