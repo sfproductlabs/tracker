@@ -1,0 +1,33 @@
+# GIT
+.git
+.gitignore
+.gitmodules
+
+# PEM subfolder (certs and keys)
+pem
+
+# Subfolders
+.setup
+tests
+
+# Extensions
+*.go
+*.log
+
+# Docker files
+Dockerfile
+Dockerfile.deploy
+Dockerfile.homodea
+.dockerignore
+
+# Others
+config.json
+Jenkinsfile
+README.md
+LICENSE
+benchmark.sh
+debug.sh
+gencerts.sh
+proxy_server.sh
+run.sh
+dockercmd.sh
