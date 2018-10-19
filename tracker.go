@@ -170,6 +170,7 @@ type Configuration struct {
 	Debug                  bool
 	UrlPrefixFilter        string
 	FilterPrefix           bool
+	MaximumConnections     int
 }
 
 //////////////////////////////////////// Constants
@@ -352,9 +353,8 @@ func main() {
 	}
 
 	//////////////////////////////////////// MAX CHANNELS
-	maxConns := 1
-	connc := make(chan struct{}, maxConns)
-	for i := 0; i < maxConns; i++ {
+	connc := make(chan struct{}, configuration.MaximumConnections)
+	for i := 0; i < configuration.MaximumConnections; i++ {
 		connc <- struct{}{}
 	}
 
@@ -522,7 +522,7 @@ func track(c *Configuration, w http.ResponseWriter, r *http.Request) error {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		//Query
+		//Query, try and get everything
 		k := r.URL.Query()
 		qp := make(map[string]interface{})
 		for idx := range k {
@@ -535,6 +535,7 @@ func track(c *Configuration, w http.ResponseWriter, r *http.Request) error {
 		wargs.Values = &j
 	case http.MethodPost:
 		//Json (POST)
+		//This is fully controlled, only send what we need (inc. params)
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return fmt.Errorf("Bad JS (body)")

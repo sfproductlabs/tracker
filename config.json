@@ -13,6 +13,7 @@
     "ProxyPort" : ":8080",
     "ProxyDailyLimit" : 0,
     "ProxyDailyLimitChecker" : "cassandra",
+    "MaximumConnections": 999999,
     "Debug" : true,
     "UrlPrefixFilter" : "http(s|)://(localhost|dev\\.sfproductlabs\\.com)(:[0-9]*|)(/.*)",
     "Notify": [
