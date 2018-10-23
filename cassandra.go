@@ -212,150 +212,151 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if i.AppConfig.Debug {
 			fmt.Printf("EVENT %s\n", w)
 		}
-		go func() {
+		//TODO: Commented for AWS, perhaps non-optimal, CHECK
+		//go func() {
 
-			//////////////////////////////////////////////
-			//FIX VARS
-			//////////////////////////////////////////////
-			//[first]
-			first := v["first"] != "false"
-			//[latlon]
-			var latlon *geo_point
-			latf, oklatf := v["lat"].(float64)
-			lonf, oklonf := v["lon"].(float64)
-			if oklatf && oklonf {
-				//Float
+		//////////////////////////////////////////////
+		//FIX VARS
+		//////////////////////////////////////////////
+		//[first]
+		first := v["first"] != "false"
+		//[latlon]
+		var latlon *geo_point
+		latf, oklatf := v["lat"].(float64)
+		lonf, oklonf := v["lon"].(float64)
+		if oklatf && oklonf {
+			//Float
+			latlon = &geo_point{}
+			latlon.Lat = latf
+			latlon.Lon = lonf
+		} else {
+			//String
+			lats, oklats := v["lat"].(string)
+			lons, oklons := v["lon"].(string)
+			if oklats && oklons {
 				latlon = &geo_point{}
-				latlon.Lat = latf
-				latlon.Lon = lonf
+				latlon.Lat, _ = strconv.ParseFloat(lats, 64)
+				latlon.Lon, _ = strconv.ParseFloat(lons, 64)
+			}
+		}
+		//[vp]
+		var vp *viewport
+		width, okwf := v["w"].(float64)
+		height, okhf := v["h"].(float64)
+		if okwf && okhf {
+			//Float
+			vp = &viewport{}
+			vp.H = int64(height)
+			vp.W = int64(width)
+		}
+		//[duration]
+		var duration *int64
+		if d, ok := v["duration"].(string); ok {
+			temp, _ := strconv.ParseInt(d, 10, 64)
+			duration = &temp
+		}
+		if d, ok := v["duration"].(float64); ok {
+			temp := int64(d)
+			duration = &temp
+		}
+		//[ver]
+		var version *int64
+		if ver, ok := v["version"].(string); ok {
+			temp, _ := strconv.ParseInt(ver, 10, 32)
+			version = &temp
+		}
+		if ver, ok := v["version"].(float64); ok {
+			temp := int64(ver)
+			version = &temp
+		}
+		//[score]
+		var score *float64
+		if s, ok := v["score"].(string); ok {
+			temp, _ := strconv.ParseFloat(s, 64)
+			score = &temp
+		}
+		//Force reset the following types...
+		//[sid]
+		if _, ok := v["sid"].(string); !ok {
+			v["sid"] = gocql.TimeUUID()
+		}
+		//[params]
+		if ps, ok := v["params"].(string); ok {
+			temp := make(map[string]string)
+			json.Unmarshal([]byte(ps), &temp)
+			v["params"] = &temp
+		}
+		//[culture]
+		var culture *string
+		c := strings.Split(w.Language, ",")
+		if len(c) > 0 {
+			culture = &c[0]
+		}
+		//[country]
+		//TODO: Use GeoIP too
+		var country *string
+		if tz, ok := v["tz"].(string); ok {
+			if ct, oktz := countries[tz]; oktz {
+				country = &ct
+			}
+		}
+
+		//[last],[next]
+		if i.AppConfig.FilterPrefix {
+			if last, ok := v["last"].(string); ok {
+				filterUrlPrefix(i.AppConfig, &last)
+				v["last"] = last
+			}
+			if next, ok := v["next"].(string); ok {
+				filterUrlPrefix(i.AppConfig, &next)
+				v["next"] = next
 			} else {
-				//String
-				lats, oklats := v["lat"].(string)
-				lons, oklons := v["lon"].(string)
-				if oklats && oklons {
-					latlon = &geo_point{}
-					latlon.Lat, _ = strconv.ParseFloat(lats, 64)
-					latlon.Lon, _ = strconv.ParseFloat(lons, 64)
+				//check for /tr/ /pub/ /img/ (ignore)
+				if !regexInternalURI.MatchString(w.URI) {
+					filterUrlPrefix(i.AppConfig, &w.URI)
+					v["next"] = w.URI
 				}
 			}
-			//[vp]
-			var vp *viewport
-			width, okwf := v["w"].(float64)
-			height, okhf := v["h"].(float64)
-			if okwf && okhf {
-				//Float
-				vp = &viewport{}
-				vp.H = int64(height)
-				vp.W = int64(width)
-			}
-			//[duration]
-			var duration *int64
-			if d, ok := v["duration"].(string); ok {
-				temp, _ := strconv.ParseInt(d, 10, 64)
-				duration = &temp
-			}
-			if d, ok := v["duration"].(float64); ok {
-				temp := int64(d)
-				duration = &temp
-			}
-			//[ver]
-			var version *int64
-			if ver, ok := v["version"].(string); ok {
-				temp, _ := strconv.ParseInt(ver, 10, 32)
-				version = &temp
-			}
-			if ver, ok := v["version"].(float64); ok {
-				temp := int64(ver)
-				version = &temp
-			}
-			//[score]
-			var score *float64
-			if s, ok := v["score"].(string); ok {
-				temp, _ := strconv.ParseFloat(s, 64)
-				score = &temp
-			}
-			//Force reset the following types...
-			//[sid]
-			if _, ok := v["sid"].(string); !ok {
-				v["sid"] = gocql.TimeUUID()
-			}
-			//[params]
-			if ps, ok := v["params"].(string); ok {
-				temp := make(map[string]string)
-				json.Unmarshal([]byte(ps), &temp)
-				v["params"] = &temp
-			}
-			//[culture]
-			var culture *string
-			c := strings.Split(w.Language, ",")
-			if len(c) > 0 {
-				culture = &c[0]
-			}
-			//[country]
-			//TODO: Use GeoIP too
-			var country *string
-			if tz, ok := v["tz"].(string); ok {
-				if ct, oktz := countries[tz]; oktz {
-					country = &ct
-				}
-			}
+		}
 
-			//[last],[next]
-			if i.AppConfig.FilterPrefix {
-				if last, ok := v["last"].(string); ok {
-					filterUrlPrefix(i.AppConfig, &last)
-					v["last"] = last
-				}
-				if next, ok := v["next"].(string); ok {
-					filterUrlPrefix(i.AppConfig, &next)
-					v["next"] = next
-				} else {
-					//check for /tr/ /pub/ /img/ (ignore)
-					if !regexInternalURI.MatchString(w.URI) {
-						filterUrlPrefix(i.AppConfig, &w.URI)
-						v["next"] = w.URI
-					}
-				}
-			}
+		//////////////////////////////////////////////
+		//Persist
+		//////////////////////////////////////////////
 
-			//////////////////////////////////////////////
-			//Persist
-			//////////////////////////////////////////////
+		//daily
+		updated := time.Now().UTC()
+		if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println(xerr)
+		}
 
-			//daily
-			updated := time.Now().UTC()
-			if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Exec(); xerr != nil && i.AppConfig.Debug {
+		//outcome
+		if outcome, ok := v["outcome"].(string); ok {
+			if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println(xerr)
 			}
+		}
 
-			//outcome
-			if outcome, ok := v["outcome"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println(xerr)
-				}
-			}
+		//ips
+		if xerr := i.Session.Query(`UPDATE ips set total=total+1 where ip=?`,
+			w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[ips]:", xerr)
+		}
 
-			//ips
-			if xerr := i.Session.Query(`UPDATE ips set total=total+1 where ip=?`,
-				w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[ips]:", xerr)
-			}
+		//browsers
+		if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=?`,
+			w.Browser).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[browsers]:", xerr)
+		}
 
-			//browsers
-			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=?`,
-				w.Browser).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[browsers]:", xerr)
-			}
+		//Everything after here needs vid
+		if _, ok := v["vid"].(string); !ok {
+			//TODO: Could log this
+			return nil
+		}
 
-			//Everything after here needs vid
-			if _, ok := v["vid"].(string); !ok {
-				//TODO: Could log this
-				return
-			}
-
-			if first {
-				//acquisitions
-				if xerr := i.Session.Query(`INSERT into acquisitions 
+		if first {
+			//acquisitions
+			if xerr := i.Session.Query(`INSERT into acquisitions 
                         (
                             vid, 
                             sid, 
@@ -384,36 +385,36 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							vp
                         ) 
                         values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //25
-					v["vid"],
-					v["sid"],
-					v["eid"],
-					v["etyp"],
-					updated,
-					v["uid"],
-					v["last"],
-					v["next"],
-					v["sink"],
-					&version,
-					&score,
-					v["params"],
-					&duration,
-					w.IP,
-					&latlon,
-					&country,
-					&culture,
-					v["source"],
-					v["medium"],
-					v["campaign"],
-					v["device"],
-					w.Browser,
-					v["os"],
-					v["tz"],
-					&vp).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[acquistions]:", xerr)
-				}
+				v["vid"],
+				v["sid"],
+				v["eid"],
+				v["etyp"],
+				updated,
+				v["uid"],
+				v["last"],
+				v["next"],
+				v["sink"],
+				&version,
+				&score,
+				v["params"],
+				&duration,
+				w.IP,
+				&latlon,
+				&country,
+				&culture,
+				v["source"],
+				v["medium"],
+				v["campaign"],
+				v["device"],
+				w.Browser,
+				v["os"],
+				v["tz"],
+				&vp).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[acquistions]:", xerr)
+			}
 
-				//starts
-				if xerr := i.Session.Query(`INSERT into starts 
+			//starts
+			if xerr := i.Session.Query(`INSERT into starts 
                         (
                             vid, 
                             sid, 
@@ -442,37 +443,37 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							vp
                         ) 
                         values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //24
-					v["vid"],
-					v["sid"],
-					v["eid"],
-					v["etyp"],
-					updated,
-					v["uid"],
-					v["last"],
-					v["next"],
-					v["sink"],
-					&version,
-					&score,
-					v["params"],
-					&duration,
-					w.IP,
-					&latlon,
-					&country,
-					&culture,
-					v["source"],
-					v["medium"],
-					v["campaign"],
-					v["device"],
-					w.Browser,
-					v["os"],
-					v["tz"],
-					&vp).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[starts]:", xerr)
-				}
-
+				v["vid"],
+				v["sid"],
+				v["eid"],
+				v["etyp"],
+				updated,
+				v["uid"],
+				v["last"],
+				v["next"],
+				v["sink"],
+				&version,
+				&score,
+				v["params"],
+				&duration,
+				w.IP,
+				&latlon,
+				&country,
+				&culture,
+				v["source"],
+				v["medium"],
+				v["campaign"],
+				v["device"],
+				w.Browser,
+				v["os"],
+				v["tz"],
+				&vp).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[starts]:", xerr)
 			}
-			//events
-			if xerr := i.Session.Query(`INSERT into events 
+
+		}
+		//events
+		if xerr := i.Session.Query(`INSERT into events 
 			(
 				vid, 
 				sid, 
@@ -491,26 +492,26 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				latlon
 			) 
 			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //15
-				v["vid"],
-				v["sid"],
-				v["eid"],
-				v["etyp"],
-				updated,
-				v["uid"],
-				v["last"],
-				v["next"],
-				v["sink"],
-				&version,
-				&score,
-				v["params"],
-				&duration,
-				w.IP,
-				&latlon).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[events]:", xerr)
-			}
+			v["vid"],
+			v["sid"],
+			v["eid"],
+			v["etyp"],
+			updated,
+			v["uid"],
+			v["last"],
+			v["next"],
+			v["sink"],
+			&version,
+			&score,
+			v["params"],
+			&duration,
+			w.IP,
+			&latlon).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[events]:", xerr)
+		}
 
-			//ends
-			if xerr := i.Session.Query(`INSERT into ends 
+		//ends
+		if xerr := i.Session.Query(`INSERT into ends 
 			(
 				vid, 
 				sid, 
@@ -529,26 +530,26 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				latlon
 			) 
 			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //15
-				v["vid"],
-				v["sid"],
-				v["eid"],
-				v["etyp"],
-				updated,
-				v["uid"],
-				v["last"],
-				v["next"],
-				v["sink"],
-				&version,
-				&score,
-				v["params"],
-				&duration,
-				w.IP,
-				&latlon).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[ends]:", xerr)
-			}
+			v["vid"],
+			v["sid"],
+			v["eid"],
+			v["etyp"],
+			updated,
+			v["uid"],
+			v["last"],
+			v["next"],
+			v["sink"],
+			&version,
+			&score,
+			v["params"],
+			&duration,
+			w.IP,
+			&latlon).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[ends]:", xerr)
+		}
 
-			//nodes
-			if xerr := i.Session.Query(`INSERT into nodes 
+		//nodes
+		if xerr := i.Session.Query(`INSERT into nodes 
 			(
 				vid, 
 				uid,
@@ -556,16 +557,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				sid
 			) 
 			values (?,?,?,?)`, //4
-				v["vid"],
-				v["uid"],
-				w.IP,
-				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[nodes]:", xerr)
-			}
+			v["vid"],
+			v["uid"],
+			w.IP,
+			v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[nodes]:", xerr)
+		}
 
-			//locations
-			if latlon != nil {
-				if xerr := i.Session.Query(`INSERT into locations 
+		//locations
+		if latlon != nil {
+			if xerr := i.Session.Query(`INSERT into locations 
 					(
 						vid, 
 						latlon,
@@ -573,83 +574,82 @@ func (i *CassandraService) write(w *WriteArgs) error {
 						sid
 					) 
 					values (?,?,?,?)`, //4
-					v["vid"],
-					&latlon,
-					v["uid"],
-					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[locations]:", xerr)
-				}
+				v["vid"],
+				&latlon,
+				v["uid"],
+				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[locations]:", xerr)
 			}
+		}
 
-			//alias
-			if v["uid"] != nil {
-				if xerr := i.Session.Query(`INSERT into aliases 
+		//alias
+		if v["uid"] != nil {
+			if xerr := i.Session.Query(`INSERT into aliases 
 			(
 				vid, 
 				uid,
 				sid
 			) 
 			values (?,?,?)`, //3
-					v["vid"],
-					v["uid"],
-					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[aliases]:", xerr)
-				}
+				v["vid"],
+				v["uid"],
+				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[aliases]:", xerr)
 			}
+		}
 
-			//users
-			if v["uid"] != nil {
-				if xerr := i.Session.Query(`INSERT into users 
+		//users
+		if v["uid"] != nil {
+			if xerr := i.Session.Query(`INSERT into users 
 				(
 					vid, 
 					uid,
 					sid
 				) 
 				values (?,?,?)`, //3
-					v["vid"],
-					v["uid"],
-					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[users]:", xerr)
-				}
+				v["vid"],
+				v["uid"],
+				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[users]:", xerr)
 			}
+		}
 
-			//reqs
-			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
-				v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[reqs]:", xerr)
+		//reqs
+		if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
+			v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[reqs]:", xerr)
+		}
+
+		//hits
+		if _, ok := v["next"].(string); ok {
+			if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
+				v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[hits]:", xerr)
 			}
+		}
 
-			//hits
-			if _, ok := v["next"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
-					v["next"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[hits]:", xerr)
-				}
+		//referrers
+		if _, ok := v["last"].(string); ok {
+			if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
+				v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[referrers]:", xerr)
 			}
+		}
 
-			//referrers
-			if _, ok := v["last"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
-					v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[referrers]:", xerr)
-				}
-			}
-
-			//referrals
-			if v["ref"] != nil {
-				if xerr := i.Session.Query(`INSERT into referrals 
+		//referrals
+		if v["ref"] != nil {
+			if xerr := i.Session.Query(`INSERT into referrals 
 					(
 						vid, 
 						ref
 					) 
 					values (?,?) IF NOT EXISTS`, //2
-					v["vid"],
-					v["ref"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[referrals]:", xerr)
-				}
+				v["vid"],
+				v["ref"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[referrals]:", xerr)
 			}
+		}
 
-		}()
 		return nil
 	default:
 		//TODO: Manually run query via query in config.json
