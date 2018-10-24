@@ -37,7 +37,7 @@ create table outcomes (
 );
 
 --This should only be written to once
-create table acquisitions (
+create table visitors (
   vid text, --visitor-id
   sid timeuuid, --session-id
   eid text, --event-id, AKA content (also action in params) ex. Clicked button A
@@ -50,30 +50,26 @@ create table acquisitions (
   ver int, --sink version/variation
   score double, --score
   params map<text,text>, --all experiment params, (include global-optimum-experimentid[outcome], a/b[type])
-  duration bigint, --time since last click
   ip text, --ip
   latlon frozen<geo_point>, --location
   --Detail Fields
   country text, --ISO-2
   culture text, --EN-US
-  source text, --referring domain, user, service
-  medium text, --email,sms,ad,etc
-  campaign text, --marketing campaign name  
+  source text, --referring domain, user, service [sms]
+  medium text, --email,sms,ad,etc [invite]
+  campaign text, --marketing campaign name [chat_invite] 
+  ref text, --referrer uid
+  aid text, --affiliate id
   device text, 
   browser text,
   os text,  
   tz text,
   vp frozen<viewport>,
-  --TODO: Add your own variables here or in params
-  --[Optional/Updateable]
-  -- email text, --when we got their email EXCEPTION TO THE RULE OF WRITE ONCE
-  -- gender text,
-
   PRIMARY KEY ((vid))
 );
 
 --Session starts
-create table starts (
+create table sessions (
   vid text, 
   sid timeuuid, 
   eid text, 
@@ -86,7 +82,6 @@ create table starts (
   ver int, 
   score double,
   params map<text,text>, 
-  duration bigint,
   ip text,
   latlon frozen<geo_point>,
   --Detail Fields
@@ -95,6 +90,8 @@ create table starts (
   source text,
   medium text,
   campaign text,
+  ref text, 
+  aid text,
   device text, 
   browser text,
   os text,  
@@ -107,6 +104,8 @@ WITH CLUSTERING ORDER BY (sid DESC);
 create table events (
   vid text, 
   sid timeuuid, 
+  xid text, --experiment id
+  split text, --experiment split
   eid text,
   etyp text, 
   created timestamp, 
@@ -117,7 +116,7 @@ create table events (
   ver int, 
   score double, 
   params map<text,text>, --filter? experiment params, (global-optimum-experimentid[outcome], a/b[type])
-  duration bigint, 
+  duration bigint,  --time since last click
   ip text, 
   latlon frozen<geo_point>, 
   PRIMARY KEY ((vid, sid), created) --perhaps move sid from ck into pk
@@ -215,6 +214,12 @@ create table referrers (
 
 create table referrals (
   ref text, --referrer uid, also external. EX. magazine
+  vid text, 
+  primary key((vid)) 
+);
+
+create table affiliates (
+  aid text, --referrer uid, also external. EX. magazine
   vid text, 
   primary key((vid)) 
 );
