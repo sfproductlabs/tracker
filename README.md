@@ -22,6 +22,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Kafka plugin
 * NATS/Kafka converter/repeater
 * Flink plugin
+* Druid Plugin
 
 ## Instructions
 
