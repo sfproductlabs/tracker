@@ -48,6 +48,7 @@ create table visitors (
   ip text, --ip
   latlon frozen<geo_point>, --location
   ptype text, --page category/type 
+  browser text,
   --Experiment Fields
   xid text, --experiment id
   split text, --experiment split A/B
@@ -66,14 +67,13 @@ create table visitors (
   ref text, --referrer uid
   aid text, --affiliate id
   device text, 
-  browser text,
   os text,  
   tz text,
   vp frozen<viewport>,
   PRIMARY KEY ((vid))
 );
 
---Session starts written to once a user first starts a session
+--Session-starts written to once a user first starts a session
 create table sessions (
   vid timeuuid, 
   sid timeuuid, 
@@ -85,6 +85,7 @@ create table sessions (
   ip text,
   latlon frozen<geo_point>,
   ptype text, 
+  browser text,
   --Experiment Fields
   xid text, 
   split text, 
@@ -103,7 +104,6 @@ create table sessions (
   ref text, 
   aid text,
   device text, 
-  browser text,
   os text,  
   tz text,
   vp frozen<viewport>,
@@ -122,6 +122,7 @@ create table events (
   ip text, 
   latlon frozen<geo_point>, 
   ptype text, 
+  browser text,
   duration bigint,  --time since last click
   --Experiment Fields
   xid text, 
