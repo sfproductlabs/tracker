@@ -36,22 +36,27 @@ create table outcomes (
   primary key((outcome), sink, url, created)
 );
 
---This should only be written to once
+--This should only be written to once a user first visits (vid==sid)
 create table visitors (
-  vid text, --visitor-id
+  vid timeuuid, --visitor-id
   sid timeuuid, --session-id
+  app text, --app version
+  created timestamp, --time.Now().UTC() on server
+  uid text, --user-id
+  last text, --last action/slug/url/referrer_url (what i just clicked on)
+  url text, --next action/slug/url (set to null each action, nulls indicate lost interest or bad ux)
+  ip text, --ip
+  latlon frozen<geo_point>, --location
+  ptype text, --page category/type 
+  --Experiment Fields
+  xid text, --experiment id
+  split text, --experiment split A/B
   eid text, --event-id, AKA content (also action in params) ex. Clicked button A
   etyp text, --event-type/page-type
-  created timestamp, --where they are in user flow
-  uid text, --user-id
-  last text, --last action/slug/url (what i just clicked on)
-  next text, --next action/slug/url (set to null each action, nulls indicate lost interest or bad ux)
   sink text, --local-optimum/experiment
   ver int, --sink version/variation
   score double, --score
-  params map<text,text>, --all experiment params, (include global-optimum-experimentid[outcome], a/b[type])
-  ip text, --ip
-  latlon frozen<geo_point>, --location
+  params map<text,text>, --all additional experiment params, (include global-optimum-experimentid[outcome], a/b[type])
   --Detail Fields
   country text, --ISO-2
   culture text, --EN-US
@@ -68,22 +73,27 @@ create table visitors (
   PRIMARY KEY ((vid))
 );
 
---Session starts
+--Session starts written to once a user first starts a session
 create table sessions (
-  vid text, 
+  vid timeuuid, 
   sid timeuuid, 
-  eid text, 
-  etyp text,
+  app text,
   created timestamp, 
   uid text, 
   last text, 
-  next text, 
-  sink text,
-  ver int, 
-  score double,
-  params map<text,text>, 
+  url text, 
   ip text,
   latlon frozen<geo_point>,
+  ptype text, 
+  --Experiment Fields
+  xid text, 
+  split text, 
+  eid text, 
+  etyp text, 
+  sink text, 
+  ver int,
+  score double, 
+  params map<text,text>, 
   --Detail Fields
   country text, 
   culture text, 
@@ -102,50 +112,32 @@ create table sessions (
 WITH CLUSTERING ORDER BY (sid DESC);
 
 create table events (
-  vid text, 
+  vid timeuuid, 
   sid timeuuid, 
-  xid text, --experiment id
-  split text, --experiment split
-  eid text,
-  etyp text, 
+  app text,
   created timestamp, 
   uid text, 
   last text, 
-  next text,   
-  sink text, 
-  ver int, 
-  score double, 
-  params map<text,text>, --filter? experiment params, (global-optimum-experimentid[outcome], a/b[type])
-  duration bigint,  --time since last click
+  url text,   
   ip text, 
   latlon frozen<geo_point>, 
+  ptype text, 
+  duration bigint,  --time since last click
+  --Experiment Fields
+  xid text, 
+  split text, 
+  eid text, 
+  etyp text, 
+  sink text, 
+  ver int,
+  score double, 
+  params map<text,text>, 
   PRIMARY KEY ((vid, sid), created) --perhaps move sid from ck into pk
 )
 WITH CLUSTERING ORDER BY (created DESC);
 
---Session ends
-create table ends (
-  vid text, 
-  sid timeuuid, 
-  eid text, 
-  etyp text,
-  created timestamp, 
-  uid text, 
-  last text, 
-  next text, 
-  sink text,
-  ver int, 
-  score double,
-  params map<text,text>, 
-  duration bigint,
-  ip text,
-  latlon frozen<geo_point>,
-  PRIMARY KEY ((vid), sid)
-)
-WITH CLUSTERING ORDER BY (sid DESC);
-
 create table nodes (
-  vid text, 
+  vid timeuuid, 
   uid text,
   ip text,
   sid timeuuid, 
@@ -153,7 +145,7 @@ create table nodes (
 );
 
 create table locations (
-  vid text, 
+  vid timeuuid, 
   latlon frozen<geo_point>,
   uid text,
   sid timeuuid, 
@@ -161,7 +153,7 @@ create table locations (
 );
 
 create table aliases (
-  vid text,
+  vid timeuuid,
   uid text, 
   sid timeuuid, 
   PRIMARY KEY ((vid), uid)
@@ -169,7 +161,7 @@ create table aliases (
 
 create table users (
   uid text,
-  vid text,   
+  vid timeuuid,   
   sid timeuuid, 
   PRIMARY KEY ((uid), vid)
 );
@@ -195,7 +187,7 @@ create table ips (
 );
 
 create table reqs (  
-  vid text, 
+  vid timeuuid, 
   total counter,
   primary key((vid)) 
 );
@@ -214,13 +206,13 @@ create table referrers (
 
 create table referrals (
   ref text, --referrer uid, also external. EX. magazine
-  vid text, 
+  vid timeuuid, 
   primary key((vid)) 
 );
 
 create table affiliates (
   aid text, --referrer uid, also external. EX. magazine
-  vid text, 
+  vid timeuuid, 
   primary key((vid)) 
 );
 
