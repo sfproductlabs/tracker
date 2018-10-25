@@ -48,11 +48,11 @@ create table visitors (
   ip text, --ip
   latlon frozen<geo_point>, --location
   ptype text, --page category/type 
-  browser text,
+  bhash text, --browser-hash
   --Experiment Fields
   xid text, --experiment id
   split text, --experiment split A/B
-  eid text, --event-id, AKA content (also action in params) ex. Clicked button A
+  eid text, --event-id, AKA content (also action in params) ex. Clicked button A, joined-experiment-now
   etyp text, --event-type/page-type
   sink text, --local-optimum/experiment
   ver int, --sink version/variation
@@ -66,6 +66,7 @@ create table visitors (
   campaign text, --marketing campaign name [chat_invite] 
   ref text, --referrer uid
   aid text, --affiliate id
+  browser text,
   device text, 
   os text,  
   tz text,
@@ -85,7 +86,7 @@ create table sessions (
   ip text,
   latlon frozen<geo_point>,
   ptype text, 
-  browser text,
+  bhash text, 
   --Experiment Fields
   xid text, 
   split text, 
@@ -103,6 +104,7 @@ create table sessions (
   campaign text,
   ref text, 
   aid text,
+  browser text,
   device text, 
   os text,  
   tz text,
@@ -122,7 +124,7 @@ create table events (
   ip text, 
   latlon frozen<geo_point>, 
   ptype text, 
-  browser text,
+  bhash text, 
   duration bigint,  --time since last click
   --Experiment Fields
   xid text, 
