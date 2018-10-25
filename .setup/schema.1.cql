@@ -44,7 +44,7 @@ create table visitors (
   created timestamp, --time.Now().UTC() on server
   uid text, --user-id
   last text, --last action/slug/url/referrer_url (what i just clicked on)
-  url text, --next action/slug/url (set to null each action, nulls indicate lost interest or bad ux)
+  url text, --this should always be url slug of current url
   ip text, --ip
   latlon frozen<geo_point>, --location
   ptype text, --page category/type 
@@ -118,7 +118,7 @@ create table events (
   created timestamp, 
   uid text, 
   last text, 
-  url text,   
+  url text, --current url slug
   ip text, 
   latlon frozen<geo_point>, 
   ptype text, 
@@ -127,7 +127,7 @@ create table events (
   --Experiment Fields
   xid text, 
   split text, 
-  eid text, 
+  ename text, --event name e.g. "signup_attempt" 
   etyp text, 
   sink text, 
   ver int,
