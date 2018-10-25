@@ -52,7 +52,7 @@ create table visitors (
   --Experiment Fields
   xid text, --experiment id
   split text, --experiment split A/B
-  eid text, --event-id, AKA content (also action in params) ex. Clicked button A, joined-experiment-now
+  ename text, ----event name e.g. "signup_attempt", event-id/event-name, AKA content (also action in params) ex. Clicked button A, joined-experiment-now
   etyp text, --event-type/page-type
   sink text, --local-optimum/experiment
   ver int, --sink version/variation
@@ -90,7 +90,7 @@ create table sessions (
   --Experiment Fields
   xid text, 
   split text, 
-  eid text, 
+  ename text, 
   etyp text, 
   sink text, 
   ver int,
@@ -129,7 +129,7 @@ create table events (
   --Experiment Fields
   xid text, 
   split text, 
-  ename text, --event name e.g. "signup_attempt" 
+  ename text, 
   etyp text, 
   sink text, 
   ver int,
