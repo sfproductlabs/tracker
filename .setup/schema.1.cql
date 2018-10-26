@@ -52,14 +52,14 @@ create table visitors (
   bhash text, --browser-hash
   auth uuid, --author of **destination** content
   --Experiment Fields
-  xid text, --experiment id, hypothesis
-  ver int, --experiment/sink version/variation
-  split text, --experiment split A/B
+  xid text, --primary experiment id, hypothesis
+  split text, --primary experiment split A/B
   ename text, ----event name e.g. "signup_attempt", event-id/event-name, AKA utm_content, AKA action in params ex. Clicked button A, joined-experiment-now
   etyp text, --event-type
+  ver int, --experiment/sink version/variation
   sink text, --local-optimum/intention, Ex. want user to sign up for offer X
   score double, --score (where user is in sink/intention)
-  params map<text,text>, --all additional experiment params, (include global-optimum-experimentid[outcome], a/b[type])
+  params map<text,text>, --all additional experiment params, (include global-optimum-experimentid[outcome], a/b[type], etc)
   --Landing Fields
   country text, --ISO-2
   culture text, --EN-US
@@ -94,10 +94,10 @@ create table sessions (
   duration bigint,  --time since last click/session
   --Experiment Fields
   xid text, 
-  ver int,
   split text, 
   ename text, 
-  etyp text, 
+  etyp text,
+  ver int, 
   sink text, 
   score double, 
   params map<text,text>, 
@@ -135,14 +135,15 @@ create table events (
   duration bigint,  
   --Experiment Fields
   xid text, 
-  ver int,
   split text, 
   ename text, 
   etyp text, 
+  ver int,
   sink text, 
   score double, 
-  params map<text,text>, 
-  tgts   map<text,frozen<set<text>>>, --type, components viewed on page/server to see whats working. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}
+  params   map<text,text>, 
+  --Page Fields
+  targets  map<text,frozen<set<text>>>, --type, components viewed on page/server to see whats working. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}
   PRIMARY KEY ((vid, sid), created) --perhaps move sid from ck into pk
 )
 WITH CLUSTERING ORDER BY (created DESC);
