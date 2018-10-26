@@ -142,7 +142,7 @@ create table events (
   sink text, 
   score double, 
   params map<text,text>, 
-  tgts   map<text,frozen<set<text>>>, --type, components viewed on page/server. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}
+  tgts   map<text,frozen<set<text>>>, --type, components viewed on page/server to see whats working. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}
   PRIMARY KEY ((vid, sid), created) --perhaps move sid from ck into pk
 )
 WITH CLUSTERING ORDER BY (created DESC);
