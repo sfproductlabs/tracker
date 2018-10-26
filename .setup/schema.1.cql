@@ -46,7 +46,7 @@ create table visitors (
   uid uuid, --user-id
   last text, --last action/slug/url/referrer_url (what i just clicked on)
   url text, --this should always be url slug of **current** url
-  ip text, --ip
+  ip text, --client ip
   latlon frozen<geo_point>, --location
   ptype text, --page category/type 
   bhash text, --browser-hash
@@ -55,7 +55,7 @@ create table visitors (
   xid text, --experiment id, hypothesis
   ver int, --experiment/sink version/variation
   split text, --experiment split A/B
-  ename text, ----event name e.g. "signup_attempt", event-id/event-name, AKA content (also action in params) ex. Clicked button A, joined-experiment-now
+  ename text, ----event name e.g. "signup_attempt", event-id/event-name, AKA utm_content, AKA action in params ex. Clicked button A, joined-experiment-now
   etyp text, --event-type
   sink text, --local-optimum/intention, Ex. want user to sign up for offer X
   score double, --score (where user is in sink/intention)
@@ -63,9 +63,10 @@ create table visitors (
   --Landing Fields
   country text, --ISO-2
   culture text, --EN-US
-  source text, --referring domain, user, service [sms]
-  medium text, --email,sms,ad,etc [invite]
-  campaign text, --marketing campaign name [chat_invite] 
+  source text, --referring domain, user, service [sms] AKA utm_source
+  medium text, --email,sms,ad,etc [invite] AKA utm_medium
+  campaign text, --marketing campaign name [chat_invite] AKA utm_campaign
+  term text, --seo search query term AKA utm_term
   ref uuid, --referrer uid
   aff text, --affiliate id, promo-code
   browser text,
@@ -106,6 +107,7 @@ create table sessions (
   source text,
   medium text,
   campaign text,
+  term text, 
   ref uuid, 
   aff text,
   browser text,
@@ -140,6 +142,7 @@ create table events (
   sink text, 
   score double, 
   params map<text,text>, 
+  tgts   map<text,frozen<set<text>>>, --type, components viewed on page/server. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}
   PRIMARY KEY ((vid, sid), created) --perhaps move sid from ck into pk
 )
 WITH CLUSTERING ORDER BY (created DESC);
