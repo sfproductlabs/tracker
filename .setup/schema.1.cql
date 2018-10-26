@@ -4,7 +4,7 @@
 -- See LICENSE
 
 -- SFPLA
-drop keyspace sfpla;
+--drop keyspace sfpla;
 create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'DC1':'1' }; --analytics
 
 use sfpla;
