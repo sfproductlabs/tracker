@@ -37,7 +37,7 @@ create table outcomes (
   primary key((outcome), sink, url, created)
 );
 
---This should only be written to once a user first visits (vid==sid)
+--This should only be written to once a user first visits (vid==sid), AKA acquisitions
 create table visitors (
   vid timeuuid, --visitor-id
   sid timeuuid, --session-id
@@ -77,7 +77,7 @@ create table visitors (
   PRIMARY KEY ((vid))
 );
 
---Session-starts written to once a user first starts a session
+--Session-starts written to once a user first starts a session, AKA session-starts
 create table sessions (
   vid timeuuid, 
   sid timeuuid, 

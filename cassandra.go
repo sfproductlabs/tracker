@@ -269,6 +269,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			temp := int64(ver)
 			version = &temp
 		}
+		//[bhash]
+		var bhash *string
+		if w.Browser != "" {
+			temp := strconv.FormatInt(int64(hash(w.Browser)), 36)
+			bhash = &temp
+		}
 		//[score]
 		var score *float64
 		if s, ok := v["score"].(string); ok {
@@ -318,6 +324,18 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 		}
+		//[vid]
+		isNew := false
+		if _, ok := v["vid"].(string); !ok {
+			v["vid"] = gocql.TimeUUID()
+			isNew = true
+		}
+
+		if isNew {
+			if xerr := i.Session.Query(`UPDATE counters set total=total+1 where id='vids_created'`).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println(xerr)
+			}
+		}
 
 		//////////////////////////////////////////////
 		//Persist
@@ -348,69 +366,79 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			fmt.Println("C*[browsers]:", xerr)
 		}
 
-		//Everything after here needs vid
-		if _, ok := v["vid"].(string); !ok {
-			//TODO: Could log this
-			return nil
-		}
-
 		if first {
-			//acquisitions
-			if xerr := i.Session.Query(`INSERT into acquisitions 
+			//vistors
+			if xerr := i.Session.Query(`INSERT into visitors 
                         (
                             vid, 
-                            sid, 
-							eid, 
-							etyp,
+							sid, 
+							app,
 							created,
 							uid,
                             last,
-							next,
-							sink,
+							url,
+							ip,
+							latlon,
+							ptype,
+							bhash,
+							auth,
+							xid,
+							split,
+							ename,
+							etyp,
 							ver,
+							sink,
 							score,							
                             params,
-                            duration,
-                            ip,
-							latlon,
 							country,
 							culture,
 							source,
 							medium,
 							campaign,
-							device,
+							term,
+							ref,
+							aff,
 							browser,
+							device,
 							os,
 							tz,
 							vp
                         ) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //25
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?) IF NOT EXISTS`, //33
 				v["vid"],
 				v["sid"],
-				v["eid"],
-				v["etyp"],
+				v["app"],
 				updated,
 				v["uid"],
 				v["last"],
-				v["next"],
-				v["sink"],
-				&version,
-				&score,
-				v["params"],
-				&duration,
+				v["url"],
 				w.IP,
 				&latlon,
+				v["ptype"],
+				&bhash,
+				v["auth"],
+				v["xid"],
+				v["split"],
+				v["ename"],
+				v["etyp"],
+				&version,
+				v["sink"],
+				&score,
+				v["params"],
 				&country,
 				&culture,
 				v["source"],
 				v["medium"],
 				v["campaign"],
-				v["device"],
+				v["term"],
+				v["ref"],
+				v["aff"],
 				w.Browser,
+				v["device"],
 				v["os"],
 				v["tz"],
 				&vp).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[acquistions]:", xerr)
+				fmt.Println("C*[visitors]:", xerr)
 			}
 
 			//starts
