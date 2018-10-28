@@ -23,6 +23,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * NATS/Kafka converter/repeater
 * Flink plugin
 * Druid Plugin
+* Growth Loop/s
 
 ## Instructions
 
