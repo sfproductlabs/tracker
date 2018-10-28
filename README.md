@@ -1,5 +1,5 @@
 # Tracker
-Track every visitor click, setup growth experiments and measure every user outcome all in house without any external tools at unlimited scale (it's the same infrastructure that the big boys use: CERN, Netflix, Apple, Github). It's not exactly going to be a drop in replacement for Google Analytics, but it will go far beyond it to help you understand your users experience. 
+Track every visitor click, setup growth experiments and measure every user outcome all in house without any external tools at unlimited scale (it's the same infrastructure that the big boys use: CERN, Netflix, Apple, Github). It's not exactly going to be a drop in replacement for Google Analytics, but it will go far beyond it to help you understand your users' experience. 
 
 Don't want to give your user data to people you don't trust? Maybe save a GDPR lawsuit by using this.
 
@@ -23,6 +23,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * NATS/Kafka converter/repeater
 * Flink plugin
 * Druid Plugin
+* Growth Loop/s
 
 ## Instructions
 
