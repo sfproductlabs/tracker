@@ -219,6 +219,7 @@ create table referrers (
 create table referrals (
   ref uuid, --referrer uid
   vid timeuuid, 
+  gen int, --growth loop / generation
   primary key((vid)) 
 );
 
