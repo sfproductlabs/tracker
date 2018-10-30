@@ -218,8 +218,22 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//////////////////////////////////////////////
 		//FIX VARS
 		//////////////////////////////////////////////
+		//[vid]
+		isNew := false
+		if _, ok := v["vid"].(string); !ok {
+			v["vid"] = gocql.TimeUUID()
+			isNew = true
+		}
+		//[sid]
+		if _, ok := v["sid"].(string); !ok {
+			if isNew {
+				v["sid"] = v["vid"]
+			} else {
+				v["sid"] = gocql.TimeUUID()
+			}
+		}
 		//[first]
-		first := v["first"] != "false"
+		first := isNew || (v["first"] != "false")
 		//[latlon]
 		var latlon *geo_point
 		latf, oklatf := v["lat"].(float64)
@@ -280,12 +294,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if s, ok := v["score"].(string); ok {
 			temp, _ := strconv.ParseFloat(s, 64)
 			score = &temp
+
+		} else if s, ok := v["score"].(float64); ok {
+			score = &s
 		}
+
 		//Force reset the following types...
-		//[sid]
-		if _, ok := v["sid"].(string); !ok {
-			v["sid"] = gocql.TimeUUID()
-		}
 		//[params]
 		if ps, ok := v["params"].(string); ok {
 			temp := make(map[string]string)
@@ -324,12 +338,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 		}
-		//[vid]
-		isNew := false
-		if _, ok := v["vid"].(string); !ok {
-			v["vid"] = gocql.TimeUUID()
-			isNew = true
-		}
 
 		//////////////////////////////////////////////
 		//Persist
@@ -362,8 +370,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 
 		//browsers
-		if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=?`,
-			w.Browser).Exec(); xerr != nil && i.AppConfig.Debug {
+		if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=? AND bhash=?`,
+			w.Browser, bhash).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[browsers]:", xerr)
 		}
 

@@ -205,9 +205,10 @@ create table reqs (
 );
 
 create table browsers (
+  bhash text,
   browser text, --user-agent
   total counter,
-  primary key(browser)
+  primary key((bhash), browser)
 );
 
 create table referrers (
