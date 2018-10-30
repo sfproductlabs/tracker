@@ -83,7 +83,7 @@ type session interface {
 
 type KeyValue struct {
 	Key   string
-	Value string
+	Value interface{}
 }
 
 type Field struct {
@@ -131,6 +131,7 @@ type Service struct {
 	MessageLimit int
 	ByteLimit    int
 	Timeout      time.Duration
+	Connections  int
 
 	Consumer  bool
 	Ephemeral bool
@@ -153,25 +154,30 @@ type NatsService struct { //Implements 'session'
 }
 
 type Configuration struct {
-	Domains                []string //Domains in Trust, LetsEncrypt domains
-	StaticDirectory        string   //Static FS Directory (./public/)
-	UseLocalTLS            bool
-	TLSCert                string
-	TLSKey                 string
-	Notify                 []Service
-	Consume                []Service
-	ProxyUrl               string
-	ProxyPort              string
-	ProxyPortTLS           string
-	ProxyDailyLimit        uint64
-	ProxyDailyLimitChecker string //Service, Ex. casssandra
-	ProxyDailyLimitCheck   func(string) uint64
-	SchemaVersion          int
-	ApiVersion             int
-	Debug                  bool
-	UrlPrefixFilter        string
-	FilterPrefix           bool
-	MaximumConnections     int
+	Domains                  []string //Domains in Trust, LetsEncrypt domains
+	StaticDirectory          string   //Static FS Directory (./public/)
+	UseLocalTLS              bool
+	TLSCert                  string
+	TLSKey                   string
+	Notify                   []Service
+	Consume                  []Service
+	ProxyUrl                 string
+	ProxyPort                string
+	ProxyPortTLS             string
+	ProxyDailyLimit          uint64
+	ProxyDailyLimitChecker   string //Service, Ex. casssandra
+	ProxyDailyLimitCheck     func(string) uint64
+	SchemaVersion            int
+	ApiVersion               int
+	Debug                    bool
+	UrlPrefixFilter          string
+	FilterPrefix             bool
+	MaximumConnections       int
+	ReadTimeoutSeconds       int
+	ReadHeaderTimeoutSeconds int
+	WriteTimeoutSeconds      int
+	IdleTimeoutSeconds       int
+	MaxHeaderBytes           int
 }
 
 //////////////////////////////////////// Constants
@@ -337,7 +343,12 @@ func main() {
 		Cache:      autocert.DirCache(cache),
 	}
 	server := &http.Server{ // HTTP REDIR SSL RENEW
-		Addr: proxyPortTLS,
+		Addr:              proxyPortTLS,
+		ReadTimeout:       time.Duration(configuration.ReadTimeoutSeconds) * time.Second,
+		ReadHeaderTimeout: time.Duration(configuration.ReadHeaderTimeoutSeconds) * time.Second,
+		WriteTimeout:      time.Duration(configuration.WriteTimeoutSeconds) * time.Second,
+		IdleTimeout:       time.Duration(configuration.IdleTimeoutSeconds) * time.Second,
+		MaxHeaderBytes:    configuration.MaxHeaderBytes, //1 << 20 // 1 MB
 		TLSConfig: &tls.Config{ // SEC PARAMS
 			GetCertificate:           certManager.GetCertificate,
 			PreferServerCipherSuites: true,
@@ -370,7 +381,7 @@ func main() {
 			req.URL.Host = origin.Host
 		}
 		proxy := &httputil.ReverseProxy{Director: director}
-		proxyOptions := [1]KeyValue{{Key: "Strict-Transport-Security", Value: "max-age=15768000 ; includeSubDomains"}}
+		proxyOptions := [1][2]string{{"Strict-Transport-Security", "max-age=15768000 ; includeSubDomains"}}
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			//TODO: Check certificate in cookie
 			select {
@@ -384,7 +395,7 @@ func main() {
 				//Track
 				track(&configuration, w, r)
 				//Proxy
-				w.Header().Set(proxyOptions[0].Key, proxyOptions[0].Value)
+				w.Header().Set(proxyOptions[0][0], proxyOptions[0][1])
 				proxy.ServeHTTP(w, r)
 				connc <- struct{}{}
 			default:
@@ -397,7 +408,7 @@ func main() {
 	//////////////////////////////////////// STATUS TEST ROUTE
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-		json, _ := json.Marshal(&KeyValue{Key: "client", Value: ip})
+		json, _ := json.Marshal([2]KeyValue{KeyValue{Key: "client", Value: ip}, KeyValue{Key: "conns", Value: configuration.MaximumConnections - len(connc)}})
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(json)

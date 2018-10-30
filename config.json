@@ -14,11 +14,17 @@
     "ProxyDailyLimit" : 0,
     "ProxyDailyLimitChecker" : "cassandra",
     "MaximumConnections": 150000,
+    "ReadTimeoutSeconds" : 20,
+    "ReadHeaderTimeoutSeconds" : 20,
+    "WriteTimeoutSeconds" : 20,
+    "IdleTimeoutSeconds" : 20,
+    "MaxHeaderBytes" : 1048576,
     "Debug" : true,
     "UrlPrefixFilter" : "http(s|)://(localhost|dev\\.sfproductlabs\\.com)(:[0-9]*|)(/.*)",
     "Notify": [
         {
             "Service": "cassandra",
+            "Connections" : 2,
             "Hosts": [
                 "127.0.0.1"
             ],

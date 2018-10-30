@@ -71,7 +71,7 @@ func (i *CassandraService) connect() error {
 	cluster.Keyspace = i.Configuration.Context
 	cluster.Consistency = gocql.LocalOne
 	cluster.Timeout = i.Configuration.Timeout * time.Millisecond
-	cluster.NumConns = 2
+	cluster.NumConns = i.Configuration.Connections
 	if i.Configuration.CACert != "" {
 		sslOpts := &gocql.SslOptions{
 			CaPath:                 i.Configuration.CACert,
