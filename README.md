@@ -37,12 +37,12 @@ Send the server something to track:
 ### REST Payload Example
 In the following example, we use tuplets to persist what's needed to track (Ex. {"tr":"v1"})
 ```
-https://localhost:8443/tr/v1/vid/aFccafd/ROCK/ON/lat/37.232332/lon/6.32233223/first/true/score/6/ref/andy
+https://localhost:8443/tr/v1/vid/00000000-0000-0000-0000-000000000000/ROCK/ON/lat/37.232332/lon/6.32233223/first/true/score/6/ref/00000000-0000-0000-0000-000000000001
 ```
 ### JSON Payload Example (Method:POST, Body)
 Descriptions of the columns we send are in the schema file above. (Ex. vid = visitorId)
 ```json
-{"last":"https://localhost:5001/cw.html","next":"https://localhost:5001/cw.html","params":{"type":"a","ref":"Bespoke"},"created":1539102052702,"duration":34752,"vid":"3d0be300-cbd2-11e8-aa59-ffd128a54d91","first":"false","sid":"3d0be301-cbd2-11e8-aa59-ffd128a54d91","tz":"America/Los_Angeles","device":"Linux","os":"Linux","sink":"cw$","score":1,"eid":"cw-a","uid":"admin"}
+{"last":"https://localhost:5001/cw.html","url":"https://localhost:5001/cw.html","params":{"type":"a","aff":"Bespoke"},"created":1539102052702,"duration":34752,"vid":"3d0be300-cbd2-11e8-aa59-ffd128a54d91","first":"false","sid":"3d0be301-cbd2-11e8-aa59-ffd128a54d91","tz":"America/Los_Angeles","device":"Linux","os":"Linux","sink":"cw$","score":1,"eid":"cw-a","uid":"admin"}
 ```
 
 ### Deploy
