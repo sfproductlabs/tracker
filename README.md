@@ -1,10 +1,10 @@
 # Tracker
-Track every visitor click, setup growth experiments and measure every user outcome all in house without any external tools at unlimited scale (it's the same infrastructure that the big boys use: CERN, Netflix, Apple, Github). It's not exactly going to be a drop in replacement for Google Analytics, but it will go far beyond it to help you understand your users' experience. 
+Track every visitor click, setup growth experiments and measure every user outcome and growth loop all under one roof for all of your sites/assets without any external tools at unlimited scale (it's the same infrastructure that the big boys use: CERN, Netflix, Apple, Github). It's not exactly going to be a drop in replacement for Google Analytics, but it will go far beyond it to help you understand your users' experience. 
 
 Don't want to give your user data to people you don't trust? Maybe save a GDPR lawsuit by using this.
 
 ## Features
-* Tracking API Calls & URLs
+* Tracking API Calls & URLs & GET Redirects
 * Tracking Images (for Emails)
 * Reverse Proxy included (one line Drop in NGINX replacement for your Node, Python, etc. API backend)
 * LetsEncrypt one line configuration
@@ -23,8 +23,6 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * NATS/Kafka converter/repeater
 * Flink plugin
 * Druid Plugin
-* Growth Loop/s
-* GET redirects
 
 ## Instructions
 
