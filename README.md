@@ -1,10 +1,10 @@
 # Tracker
-Track every visitor click, setup growth experiments and measure every user outcome all in house without any external tools at unlimited scale (it's the same infrastructure that the big boys use: CERN, Netflix, Apple, Github). It's not exactly going to be a drop in replacement for Google Analytics, but it will go far beyond it to help you understand your users' experience. 
+Track every visitor click, setup growth experiments and measure every user outcome and growth loop all under one roof for all of your sites/assets without any external tools at unlimited scale (it's the same infrastructure that the big boys use: CERN, Netflix, Apple, Github). It's not exactly going to be a drop in replacement for Google Analytics, but it will go far beyond it to help you understand your users' experience. 
 
 Don't want to give your user data to people you don't trust? Maybe save a GDPR lawsuit by using this.
 
 ## Features
-* Tracking API Calls & URLs
+* Tracking API Calls & URLs & GET Redirects
 * Tracking Images (for Emails)
 * Reverse Proxy included (one line Drop in NGINX replacement for your Node, Python, etc. API backend)
 * LetsEncrypt one line configuration
@@ -18,13 +18,16 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Initial tests show around 1,000 connections per second per server month dollar
 * Written entirely in Golang
 
+## Compatible out of the box with
+* Apache Spark
+* Elastic Search
+* AirBnB Subset
+
 ## Todo
 * Kafka plugin
 * NATS/Kafka converter/repeater
 * Flink plugin
 * Druid Plugin
-* Growth Loop/s
-* GET redirects
 
 ## Instructions
 
@@ -39,12 +42,12 @@ Send the server something to track:
 ### REST Payload Example
 In the following example, we use tuplets to persist what's needed to track (Ex. {"tr":"v1"})
 ```
-https://localhost:8443/tr/v1/vid/aFccafd/ROCK/ON/lat/37.232332/lon/6.32233223/first/true/score/6/ref/andy
+https://localhost:8443/tr/v1/vid/00000000-0000-0000-0000-000000000000/ROCK/ON/lat/37.232332/lon/6.32233223/first/true/score/6/ref/00000000-0000-0000-0000-000000000001
 ```
 ### JSON Payload Example (Method:POST, Body)
 Descriptions of the columns we send are in the schema file above. (Ex. vid = visitorId)
 ```json
-{"last":"https://localhost:5001/cw.html","next":"https://localhost:5001/cw.html","params":{"type":"a","ref":"Bespoke"},"created":1539102052702,"duration":34752,"vid":"3d0be300-cbd2-11e8-aa59-ffd128a54d91","first":"false","sid":"3d0be301-cbd2-11e8-aa59-ffd128a54d91","tz":"America/Los_Angeles","device":"Linux","os":"Linux","sink":"cw$","score":1,"eid":"cw-a","uid":"admin"}
+{"last":"https://localhost:5001/cw.html","url":"https://localhost:5001/cw.html","params":{"type":"a","aff":"Bespoke"},"created":1539102052702,"duration":34752,"vid":"3d0be300-cbd2-11e8-aa59-ffd128a54d91","first":"false","sid":"3d0be301-cbd2-11e8-aa59-ffd128a54d91","tz":"America/Los_Angeles","device":"Linux","os":"Linux","sink":"cw$","score":1,"eid":"cw-a","uid":"admin"}
 ```
 
 ### Deploy
