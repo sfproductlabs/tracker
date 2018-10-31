@@ -178,6 +178,7 @@ type Configuration struct {
 	WriteTimeoutSeconds      int
 	IdleTimeoutSeconds       int
 	MaxHeaderBytes           int
+	DefaultRedirect          string
 }
 
 //////////////////////////////////////// Constants
@@ -472,6 +473,27 @@ func main() {
 				w.Header().Set("Retry-After", "1")
 				http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 			}
+		}
+
+	})
+
+	//////////////////////////////////////// Redirect Route
+	// Ex. https://localhost:8443/rdr/v1/?redirect=https%3A%2F%2Fx.com
+	http.HandleFunc("/rdr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-connc:
+			track(&configuration, w, r)
+			rURL := r.URL.Query()["redirect"]
+			fmt.Println(rURL)
+			if len(rURL) > 0 {
+				http.Redirect(w, r, rURL[0], http.StatusFound)
+			} else {
+				http.Redirect(w, r, configuration.DefaultRedirect, http.StatusFound)
+			}
+			connc <- struct{}{}
+		default:
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 		}
 
 	})
