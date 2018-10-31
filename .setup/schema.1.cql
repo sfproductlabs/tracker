@@ -178,6 +178,13 @@ create table users (
   PRIMARY KEY ((uid), vid)
 );
 
+create table usernames (
+  username text,
+  vid timeuuid,   
+  sid timeuuid, 
+  PRIMARY KEY ((username), vid)
+);
+
 create table dailies (  
   ip text, 
   day date,
