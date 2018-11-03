@@ -179,10 +179,10 @@ create table users (
 );
 
 create table usernames (
-  username text,
+  uname text,
   vid timeuuid,   
   sid timeuuid, 
-  PRIMARY KEY ((username), vid)
+  PRIMARY KEY ((uname), vid)
 );
 
 create table dailies (  

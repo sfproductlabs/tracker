@@ -645,6 +645,21 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 		}
 
+		if v["uname"] != nil {
+			if xerr := i.Session.Query(`INSERT into usernames 
+				(
+					vid, 
+					uname,
+					sid
+				) 
+				values (?,?,?)`, //3
+				v["vid"],
+				v["uname"],
+				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[usernames]:", xerr)
+			}
+		}
+
 		//reqs
 		if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
 			v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
