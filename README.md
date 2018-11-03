@@ -17,6 +17,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Uncomplicated config.json one file configuration
 * Initial tests show around 1,000 connections per second per server month dollar
 * Written entirely in Golang
+* Drop in replacement for InfluxData's Telegraf
 
 ## Compatible out of the box with
 * Apache Spark
@@ -28,6 +29,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * NATS/Kafka converter/repeater
 * Flink plugin
 * Druid Plugin
+* Apache SNS 
 
 ## Instructions
 
