@@ -204,7 +204,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["hostname"],
 			v["owner"],
 			v["ip"],
-			&level,
+			level,
 			v["msg"],
 			v["params"]).Exec()
 
@@ -231,6 +231,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			} else {
 				v["sid"] = gocql.TimeUUID()
 			}
+		}
+		//[uname]
+		var uname *string
+		if temp, ok := v["uname"].(string); ok {
+			temp = strings.ToLower(strings.TrimSpace(temp))
+			uname = &temp
 		}
 		//[first]
 		first := isNew || (v["first"] != "false")
@@ -422,20 +428,20 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["last"],
 				v["url"],
 				w.IP,
-				&latlon,
+				latlon,
 				v["ptype"],
-				&bhash,
+				bhash,
 				v["auth"],
 				v["xid"],
 				v["split"],
 				v["ename"],
 				v["etyp"],
-				&version,
+				version,
 				v["sink"],
-				&score,
+				score,
 				v["params"],
-				&country,
-				&culture,
+				country,
+				culture,
 				v["source"],
 				v["medium"],
 				v["campaign"],
@@ -446,7 +452,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["device"],
 				v["os"],
 				v["tz"],
-				&vp).Exec(); xerr != nil && i.AppConfig.Debug {
+				vp).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[visitors]:", xerr)
 			}
 
@@ -497,21 +503,21 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["last"],
 				v["url"],
 				w.IP,
-				&latlon,
+				latlon,
 				v["ptype"],
-				&bhash,
+				bhash,
 				v["auth"],
-				&duration,
+				duration,
 				v["xid"],
 				v["split"],
 				v["ename"],
 				v["etyp"],
-				&version,
+				version,
 				v["sink"],
-				&score,
+				score,
 				v["params"],
-				&country,
-				&culture,
+				country,
+				culture,
 				v["source"],
 				v["medium"],
 				v["campaign"],
@@ -522,7 +528,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["device"],
 				v["os"],
 				v["tz"],
-				&vp).Exec(); xerr != nil && i.AppConfig.Debug {
+				vp).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[starts]:", xerr)
 			}
 
@@ -562,18 +568,18 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["last"],
 			v["url"],
 			w.IP,
-			&latlon,
+			latlon,
 			v["ptype"],
-			&bhash,
+			bhash,
 			v["auth"],
-			&duration,
+			duration,
 			v["xid"],
 			v["split"],
 			v["ename"],
 			v["etyp"],
-			&version,
+			version,
 			v["sink"],
-			&score,
+			score,
 			v["params"],
 			v["targets"]).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[events]:", xerr)
@@ -606,7 +612,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					) 
 					values (?,?,?,?)`, //4
 				v["vid"],
-				&latlon,
+				latlon,
 				v["uid"],
 				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[locations]:", xerr)
@@ -645,7 +651,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 		}
 
-		if v["uname"] != nil {
+		if uname != nil {
 			if xerr := i.Session.Query(`INSERT into usernames 
 				(
 					vid, 
@@ -654,7 +660,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				) 
 				values (?,?,?)`, //3
 				v["vid"],
-				v["uname"],
+				uname,
 				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[usernames]:", xerr)
 			}
