@@ -7,7 +7,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Tracking API Calls & URLs & GET Redirects
 * Tracking Images (for Emails)
 * Reverse Proxy included (one line Drop in NGINX replacement for your Node, Python, etc. API backend)
-* LetsEncrypt one line configuration
+* TLS or LetsEncrypt one line configuration
 * API & Request Rate Limiting
 * Horizontally Scalable (Clustered NATS, Clustered Cassandra, Dockerized App Swarm - Good for ECS).
 * File Server (w. Caching)
