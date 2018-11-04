@@ -1,7 +1,7 @@
 # Tracker
 Track every visitor click, setup growth experiments and measure every user outcome and growth loop all under one roof for all of your sites/assets without any external tools at unlimited scale (it's the same infrastructure that the big boys use: CERN, Netflix, Apple, Github). It's not exactly going to be a drop in replacement for Google Analytics, but it will go far beyond it to help you understand your users' experience. 
 
-Don't want to give your user data to people you don't trust? Maybe save a GDPR lawsuit by using this.
+Don't want to give your user data to people you don't trust? Maybe save a GDPR lawsuit by using this. We've seen a marked drop in people sharing their data with Google Analytics, so this will allow you to get your own trusted statistics yourself.
 
 ## Features
 * Tracking API Calls & URLs & GET Redirects
