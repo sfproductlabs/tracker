@@ -209,7 +209,7 @@ var (
 	regexCount       = regexp.MustCompile(`\.count\.(.*)`)
 	regexUpdate      = regexp.MustCompile(`\.update\.(.*)`)
 	urlPrefix        = regexp.MustCompile(`(.*)`)
-	regexInternalURI = regexp.MustCompile(`.*(/tr/|/img/|/pub/|/str/).*`)
+	regexInternalURI = regexp.MustCompile(`.*(/tr/|/img/|/pub/|/str/|/rdr/).*`) //TODO: MUST FILTER INTERNAL ROUTES, UPDATE IF ADDING A NEW ROUTE, PROXY OK!!!
 	utmPrefix        = regexp.MustCompile(`utm_`)
 )
 
@@ -494,6 +494,7 @@ func main() {
 					WriteType: WRITE_EVENT,
 					IP:        getIP(r),
 					EventID:   gocql.TimeUUID(),
+					URI:       r.RequestURI,
 					IsServer:  true,
 				}
 				trackWithArgs(&configuration, &w, r, &wargs)
@@ -518,7 +519,6 @@ func main() {
 		case <-connc:
 			track(&configuration, &w, r)
 			rURL := r.URL.Query()["redirect"]
-			fmt.Println(rURL)
 			if len(rURL) > 0 {
 				http.Redirect(w, r, rURL[0], http.StatusFound)
 			} else {
