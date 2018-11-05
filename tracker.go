@@ -63,6 +63,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gocql/gocql"
 	"github.com/nats-io/go-nats"
@@ -204,11 +205,12 @@ const (
 
 var (
 	// Quote Ident replacer.
-	qiReplacer          = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
-	regexCount, _       = regexp.Compile(`\.count\.(.*)`)
-	regexUpdate, _      = regexp.Compile(`\.update\.(.*)`)
-	urlPrefix, _        = regexp.Compile(`(.*)`)
-	regexInternalURI, _ = regexp.Compile(`.*(/tr/|/img/|/pub/).*`)
+	qiReplacer       = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
+	regexCount       = regexp.MustCompile(`\.count\.(.*)`)
+	regexUpdate      = regexp.MustCompile(`\.update\.(.*)`)
+	urlPrefix        = regexp.MustCompile(`(.*)`)
+	regexInternalURI = regexp.MustCompile(`.*(/tr/|/img/|/pub/|/str/).*`)
+	utmPrefix        = regexp.MustCompile(`utm_`)
 )
 
 //////////////////////////////////////// Transparent GIF
@@ -582,6 +584,7 @@ func track(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 }
 
 func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wargs *WriteArgs) error {
+	//Normalize all data TOLOWERCASE
 
 	//Process
 	j := make(map[string]interface{})
@@ -591,7 +594,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		j["vid"] = cookie.Value
 	}
 	//Path
-	p := strings.Split(r.URL.Path, "/")
+	p := strings.Split(strings.ToLower(r.URL.Path), "/")
 	pmax := (len(p) - 2)
 	for i := 1; i <= pmax; i += 2 {
 		j[p[i]] = p[i+1] //TODO: Handle arrays
@@ -600,7 +603,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	temp := j["vid"]
 	delete(j, "vid")
 	if params, err := json.Marshal(j); err == nil {
-		j["params"] = string(params)
+		j["params"] = strings.ToLower(string(params))
 	}
 	j["vid"] = temp
 	switch r.Method {
@@ -609,13 +612,15 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		k := r.URL.Query()
 		qp := make(map[string]interface{})
 		for idx := range k {
-			j[idx] = k[idx][0]
-			qp[idx] = k[idx][0]
+			lidx := strings.ToLower(idx)
+			lidx = utmPrefix.ReplaceAllString(lidx, "")
+			j[lidx] = k[idx][0]
+			qp[lidx] = k[idx][0]
 		}
 		if len(qp) > 0 {
 			//If we have query params **OVERWRITE** the split URL ones
 			if params, err := json.Marshal(qp); err == nil {
-				j["params"] = string(params)
+				j["params"] = strings.ToLower(string(params))
 			}
 		}
 		wargs.Values = &j
@@ -628,6 +633,9 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		}
 		if len(body) > 0 {
 			//r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+			for idx := range body {
+				body[idx] = byte(unicode.ToLower(rune(body[idx])))
+			}
 			if err := json.Unmarshal(body, &j); err != nil {
 				return fmt.Errorf("Bad JS (parse)")
 			}

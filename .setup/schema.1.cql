@@ -120,7 +120,7 @@ create table sessions (
 WITH CLUSTERING ORDER BY (sid DESC);
 
 create table events (
-  eid timeuuid, --event id, unique to every event
+  eid timeuuid, --event id, server generated, unique to every event
   vid timeuuid, 
   sid timeuuid, 
   app text,
