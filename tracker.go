@@ -600,12 +600,9 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		j[p[i]] = p[i+1] //TODO: Handle arrays
 	}
 	//Inject Params
-	temp := j["vid"]
-	delete(j, "vid")
 	if params, err := json.Marshal(j); err == nil {
 		j["params"] = strings.ToLower(string(params))
 	}
-	j["vid"] = temp
 	switch r.Method {
 	case http.MethodGet:
 		//Query, try and get everything
