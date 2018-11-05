@@ -48,10 +48,63 @@
  */
 package main
 
-import "hash/fnv"
+import (
+	"fmt"
+	"hash/fnv"
+	"net"
+	"net/http"
+	"os"
+	"os/user"
+	"path/filepath"
+	"strings"
+)
 
+////////////////////////////////////////
+// hash
+////////////////////////////////////////
 func hash(s string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return h.Sum32()
+}
+
+////////////////////////////////////////
+// FilterUrlPrefix
+////////////////////////////////////////
+func filterUrlPrefix(c *Configuration, s *string) error {
+	matches := urlPrefix.FindStringSubmatch(*s)
+	mi := len(matches)
+	if mi > 0 {
+		*s = matches[mi-1]
+	}
+	i := strings.Index(*s, "?")
+	if i > -1 {
+		*s = (*s)[:i]
+	}
+	return nil
+}
+
+////////////////////////////////////////
+// cacheDir in /tmp for SSL
+////////////////////////////////////////
+func cacheDir() (dir string) {
+	if u, _ := user.Current(); u != nil {
+		dir = filepath.Join(os.TempDir(), "cache-golang-autocert-"+u.Username)
+		//dir = filepath.Join(".", "cache-golang-autocert-"+u.Username)
+		fmt.Println("Saving cache-go-lang-autocert-u.username to: ", dir)
+		if err := os.MkdirAll(dir, 0700); err == nil {
+			return dir
+		}
+	}
+	return ""
+}
+
+func getIP(r *http.Request) string {
+
+	ip := r.Header.Get("X-Forwarded-For")
+	if ip == "" {
+		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+	}
+	fmt.Println(ip)
+	return ip
 }

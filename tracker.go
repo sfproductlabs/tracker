@@ -59,8 +59,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"os/user"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -108,11 +106,12 @@ type Filter struct {
 type WriteArgs struct {
 	WriteType int
 	Values    *map[string]interface{}
-	Caller    string
+	IsServer  bool
 	IP        string
 	Browser   string
 	Language  string
 	URI       string
+	EventID   gocql.UUID
 }
 
 type Service struct {
@@ -394,7 +393,7 @@ func main() {
 					return
 				}
 				//Track
-				track(&configuration, w, r)
+				track(&configuration, &w, r)
 				//Proxy
 				w.Header().Set(proxyOptions[0][0], proxyOptions[0][1])
 				proxy.ServeHTTP(w, r)
@@ -408,8 +407,7 @@ func main() {
 
 	//////////////////////////////////////// STATUS TEST ROUTE
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-		json, _ := json.Marshal([2]KeyValue{KeyValue{Key: "client", Value: ip}, KeyValue{Key: "conns", Value: configuration.MaximumConnections - len(connc)}})
+		json, _ := json.Marshal([2]KeyValue{KeyValue{Key: "client", Value: getIP(r)}, KeyValue{Key: "conns", Value: configuration.MaximumConnections - len(connc)}})
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(json)
@@ -427,7 +425,7 @@ func main() {
 	http.HandleFunc(pubSlug, func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
-			track(&configuration, w, r)
+			track(&configuration, &w, r)
 			http.StripPrefix(pubSlug, fs).ServeHTTP(w, r)
 			connc <- struct{}{}
 		default:
@@ -440,7 +438,7 @@ func main() {
 	http.HandleFunc("/img/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
-			track(&configuration, w, r)
+			track(&configuration, &w, r)
 			w.Header().Set("content-type", "image/gif")
 			w.Write(TRACKING_GIF)
 			connc <- struct{}{}
@@ -466,8 +464,42 @@ func main() {
 		} else {
 			select {
 			case <-connc:
-				track(&configuration, w, r)
+				track(&configuration, &w, r)
 				w.WriteHeader(http.StatusOK)
+				connc <- struct{}{}
+			default:
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+			}
+		}
+
+	})
+
+	//////////////////////////////////////// Server Tracking Route
+	http.HandleFunc("/str/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			//Lets just allow requests to this endpoint
+			w.Header().Set("access-control-allow-origin", "*") //TODO Security Threat
+			w.Header().Set("access-control-allow-credentials", "true")
+			w.Header().Set("access-control-allow-headers", "Authorization,Accept")
+			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
+			w.Header().Set("access-control-max-age", "1728000")
+			w.WriteHeader(http.StatusOK)
+		} else {
+			select {
+			case <-connc:
+				wargs := WriteArgs{
+					WriteType: WRITE_EVENT,
+					IP:        getIP(r),
+					EventID:   gocql.TimeUUID(),
+					IsServer:  true,
+				}
+				trackWithArgs(&configuration, &w, r, &wargs)
+				w.WriteHeader(http.StatusOK)
+				json, _ := json.Marshal(wargs.EventID)
+				w.WriteHeader(http.StatusOK)
+				w.Header().Set("Content-Type", "application/json")
+				w.Write(json)
 				connc <- struct{}{}
 			default:
 				w.Header().Set("Retry-After", "1")
@@ -482,7 +514,7 @@ func main() {
 	http.HandleFunc("/rdr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
-			track(&configuration, w, r)
+			track(&configuration, &w, r)
 			rURL := r.URL.Query()["redirect"]
 			fmt.Println(rURL)
 			if len(rURL) > 0 {
@@ -523,27 +555,11 @@ func main() {
 }
 
 ////////////////////////////////////////
-// cacheDir in /tmp for SSL
-////////////////////////////////////////
-func cacheDir() (dir string) {
-	if u, _ := user.Current(); u != nil {
-		dir = filepath.Join(os.TempDir(), "cache-golang-autocert-"+u.Username)
-		//dir = filepath.Join(".", "cache-golang-autocert-"+u.Username)
-		fmt.Println("Saving cache-go-lang-autocert-u.username to: ", dir)
-		if err := os.MkdirAll(dir, 0700); err == nil {
-			return dir
-		}
-	}
-	return ""
-}
-
-////////////////////////////////////////
 // Check
 ////////////////////////////////////////
 func check(c *Configuration, r *http.Request) error {
 	//Precheck
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	if c.ProxyDailyLimit > 0 && c.ProxyDailyLimitCheck != nil && c.ProxyDailyLimitCheck(ip+";"+r.Header.Get("X-Forwarded-For")) > c.ProxyDailyLimit {
+	if c.ProxyDailyLimit > 0 && c.ProxyDailyLimitCheck != nil && c.ProxyDailyLimitCheck(getIP(r)) > c.ProxyDailyLimit {
 		return fmt.Errorf("API Limit Reached")
 	}
 	return nil
@@ -552,17 +568,20 @@ func check(c *Configuration, r *http.Request) error {
 ////////////////////////////////////////
 // Trace
 ////////////////////////////////////////
-func track(c *Configuration, w http.ResponseWriter, r *http.Request) error {
+func track(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 	//Setup
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	wargs := WriteArgs{
 		WriteType: WRITE_EVENT,
-		Caller:    ip + ";" + r.Header.Get("X-Forwarded-For"),
-		IP:        ip,
+		IP:        getIP(r),
 		Browser:   r.Header.Get("user-agent"),
 		Language:  r.Header.Get("accept-language"),
 		URI:       r.RequestURI,
+		EventID:   gocql.TimeUUID(),
 	}
+	return trackWithArgs(c, w, r, &wargs)
+}
+
+func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wargs *WriteArgs) error {
 
 	//Process
 	j := make(map[string]interface{})
@@ -620,7 +639,7 @@ func track(c *Configuration, w http.ResponseWriter, r *http.Request) error {
 	for idx := range c.Notify {
 		s := &c.Notify[idx]
 		if s.Session != nil {
-			if err := s.Session.write(&wargs); err != nil {
+			if err := s.Session.write(wargs); err != nil {
 				if c.Debug {
 					fmt.Printf("[ERROR] Writing to %s: %s\n", s.Service, err)
 				}
@@ -631,24 +650,8 @@ func track(c *Configuration, w http.ResponseWriter, r *http.Request) error {
 	if vid, ok := j["vid"].(string); ok {
 		expiration := time.Now().Add(365 * 24 * time.Hour)
 		cookie := http.Cookie{Name: "vid", Value: vid, Expires: expiration, Path: "/"}
-		http.SetCookie(w, &cookie)
+		http.SetCookie(*w, &cookie)
 	}
 	return nil
 
-}
-
-////////////////////////////////////////
-// FilterUrlPrefix
-////////////////////////////////////////
-func filterUrlPrefix(c *Configuration, s *string) error {
-	matches := urlPrefix.FindStringSubmatch(*s)
-	mi := len(matches)
-	if mi > 0 {
-		*s = matches[mi-1]
-	}
-	i := strings.Index(*s, "?")
-	if i > -1 {
-		*s = (*s)[:i]
-	}
-	return nil
 }

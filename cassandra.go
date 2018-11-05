@@ -218,28 +218,20 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//////////////////////////////////////////////
 		//FIX VARS
 		//////////////////////////////////////////////
-		//[vid]
-		isNew := false
-		if _, ok := v["vid"].(string); !ok {
-			v["vid"] = gocql.TimeUUID()
-			isNew = true
-		}
-		//[sid]
-		if _, ok := v["sid"].(string); !ok {
-			if isNew {
-				v["sid"] = v["vid"]
-			} else {
-				v["sid"] = gocql.TimeUUID()
+		//[updated]
+		updated := time.Now().UTC()
+		//[reid]
+		var reid *gocql.UUID
+		if temp, ok := v["reid"].(string); !ok {
+			if temp2, err := gocql.ParseUUID(temp); err == nil {
+				reid = &temp2
 			}
 		}
 		//[uname]
 		var uname *string
 		if temp, ok := v["uname"].(string); ok {
-			temp = strings.ToLower(strings.TrimSpace(temp))
 			uname = &temp
 		}
-		//[first]
-		first := isNew || (v["first"] != "false")
 		//[latlon]
 		var latlon *geo_point
 		latf, oklatf := v["lat"].(float64)
@@ -349,41 +341,232 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//Persist
 		//////////////////////////////////////////////
 
-		//daily
-		updated := time.Now().UTC()
-		if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.Caller, updated).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println(xerr)
-		}
-
-		//unknown vid
-		if isNew {
-			if xerr := i.Session.Query(`UPDATE counters set total=total+1 where id='vids_created'`).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
-			}
-		}
-
-		//outcome
-		if outcome, ok := v["outcome"].(string); ok {
-			if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println(xerr)
-			}
-		}
-
 		//ips
 		if xerr := i.Session.Query(`UPDATE ips set total=total+1 where ip=?`,
 			w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[ips]:", xerr)
 		}
 
-		//browsers
-		if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=? AND bhash=?`,
-			w.Browser, bhash).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[browsers]:", xerr)
+		//events
+		if xerr := i.Session.Query(`INSERT into events 
+			(
+				eid,
+				vid, 
+				sid, 
+				app,
+				created,
+				uid,
+				last,
+				url,
+				ip,
+				latlon,
+				ptype,
+				bhash,
+				auth,
+				duration,
+				xid,
+				split,
+				ename,
+				etyp,
+				ver,
+				sink,
+				score,							
+				params,
+				targets,
+				reid
+			) 
+			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?)`, //15
+			w.EventID,
+			v["vid"],
+			v["sid"],
+			v["app"],
+			updated,
+			v["uid"],
+			v["last"],
+			v["url"],
+			w.IP,
+			latlon,
+			v["ptype"],
+			bhash,
+			v["auth"],
+			duration,
+			v["xid"],
+			v["split"],
+			v["ename"],
+			v["etyp"],
+			version,
+			v["sink"],
+			score,
+			v["params"],
+			v["targets"],
+			reid).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[events]:", xerr)
 		}
 
-		if isNew || first {
-			//vistors
-			if xerr := i.Session.Query(`INSERT into visitors 
+		if !w.IsServer {
+
+			//[vid]
+			isNew := false
+			if _, ok := v["vid"].(string); !ok {
+				v["vid"] = w.EventID
+				isNew = true
+			}
+			//[sid]
+			if _, ok := v["sid"].(string); !ok {
+				if isNew {
+					v["sid"] = v["vid"]
+				} else {
+					v["sid"] = gocql.TimeUUID()
+				}
+			}
+			//[first]
+			isFirst := isNew || (v["first"] != "false")
+
+			//hits
+			if _, ok := v["url"].(string); ok {
+				if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
+					v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[hits]:", xerr)
+				}
+			}
+
+			//daily
+			if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.IP, updated).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[dailies]:", xerr)
+			}
+
+			//unknown vid
+			if isNew {
+				if xerr := i.Session.Query(`UPDATE counters set total=total+1 where id='vids_created'`).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[counters]vids_created:", xerr)
+				}
+			}
+
+			//outcome
+			if outcome, ok := v["outcome"].(string); ok {
+				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[outcomes]:", xerr)
+				}
+			}
+
+			//referrers
+			if _, ok := v["last"].(string); ok {
+				if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
+					v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[referrers]:", xerr)
+				}
+			}
+
+			//referrals
+			if v["ref"] != nil {
+				if xerr := i.Session.Query(`INSERT into referrals 
+					(
+						vid, 
+						ref
+					) 
+					values (?,?) IF NOT EXISTS`, //2
+					v["vid"],
+					v["ref"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[referrals]:", xerr)
+				}
+			}
+
+			//browsers
+			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=? AND bhash=?`,
+				w.Browser, bhash).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[browsers]:", xerr)
+			}
+
+			//nodes
+			if xerr := i.Session.Query(`INSERT into nodes 
+				(
+					vid, 
+					uid,
+					ip,
+					sid
+				) 
+				values (?,?,?,?)`, //4
+				v["vid"],
+				v["uid"],
+				w.IP,
+				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[nodes]:", xerr)
+			}
+
+			//locations
+			if latlon != nil {
+				if xerr := i.Session.Query(`INSERT into locations 
+				(
+					vid, 
+					latlon,
+					uid,
+					sid
+				) 
+				values (?,?,?,?)`, //4
+					v["vid"],
+					latlon,
+					v["uid"],
+					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[locations]:", xerr)
+				}
+			}
+
+			//alias
+			if v["uid"] != nil {
+				if xerr := i.Session.Query(`INSERT into aliases 
+					(
+						vid, 
+						uid,
+						sid
+					) 
+					values (?,?,?)`, //3
+					v["vid"],
+					v["uid"],
+					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[aliases]:", xerr)
+				}
+			}
+
+			//users
+			if v["uid"] != nil {
+				if xerr := i.Session.Query(`INSERT into users 
+					(
+						vid, 
+						uid,
+						sid
+					) 
+					values (?,?,?)`, //3
+					v["vid"],
+					v["uid"],
+					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[users]:", xerr)
+				}
+			}
+
+			if uname != nil {
+				if xerr := i.Session.Query(`INSERT into usernames 
+					(
+						vid, 
+						uname,
+						sid
+					) 
+					values (?,?,?)`, //3
+					v["vid"],
+					uname,
+					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[usernames]:", xerr)
+				}
+			}
+
+			//reqs
+			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
+				v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[reqs]:", xerr)
+			}
+
+			if isNew || isFirst {
+				//vistors
+				if xerr := i.Session.Query(`INSERT into visitors 
                         (
                             vid, 
 							sid, 
@@ -420,44 +603,44 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							vp
                         ) 
                         values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?) IF NOT EXISTS`, //33
-				v["vid"],
-				v["sid"],
-				v["app"],
-				updated,
-				v["uid"],
-				v["last"],
-				v["url"],
-				w.IP,
-				latlon,
-				v["ptype"],
-				bhash,
-				v["auth"],
-				v["xid"],
-				v["split"],
-				v["ename"],
-				v["etyp"],
-				version,
-				v["sink"],
-				score,
-				v["params"],
-				country,
-				culture,
-				v["source"],
-				v["medium"],
-				v["campaign"],
-				v["term"],
-				v["ref"],
-				v["aff"],
-				w.Browser,
-				v["device"],
-				v["os"],
-				v["tz"],
-				vp).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[visitors]:", xerr)
-			}
+					v["vid"],
+					v["sid"],
+					v["app"],
+					updated,
+					v["uid"],
+					v["last"],
+					v["url"],
+					w.IP,
+					latlon,
+					v["ptype"],
+					bhash,
+					v["auth"],
+					v["xid"],
+					v["split"],
+					v["ename"],
+					v["etyp"],
+					version,
+					v["sink"],
+					score,
+					v["params"],
+					country,
+					culture,
+					v["source"],
+					v["medium"],
+					v["campaign"],
+					v["term"],
+					v["ref"],
+					v["aff"],
+					w.Browser,
+					v["device"],
+					v["os"],
+					v["tz"],
+					vp).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[visitors]:", xerr)
+				}
 
-			//starts
-			if xerr := i.Session.Query(`INSERT into sessions 
+				//starts
+				if xerr := i.Session.Query(`INSERT into sessions 
                         (
                             vid, 
 							sid, 
@@ -495,210 +678,43 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							vp                        
 						) 
                         values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) IF NOT EXISTS`, //34
-				v["vid"],
-				v["sid"],
-				v["app"],
-				updated,
-				v["uid"],
-				v["last"],
-				v["url"],
-				w.IP,
-				latlon,
-				v["ptype"],
-				bhash,
-				v["auth"],
-				duration,
-				v["xid"],
-				v["split"],
-				v["ename"],
-				v["etyp"],
-				version,
-				v["sink"],
-				score,
-				v["params"],
-				country,
-				culture,
-				v["source"],
-				v["medium"],
-				v["campaign"],
-				v["term"],
-				v["ref"],
-				v["aff"],
-				w.Browser,
-				v["device"],
-				v["os"],
-				v["tz"],
-				vp).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[starts]:", xerr)
-			}
+					v["vid"],
+					v["sid"],
+					v["app"],
+					updated,
+					v["uid"],
+					v["last"],
+					v["url"],
+					w.IP,
+					latlon,
+					v["ptype"],
+					bhash,
+					v["auth"],
+					duration,
+					v["xid"],
+					v["split"],
+					v["ename"],
+					v["etyp"],
+					version,
+					v["sink"],
+					score,
+					v["params"],
+					country,
+					culture,
+					v["source"],
+					v["medium"],
+					v["campaign"],
+					v["term"],
+					v["ref"],
+					v["aff"],
+					w.Browser,
+					v["device"],
+					v["os"],
+					v["tz"],
+					vp).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[sessions]:", xerr)
+				}
 
-		}
-		//events
-		if xerr := i.Session.Query(`INSERT into events 
-			(
-				vid, 
-				sid, 
-				app,
-				created,
-				uid,
-				last,
-				url,
-				ip,
-				latlon,
-				ptype,
-				bhash,
-				auth,
-				duration,
-				xid,
-				split,
-				ename,
-				etyp,
-				ver,
-				sink,
-				score,							
-				params,
-				targets
-			) 
-			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?)`, //15
-			v["vid"],
-			v["sid"],
-			v["app"],
-			updated,
-			v["uid"],
-			v["last"],
-			v["url"],
-			w.IP,
-			latlon,
-			v["ptype"],
-			bhash,
-			v["auth"],
-			duration,
-			v["xid"],
-			v["split"],
-			v["ename"],
-			v["etyp"],
-			version,
-			v["sink"],
-			score,
-			v["params"],
-			v["targets"]).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[events]:", xerr)
-		}
-
-		//nodes
-		if xerr := i.Session.Query(`INSERT into nodes 
-			(
-				vid, 
-				uid,
-				ip,
-				sid
-			) 
-			values (?,?,?,?)`, //4
-			v["vid"],
-			v["uid"],
-			w.IP,
-			v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[nodes]:", xerr)
-		}
-
-		//locations
-		if latlon != nil {
-			if xerr := i.Session.Query(`INSERT into locations 
-					(
-						vid, 
-						latlon,
-						uid,
-						sid
-					) 
-					values (?,?,?,?)`, //4
-				v["vid"],
-				latlon,
-				v["uid"],
-				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[locations]:", xerr)
-			}
-		}
-
-		//alias
-		if v["uid"] != nil {
-			if xerr := i.Session.Query(`INSERT into aliases 
-			(
-				vid, 
-				uid,
-				sid
-			) 
-			values (?,?,?)`, //3
-				v["vid"],
-				v["uid"],
-				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[aliases]:", xerr)
-			}
-		}
-
-		//users
-		if v["uid"] != nil {
-			if xerr := i.Session.Query(`INSERT into users 
-				(
-					vid, 
-					uid,
-					sid
-				) 
-				values (?,?,?)`, //3
-				v["vid"],
-				v["uid"],
-				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[users]:", xerr)
-			}
-		}
-
-		if uname != nil {
-			if xerr := i.Session.Query(`INSERT into usernames 
-				(
-					vid, 
-					uname,
-					sid
-				) 
-				values (?,?,?)`, //3
-				v["vid"],
-				uname,
-				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[usernames]:", xerr)
-			}
-		}
-
-		//reqs
-		if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
-			v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[reqs]:", xerr)
-		}
-
-		//hits
-		if _, ok := v["url"].(string); ok {
-			if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
-				v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[hits]:", xerr)
-			}
-		}
-
-		//referrers
-		if _, ok := v["last"].(string); ok {
-			if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
-				v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[referrers]:", xerr)
-			}
-		}
-
-		//referrals
-		if v["ref"] != nil {
-			if xerr := i.Session.Query(`INSERT into referrals 
-					(
-						vid, 
-						ref
-					) 
-					values (?,?) IF NOT EXISTS`, //2
-				v["vid"],
-				v["ref"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[referrals]:", xerr)
 			}
 		}
 
