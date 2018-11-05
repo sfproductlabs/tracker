@@ -227,11 +227,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				reid = &temp2
 			}
 		}
-		//[uname]
-		var uname *string
-		if temp, ok := v["uname"].(string); ok {
-			uname = &temp
-		}
 		//[latlon]
 		var latlon *geo_point
 		latf, oklatf := v["lat"].(float64)
@@ -302,6 +297,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if ps, ok := v["params"].(string); ok {
 			temp := make(map[string]string)
 			json.Unmarshal([]byte(ps), &temp)
+			delete(temp, "email")
+			delete(temp, "uname")
 			v["params"] = &temp
 		}
 		//[culture]
@@ -336,6 +333,24 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 		}
+
+		//[Email]
+		var ehash *string
+		if temp, ok := v["ehash"].(string); ok {
+			ehash = &temp
+		} else if temp, ok := v["email"].(string); ok {
+			temp = sha(temp)
+			ehash = &temp
+		}
+		delete(v, "email")
+
+		//[uname]
+		var uhash *string
+		if temp, ok := v["uname"].(string); ok {
+			temp = sha(temp)
+			uhash = &temp
+		}
+		delete(v, "uname")
 
 		//////////////////////////////////////////////
 		//Persist
@@ -543,18 +558,33 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 
-			if uname != nil {
+			if uhash != nil {
 				if xerr := i.Session.Query(`INSERT into usernames 
 					(
 						vid, 
-						uname,
+						uhash,
 						sid
 					) 
 					values (?,?,?)`, //3
 					v["vid"],
-					uname,
+					uhash,
 					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[usernames]:", xerr)
+				}
+			}
+
+			if ehash != nil {
+				if xerr := i.Session.Query(`INSERT into emails
+					(
+						vid, 
+						ehash,
+						sid
+					) 
+					values (?,?,?)`, //3
+					v["vid"],
+					ehash,
+					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[emails]:", xerr)
 				}
 			}
 

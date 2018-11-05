@@ -180,10 +180,18 @@ create table users (
 );
 
 create table usernames (
-  uname text,
+  uhash text,
   vid timeuuid,   
   sid timeuuid, 
-  PRIMARY KEY ((uname), vid)
+  PRIMARY KEY ((uhash), vid)
+);
+
+
+create table emails (
+  ehash text, --from email
+  vid timeuuid,   
+  sid timeuuid,
+  PRIMARY KEY ((ehash))
 );
 
 create table dailies (  

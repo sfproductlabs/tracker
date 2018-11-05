@@ -655,10 +655,12 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 			}
 		}
 	}
-	if vid, ok := j["vid"].(string); ok {
-		expiration := time.Now().Add(365 * 24 * time.Hour)
-		cookie := http.Cookie{Name: "vid", Value: vid, Expires: expiration, Path: "/"}
-		http.SetCookie(*w, &cookie)
+	if !wargs.IsServer {
+		if vid, ok := j["vid"].(string); ok {
+			expiration := time.Now().Add(365 * 24 * time.Hour)
+			cookie := http.Cookie{Name: "vid", Value: vid, Expires: expiration, Path: "/"}
+			http.SetCookie(*w, &cookie)
+		}
 	}
 	return nil
 
