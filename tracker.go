@@ -513,12 +513,12 @@ func main() {
 	})
 
 	//////////////////////////////////////// Redirect Route
-	// Ex. https://localhost:8443/rdr/v1/?redirect=https%3A%2F%2Fx.com
+	// Ex. https://localhost:8443/rdr/v1/?r=https%3A%2F%2Fx.com
 	http.HandleFunc("/rdr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			track(&configuration, &w, r)
-			rURL := r.URL.Query()["redirect"]
+			rURL := r.URL.Query()["r"]
 			if len(rURL) > 0 {
 				http.Redirect(w, r, rURL[0], http.StatusFound)
 			} else {
