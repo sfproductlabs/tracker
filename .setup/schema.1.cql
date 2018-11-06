@@ -246,13 +246,6 @@ create table affiliates (
   primary key((vid)) 
 );
 
-create table splits (
-  uid uuid,
-  xid text,
-  split text,
-  PRIMARY KEY ((uid),xid)
-)
-
 --NATS Specializations
 
 -- Esp. Server Debugging

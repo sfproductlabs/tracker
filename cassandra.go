@@ -632,22 +632,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 
-			//splits
-			if v["split"] != nil && v["xid"] != nil && v["uid"] != nil {
-				if xerr := i.Session.Query(`INSERT into splits
-					(
-						uid, 
-						xid,
-						split
-					) 
-					values (?,?,?)`, //3
-					v["uid"],
-					v["xid"],
-					v["split"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[splits]:", xerr)
-				}
-			}
-
 			//reqs
 			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
 				v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
