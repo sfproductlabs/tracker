@@ -23,6 +23,9 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Apache Spark
 * Elastic Search
 * AirBnB Subset
+* Cassandra
+* Elassandra
+* NATS.io
 
 ## Todo
 * Kafka plugin
