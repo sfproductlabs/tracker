@@ -17,7 +17,6 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Uncomplicated config.json one file configuration
 * Initial tests show around 1,000 connections per second per server month dollar
 * Written entirely in Golang
-* Scalable version of InfluxDB
 * Replaces much of Traefik's functionality
 * Drop in replacement for InfluxData's Telegraf
 * Drop in NGINX replacement 
