@@ -388,7 +388,9 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		//[uname]
 		var uhash *string
-		if temp, ok := v["uname"].(string); ok {
+		if temp, ok := v["uhash"].(string); ok {
+			uhash = &temp
+		} else if temp, ok := v["uname"].(string); ok {
 			temp = sha(temp)
 			uhash = &temp
 		}
