@@ -306,6 +306,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(temp, "lon")
 			delete(temp, "w")
 			delete(temp, "h")
+			delete(temp, "params")
 
 			delete(temp, "vid")
 			delete(temp, "sid")
