@@ -155,11 +155,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//////////////////////////////////////////////
 		//FIX VARS
 		//////////////////////////////////////////////
-		//[id]
-		_, ok := v["id"].(string)
-		if !ok {
-			v["id"] = gocql.TimeUUID().String()
-		}
 		//[params]
 		if ps, ok := v["params"].(string); ok {
 			temp := make(map[string]string)
@@ -181,10 +176,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		return i.Session.Query(`INSERT INTO logs
 		(
+			id,
 			ldate,
 			created,
 			ltime,
-			id, 
+			topic, 
 			name, 
 			host, 
 			hostname, 
@@ -194,7 +190,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			msg,
 			params
 		) 
-		values (?,?,?,?,?,?,?,?,?,? ,?,?)`, //12
+		values (?,?,?,?,?,?,?,?,?,? ,?,?,?)`, //13
+			gocql.TimeUUID(),
 			v["ldate"],
 			time.Now().UTC(),
 			ltime,

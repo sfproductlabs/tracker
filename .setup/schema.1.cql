@@ -257,10 +257,11 @@ create table counters (
 
 -- Esp. Server Debugging
 create table logs (  
+  id timeuuid,
   ldate date,
   created timestamp,
   ltime time, --nanosecond time for detailed server debugging
-  id text, 
+  topic text, 
   name text, 
   host text, 
   hostname text, 
@@ -269,9 +270,9 @@ create table logs (
   level int, 
   msg text,
   params map<text,text>,
-  primary key((ldate), created, ltime, id) 
-)
-WITH CLUSTERING ORDER BY (created DESC); --We make an exception here for using a clustered key instead of a PK so we can do realtime debugging
+  primary key((id)) 
+);
+
 
 -- Esp. Server Debugging
 create table updates (

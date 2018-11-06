@@ -149,7 +149,9 @@ func (i *NatsService) listen() error {
 					for idx2 := range i.AppConfig.Notify {
 						n := &i.AppConfig.Notify[idx2]
 						if n.Session != nil {
-							n.Session.write(&wargs)
+							if err := n.Session.write(&wargs); err != nil {
+								fmt.Printf("[ERROR] Writing to %s: %s\n", n.Service, err)
+							}
 						}
 					}
 				}
