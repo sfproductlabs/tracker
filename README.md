@@ -30,7 +30,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Flink plugin
 * Druid Plugin
 * Apache SNS 
-* Websocket Proxy (Ex. https://github.com/yhat/wsutil/blob/master/wsutil.go, https://gist.github.com/bradfitz/1d7bdf12278d4d713212ce6c74875dab)
+* Websocket Proxy (Ex. https://github.com/yhat/wsutil/blob/master/wsutil.go, https://gist.github.com/bradfitz/1d7bdf12278d4d713212ce6c74875dab) or wait for go 1.12
 
 ## Instructions
 
