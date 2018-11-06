@@ -6,7 +6,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 ## Features
 * Tracking API Calls & URLs & GET Redirects
 * Tracking Images (for Emails)
-* Reverse Proxy included (one line Drop in NGINX replacement for your Node, Python, etc. API backend)
+* Reverse Proxy included (for your Node, Python, etc. API backend)
 * TLS or LetsEncrypt one line configuration
 * API & Request Rate Limiting
 * Horizontally Scalable (Clustered NATS, Clustered Cassandra, Dockerized App Swarm - Good for ECS).
@@ -18,6 +18,8 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Initial tests show around 1,000 connections per second per server month dollar
 * Written entirely in Golang
 * Drop in replacement for InfluxData's Telegraf
+* Drop in replacement for Traefik
+* Drop in NGINX replacement 
 
 ## Compatible out of the box with
 * Apache Spark
