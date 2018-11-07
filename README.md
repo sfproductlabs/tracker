@@ -24,7 +24,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 ## Compatible out of the box with
 * Apache Spark
 * Elastic Search
-* AirBnB Superset
+* Apache Superset (AirBnB)
 * Cassandra
 * Elassandra
 * NATS.io
