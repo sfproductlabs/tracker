@@ -158,7 +158,7 @@
             "Key": "natskey.pem",
             "Format": "json",
             "MessageLimit": 65536,
-            "BytesLimit": 67108864,
+            "ByteLimit": 67108864,
             "Filter": [
                 {
                     "Alias": "log",
