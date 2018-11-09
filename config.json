@@ -22,6 +22,7 @@
     "DefaultRedirect": "https://sfproductlabs.com",
     "Debug" : true,
     "UrlPrefixFilter" : "http(s|)://(localhost|dev\\.sfproductlabs\\.com)(:[0-9]*|)(/.*)",
+    "IgnoreQueryParamsKey" : "igqp",
     "Notify": [
         {
             "Service": "cassandra",

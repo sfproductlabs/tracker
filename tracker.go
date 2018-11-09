@@ -179,6 +179,7 @@ type Configuration struct {
 	IdleTimeoutSeconds       int
 	MaxHeaderBytes           int
 	DefaultRedirect          string
+	IgnoreQueryParamsKey     string
 }
 
 //////////////////////////////////////// Constants
@@ -603,10 +604,14 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	if params, err := json.Marshal(j); err == nil {
 		j["params"] = strings.ToLower(string(params))
 	}
+	wargs.Values = &j
 	switch r.Method {
 	case http.MethodGet:
 		//Query, try and get everything
 		k := r.URL.Query()
+		if c.IgnoreQueryParamsKey != "" && k[c.IgnoreQueryParamsKey] != nil {
+			break
+		}
 		qp := make(map[string]interface{})
 		for idx := range k {
 			lidx := strings.ToLower(idx)
@@ -620,7 +625,6 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 				j["params"] = strings.ToLower(string(params))
 			}
 		}
-		wargs.Values = &j
 	case http.MethodPost:
 		//Json (POST)
 		//This is fully controlled, only send what we need (inc. params)
@@ -636,7 +640,6 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 			if err := json.Unmarshal(body, &j); err != nil {
 				return fmt.Errorf("Bad JS (parse)")
 			}
-			wargs.Values = &j
 		}
 	default:
 		return nil
