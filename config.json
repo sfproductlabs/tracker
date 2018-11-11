@@ -22,6 +22,7 @@
     "WriteTimeoutSeconds" : 20,
     "IdleTimeoutSeconds" : 20,
     "MaxHeaderBytes" : 1048576,
+    "AllowOrigin": "*",
     "DefaultRedirect": "https://sfproductlabs.com",
     "Debug" : true,
     "UrlPrefixFilter" : "http(s|)://(api|tr|localhost|dev|)(\\.|)(sfproductlabs\\.com)(:[0-9]*|)(/.*)",

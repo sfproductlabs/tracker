@@ -174,6 +174,7 @@ type Configuration struct {
 	ApiVersion               int
 	Debug                    bool
 	UrlPrefixFilter          string
+	AllowOrigin              string
 	FilterPrefix             bool
 	MaximumConnections       int
 	ReadTimeoutSeconds       int
@@ -259,6 +260,11 @@ func main() {
 		fmt.Println("Setting up URL prefix filter...")
 		configuration.FilterPrefix = true
 		urlPrefix, _ = regexp.Compile(configuration.UrlPrefixFilter)
+	}
+
+	////////////////////////////////////////SETUP ORIGIN
+	if configuration.AllowOrigin == "" {
+		configuration.AllowOrigin = "*"
 	}
 
 	//////////////////////////////////////// SETUP CONFIG VARIABLES
@@ -394,7 +400,7 @@ func main() {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			if !configuration.IgnoreProxyOptions && r.Method == http.MethodOptions {
 				//Lets just allow requests to this endpoint
-				w.Header().Set("access-control-allow-origin", "*") //TODO Security Threat
+				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 				w.Header().Set("access-control-allow-credentials", "true")
 				w.Header().Set("access-control-allow-headers", "Authorization,Accept")
 				w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
@@ -417,7 +423,7 @@ func main() {
 				}
 				//Proxy
 				w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
-				w.Header().Set("access-control-allow-origin", "*") //TODO Security Threat
+				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 				proxy.ServeHTTP(w, r)
 				connc <- struct{}{}
 			default:
@@ -431,12 +437,14 @@ func main() {
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		json, _ := json.Marshal([2]KeyValue{KeyValue{Key: "client", Value: getIP(r)}, KeyValue{Key: "conns", Value: configuration.MaximumConnections - len(connc)}})
 		w.WriteHeader(http.StatusOK)
+		w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(json)
 	})
 
 	//////////////////////////////////////// PING PONG TEST ROUTE
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 		w.Write([]byte(PONG))
 	})
 
@@ -462,6 +470,7 @@ func main() {
 		case <-connc:
 			track(&configuration, &w, r)
 			w.Header().Set("content-type", "image/gif")
+			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 			w.Write(TRACKING_GIF)
 			connc <- struct{}{}
 		default:
@@ -477,7 +486,7 @@ func main() {
 	http.HandleFunc("/tr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
-			w.Header().Set("access-control-allow-origin", "*") //TODO Security Threat
+			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 			w.Header().Set("access-control-allow-credentials", "true")
 			w.Header().Set("access-control-allow-headers", "Authorization,Accept")
 			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
@@ -487,6 +496,7 @@ func main() {
 			select {
 			case <-connc:
 				track(&configuration, &w, r)
+				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 				w.WriteHeader(http.StatusOK)
 				connc <- struct{}{}
 			default:
@@ -501,7 +511,7 @@ func main() {
 	http.HandleFunc("/str/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
-			w.Header().Set("access-control-allow-origin", "*") //TODO Security Threat
+			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 			w.Header().Set("access-control-allow-credentials", "true")
 			w.Header().Set("access-control-allow-headers", "Authorization,Accept")
 			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
@@ -519,8 +529,8 @@ func main() {
 				}
 				trackWithArgs(&configuration, &w, r, &wargs)
 				w.WriteHeader(http.StatusOK)
+				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 				json, _ := json.Marshal(wargs.EventID)
-				w.WriteHeader(http.StatusOK)
 				w.Header().Set("Content-Type", "application/json")
 				w.Write(json)
 				connc <- struct{}{}
