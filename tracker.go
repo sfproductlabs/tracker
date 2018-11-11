@@ -162,6 +162,7 @@ type Configuration struct {
 	Notify                   []Service
 	Consume                  []Service
 	ProxyUrl                 string
+	ProxyUrlFilter           string
 	IgnoreProxyOptions       bool
 	ProxyPort                string
 	ProxyPortTLS             string
@@ -386,6 +387,7 @@ func main() {
 		}
 		proxy := &httputil.ReverseProxy{Director: director}
 		proxyOptions := [1][2]string{{"Strict-Transport-Security", "max-age=15768000 ; includeSubDomains"}}
+		proxyFilter, _ := regexp.Compile(configuration.ProxyUrlFilter)
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			if !configuration.IgnoreProxyOptions && r.Method == http.MethodOptions {
 				//Lets just allow requests to this endpoint
@@ -407,7 +409,9 @@ func main() {
 					return
 				}
 				//Track
-				track(&configuration, &w, r)
+				if configuration.ProxyUrlFilter != "" && !proxyFilter.MatchString(r.RequestURI) {
+					track(&configuration, &w, r)
+				}
 				//Proxy
 				w.Header().Set(proxyOptions[0][0], proxyOptions[0][1])
 				proxy.ServeHTTP(w, r)

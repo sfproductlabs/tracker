@@ -13,6 +13,7 @@
     "ProxyPort" : ":8080",
     "ProxyDailyLimit" : 0,
     "IgnoreProxyOptions" : false,
+    "ProxyUrlFilter" : ".*/login.*",
     "ProxyDailyLimitChecker" : "cassandra",
     "MaximumConnections": 150000,
     "ReadTimeoutSeconds" : 20,
