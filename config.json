@@ -12,6 +12,7 @@
     "ProxyPortTLS" : ":8443",
     "ProxyPort" : ":8080",
     "ProxyDailyLimit" : 0,
+    "IgnoreProxyOptions" : false,
     "ProxyDailyLimitChecker" : "cassandra",
     "MaximumConnections": 150000,
     "ReadTimeoutSeconds" : 20,
@@ -21,7 +22,7 @@
     "MaxHeaderBytes" : 1048576,
     "DefaultRedirect": "https://sfproductlabs.com",
     "Debug" : true,
-    "UrlPrefixFilter" : "http(s|)://(localhost|dev\\.sfproductlabs\\.com)(:[0-9]*|)(/.*)",
+    "UrlPrefixFilter" : "http(s|)://(api|tr|localhost|dev|)(\\.|)(sfproductlabs\\.com)(:[0-9]*|)(/.*)",
     "IgnoreQueryParamsKey" : "igqp",
     "Notify": [
         {

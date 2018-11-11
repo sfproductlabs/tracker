@@ -162,6 +162,7 @@ type Configuration struct {
 	Notify                   []Service
 	Consume                  []Service
 	ProxyUrl                 string
+	IgnoreProxyOptions       bool
 	ProxyPort                string
 	ProxyPortTLS             string
 	ProxyDailyLimit          uint64
@@ -386,6 +387,16 @@ func main() {
 		proxy := &httputil.ReverseProxy{Director: director}
 		proxyOptions := [1][2]string{{"Strict-Transport-Security", "max-age=15768000 ; includeSubDomains"}}
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if !configuration.IgnoreProxyOptions && r.Method == http.MethodOptions {
+				//Lets just allow requests to this endpoint
+				w.Header().Set("access-control-allow-origin", "*") //TODO Security Threat
+				w.Header().Set("access-control-allow-credentials", "true")
+				w.Header().Set("access-control-allow-headers", "Authorization,Accept")
+				w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
+				w.Header().Set("access-control-max-age", "1728000")
+				w.WriteHeader(http.StatusOK)
+				return
+			}
 			//TODO: Check certificate in cookie
 			select {
 			case <-connc:
