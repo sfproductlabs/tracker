@@ -390,7 +390,6 @@ func main() {
 			req.URL.Host = origin.Host
 		}
 		proxy := &httputil.ReverseProxy{Director: director}
-		proxyOptions := [1][2]string{{"Strict-Transport-Security", "max-age=15768000 ; includeSubDomains"}}
 		proxyFilter, _ := regexp.Compile(configuration.ProxyUrlFilter)
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			if !configuration.IgnoreProxyOptions && r.Method == http.MethodOptions {
@@ -417,7 +416,8 @@ func main() {
 					track(&configuration, &w, r)
 				}
 				//Proxy
-				w.Header().Set(proxyOptions[0][0], proxyOptions[0][1])
+				w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
+				w.Header().Set("access-control-allow-origin", "*") //TODO Security Threat
 				proxy.ServeHTTP(w, r)
 				connc <- struct{}{}
 			default:
