@@ -224,6 +224,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				reid = &temp2
 			}
 		}
+		//[auth]
+		var auth *gocql.UUID
+		if temp, ok := v["auth"].(string); !ok {
+			if temp2, err := gocql.ParseUUID(temp); err == nil {
+				auth = &temp2
+			}
+		}
 		//[latlon]
 		var latlon *geo_point
 		latf, oklatf := v["lat"].(float64)
@@ -447,7 +454,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			latlon,
 			v["ptype"],
 			bhash,
-			v["auth"],
+			auth,
 			duration,
 			v["xid"],
 			v["split"],
@@ -690,7 +697,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					latlon,
 					v["ptype"],
 					bhash,
-					v["auth"],
+					auth,
 					v["xid"],
 					v["split"],
 					v["ename"],
@@ -765,7 +772,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					latlon,
 					v["ptype"],
 					bhash,
-					v["auth"],
+					auth,
 					duration,
 					v["xid"],
 					v["split"],
