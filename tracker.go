@@ -164,6 +164,7 @@ type Configuration struct {
 	ProxyUrl                 string
 	ProxyUrlFilter           string
 	IgnoreProxyOptions       bool
+	ProxyForceJson           bool
 	ProxyPort                string
 	ProxyPortTLS             string
 	ProxyDailyLimit          uint64
@@ -382,7 +383,9 @@ func main() {
 		director := func(req *http.Request) {
 			req.Header.Add("X-Forwarded-Host", req.Host)
 			req.Header.Add("X-Origin-Host", origin.Host)
-			req.Header.Set("content-type", "application/json")
+			if configuration.ProxyForceJson {
+				req.Header.Set("content-type", "application/json")
+			}
 			req.URL.Scheme = "http"
 			req.URL.Host = origin.Host
 		}
