@@ -417,14 +417,14 @@ func main() {
 					w.Write([]byte(API_LIMIT_REACHED))
 					return
 				}
-				//Track
-				if configuration.ProxyUrlFilter != "" && !proxyFilter.MatchString(r.RequestURI) {
-					track(&configuration, &w, r)
-				}
 				//Proxy
 				w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
 				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 				proxy.ServeHTTP(w, r)
+				//Track
+				if configuration.ProxyUrlFilter != "" && !proxyFilter.MatchString(r.URL.Path) {
+					track(&configuration, &w, r)
+				}
 				connc <- struct{}{}
 			default:
 				w.Header().Set("Retry-After", "1")
