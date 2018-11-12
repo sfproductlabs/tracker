@@ -423,7 +423,6 @@ func main() {
 				proxy.ServeHTTP(w, r)
 				//Track
 				if configuration.ProxyUrlFilter != "" && !proxyFilter.MatchString(r.URL.Path) {
-					fmt.Println(r.URL.Path)
 					track(&configuration, &w, r)
 				}
 				connc <- struct{}{}
