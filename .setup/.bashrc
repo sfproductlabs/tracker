@@ -11,8 +11,8 @@ export GOROOT=/root/goroot
 export GOPATH=$HOME/go 
  
 # Ensure that the binary-release is on your PATH. 
-export PATH=${PATH}:${GOROOT}/bin 
- 
+export PATH=${GOROOT}/bin:${PATH}
+
 # Ensure that compiled binaries are also on your PATH. 
 export PATH=${PATH}:${GOPATH}/bin 
  
