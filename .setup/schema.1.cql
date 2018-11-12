@@ -46,7 +46,7 @@ create table visitors (
   uid uuid, --user-id
   last text, --last action/slug/url/referrer_url (what i just clicked on)
   url text, --this should always be url slug of **current** url
-  ip text, --client ip
+  ip inet, --client ip
   latlon frozen<geo_point>, --location
   ptype text, --page category/type 
   bhash text, --browser-hash
@@ -86,7 +86,7 @@ create table sessions (
   uid uuid, 
   last text, 
   url text, 
-  ip text,
+  ip inet,
   latlon frozen<geo_point>,
   ptype text, 
   bhash text, 
@@ -128,7 +128,7 @@ create table events (
   uid uuid, 
   last text, 
   url text, 
-  ip text, 
+  ip inet, 
   latlon frozen<geo_point>, 
   ptype text, 
   bhash text, 
@@ -152,7 +152,7 @@ create table events (
 create table nodes (
   vid timeuuid, 
   uid uuid,
-  ip text,
+  ip inet,
   sid timeuuid, 
   PRIMARY KEY ((vid), ip)
 );
@@ -195,7 +195,7 @@ create table emails (
 );
 
 create table dailies (  
-  ip text, 
+  ip inet, 
   day date,
   total counter,
   primary key((ip),day) 
@@ -209,7 +209,7 @@ create table hits (
 );
 
 create table ips (  
-  ip text, 
+  ip inet, 
   total counter,
   primary key((ip)) 
 );
@@ -266,7 +266,7 @@ create table logs (
   host text, 
   hostname text, 
   owner uuid,
-  ip text,
+  ip inet,
   level int, 
   msg text,
   params map<text,text>,
