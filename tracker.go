@@ -402,7 +402,7 @@ func main() {
 				//Lets just allow requests to this endpoint
 				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 				w.Header().Set("access-control-allow-credentials", "true")
-				w.Header().Set("access-control-allow-headers", "Authorization,Accept")
+				w.Header().Set("access-control-allow-headers", "Authorization,Accept,X-CSRFToken,User")
 				w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
 				w.Header().Set("access-control-max-age", "1728000")
 				w.WriteHeader(http.StatusOK)
@@ -488,7 +488,7 @@ func main() {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 			w.Header().Set("access-control-allow-credentials", "true")
-			w.Header().Set("access-control-allow-headers", "Authorization,Accept")
+			w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
 			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
 			w.Header().Set("access-control-max-age", "1728000")
 			w.WriteHeader(http.StatusOK)
@@ -513,7 +513,7 @@ func main() {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 			w.Header().Set("access-control-allow-credentials", "true")
-			w.Header().Set("access-control-allow-headers", "Authorization,Accept")
+			w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
 			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
 			w.Header().Set("access-control-max-age", "1728000")
 			w.WriteHeader(http.StatusOK)
@@ -618,9 +618,17 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 
 	//Process
 	j := make(map[string]interface{})
+
+	//Try to get user from header or user cookie
+	userHeader := r.Header.Get("User")
+	if userHeader != "" {
+		json.Unmarshal([]byte(userHeader), &j)
+	} else if cookie, cerr := r.Cookie("user"); cerr != nil && cookie != nil {
+		json.Unmarshal([]byte(cookie.Value), &j)
+	}
 	//Try to get vid from cookie
 	cookie, cerr := r.Cookie("vid")
-	if cerr == nil {
+	if cerr == nil && cookie != nil {
 		j["vid"] = cookie.Value
 	}
 	//Path
@@ -654,6 +662,8 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 				j["params"] = strings.ToLower(string(params))
 			}
 		}
+		break
+	case http.MethodPut:
 	case http.MethodPost:
 		//Json (POST)
 		//This is fully controlled, only send what we need (inc. params)
@@ -666,10 +676,14 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 			for idx := range body {
 				body[idx] = byte(unicode.ToLower(rune(body[idx])))
 			}
-			if err := json.Unmarshal(body, &j); err != nil {
-				return fmt.Errorf("Bad JS (parse)")
+			b := make(map[string]interface{})
+			if err := json.Unmarshal(body, &b); err == nil {
+				for bpi := range b {
+					j[bpi] = b[bpi]
+				}
 			}
 		}
+		break
 	default:
 		return nil
 	}

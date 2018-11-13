@@ -14,8 +14,8 @@
     "ProxyDailyLimit" : 0,
     "ProxyDailyLimitChecker" : "cassandra",
     "IgnoreProxyOptions" : false,
-    "ProxyUrlFilter" : ".*/login.*",
-    "ProxyForceJson" : true,
+    "ProxyUrlFilter" : ".*(dontlogthese|login|css|js|json|jpeg|jpg|gif|png)",
+    "ProxyForceJson" : false,
     "MaximumConnections": 150000,
     "ReadTimeoutSeconds" : 20,
     "ReadHeaderTimeoutSeconds" : 20,
@@ -25,7 +25,7 @@
     "AllowOrigin": "*",
     "DefaultRedirect": "https://sfproductlabs.com",
     "Debug" : true,
-    "UrlPrefixFilter" : "http(s|)://(api|tr|localhost|dev|)(\\.|)(sfproductlabs\\.com)(:[0-9]*|)(/.*)",
+    "UrlPrefixFilter" : "http(s|)://(api|tr|dev|spark|)(\\.|)(sfproductlabs\\.com|localhost)(:[0-9]*|)(/.*)",
     "IgnoreQueryParamsKey" : "igqp",
     "Notify": [
         {
