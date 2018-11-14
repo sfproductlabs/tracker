@@ -4,7 +4,7 @@ export NVM_DIR="$HOME/.nvm"
 
 
 # Point to the local installation of golang.
-export GOROOT=/root/goroot 
+export GOROOT=/$HOME/goroot 
 #export GOROOT=/usr/lib/go-1.8/ 
  
 # Point to the location beneath which source and binaries are installed. 
@@ -15,8 +15,9 @@ export PATH=${GOROOT}/bin:${PATH}
 
 # Ensure that compiled binaries are also on your PATH. 
 export PATH=${PATH}:${GOPATH}/bin 
- 
-export PATH=/root/goroot/bin:$PATH
 
 export PATH=$PATH:/usr/local/spark/bin:/usr/local/spark/sbin 
 export SPARK=/usr/local/spark 
+export SPARK_HOME=/usr/local/spark 
+
+export PYTHONPATH=$PYTHONPATH:/$HOME/python
