@@ -321,7 +321,7 @@
                 return false;    
             }
             document.getElementById("errors").innerHTML = "";
-            var link = `https://${document.getElementById("tracker").value}/rdr/v1/?gu=1}`; //added gu for generated_url = 1 = true
+            var link = `https://${document.getElementById("tracker").value}/rdr/v1/?gu=1`; //added gu for generated_url = 1 = true
             link += document.getElementById("ptyp").value ? `&ptyp=${encodeURIComponent(document.getElementById("ptyp").value)}` : '';
             link += document.getElementById("source").value ? `&utm_source=${encodeURIComponent(document.getElementById("source").value)}` : '';
             link += document.getElementById("medium").value ? `&utm_medium=${encodeURIComponent(document.getElementById("medium").value)}` : '';
