@@ -1,175 +1,444 @@
 <!DOCTYPE html>
 <html>
-	<head>
-		<meta charset="UTF-8">
-		<title>SF Product Labs</title>
-	</head>
-	<body>		
-	<script>
-	/*!
-	* JavaScript Cookie v2.2.0
-	* https://github.com/js-cookie/js-cookie
-	*
-	* Copyright 2006, 2015 Klaus Hartl & Fagner Brack
-	* Released under the MIT license
-	*/
-	;(function (factory) {
-		var registeredInModuleLoader;
-		if (typeof define === 'function' && define.amd) {
-			define(factory);
-			registeredInModuleLoader = true;
-		}
-		if (typeof exports === 'object') {
-			module.exports = factory();
-			registeredInModuleLoader = true;
-		}
-		if (!registeredInModuleLoader) {
-			var OldCookies = window.Cookies;
-			var api = window.Cookies = factory();
-			api.noConflict = function () {
-				window.Cookies = OldCookies;
-				return api;
-			};
-		}
-	}(function () {
-		function extend () {
-			var i = 0;
-			var result = {};
-			for (; i < arguments.length; i++) {
-				var attributes = arguments[ i ];
-				for (var key in attributes) {
-					result[key] = attributes[key];
-				}
-			}
-			return result;
-		}
 
-		function decode (s) {
-			return s.replace(/(%[0-9A-Z]{2})+/g, decodeURIComponent);
-		}
+<head>
+    <meta charset="UTF-8">
+    <title>SF Product Labs</title>
+    <script>
+        /*!
+         * JavaScript Cookie v2.2.0
+         * https://github.com/js-cookie/js-cookie
+         *
+         * Copyright 2006, 2015 Klaus Hartl & Fagner Brack
+         * Released under the MIT license
+         */
+        ;
+        (function (factory) {
+            var registeredInModuleLoader;
+            if (typeof define === 'function' && define.amd) {
+                define(factory);
+                registeredInModuleLoader = true;
+            }
+            if (typeof exports === 'object') {
+                module.exports = factory();
+                registeredInModuleLoader = true;
+            }
+            if (!registeredInModuleLoader) {
+                var OldCookies = window.Cookies;
+                var api = window.Cookies = factory();
+                api.noConflict = function () {
+                    window.Cookies = OldCookies;
+                    return api;
+                };
+            }
+        }(function () {
+            function extend() {
+                var i = 0;
+                var result = {};
+                for (; i < arguments.length; i++) {
+                    var attributes = arguments[i];
+                    for (var key in attributes) {
+                        result[key] = attributes[key];
+                    }
+                }
+                return result;
+            }
 
-		function init (converter) {
-			function api() {}
+            function decode(s) {
+                return s.replace(/(%[0-9A-Z]{2})+/g, decodeURIComponent);
+            }
 
-			function set (key, value, attributes) {
-				if (typeof document === 'undefined') {
-					return;
-				}
+            function init(converter) {
+                function api() { }
 
-				attributes = extend({
-					path: '/'
-				}, api.defaults, attributes);
+                function set(key, value, attributes) {
+                    if (typeof document === 'undefined') {
+                        return;
+                    }
 
-				if (typeof attributes.expires === 'number') {
-					attributes.expires = new Date(new Date() * 1 + attributes.expires * 864e+5);
-				}
+                    attributes = extend({
+                        path: '/'
+                    }, api.defaults, attributes);
 
-				// We're using "expires" because "max-age" is not supported by IE
-				attributes.expires = attributes.expires ? attributes.expires.toUTCString() : '';
+                    if (typeof attributes.expires === 'number') {
+                        attributes.expires = new Date(new Date() * 1 + attributes.expires * 864e+5);
+                    }
 
-				try {
-					var result = JSON.stringify(value);
-					if (/^[\{\[]/.test(result)) {
-						value = result;
-					}
-				} catch (e) {}
+                    // We're using "expires" because "max-age" is not supported by IE
+                    attributes.expires = attributes.expires ? attributes.expires.toUTCString() : '';
 
-				value = converter.write ?
-					converter.write(value, key) :
-					encodeURIComponent(String(value))
-						.replace(/%(23|24|26|2B|3A|3C|3E|3D|2F|3F|40|5B|5D|5E|60|7B|7D|7C)/g, decodeURIComponent);
+                    try {
+                        var result = JSON.stringify(value);
+                        if (/^[\{\[]/.test(result)) {
+                            value = result;
+                        }
+                    } catch (e) { }
 
-				key = encodeURIComponent(String(key))
-					.replace(/%(23|24|26|2B|5E|60|7C)/g, decodeURIComponent)
-					.replace(/[\(\)]/g, escape);
+                    value = converter.write ?
+                        converter.write(value, key) :
+                        encodeURIComponent(String(value))
+                            .replace(/%(23|24|26|2B|3A|3C|3E|3D|2F|3F|40|5B|5D|5E|60|7B|7D|7C)/g, decodeURIComponent);
 
-				var stringifiedAttributes = '';
-				for (var attributeName in attributes) {
-					if (!attributes[attributeName]) {
-						continue;
-					}
-					stringifiedAttributes += '; ' + attributeName;
-					if (attributes[attributeName] === true) {
-						continue;
-					}
+                    key = encodeURIComponent(String(key))
+                        .replace(/%(23|24|26|2B|5E|60|7C)/g, decodeURIComponent)
+                        .replace(/[\(\)]/g, escape);
 
-					// Considers RFC 6265 section 5.2:
-					// ...
-					// 3.  If the remaining unparsed-attributes contains a %x3B (";")
-					//     character:
-					// Consume the characters of the unparsed-attributes up to,
-					// not including, the first %x3B (";") character.
-					// ...
-					stringifiedAttributes += '=' + attributes[attributeName].split(';')[0];
-				}
+                    var stringifiedAttributes = '';
+                    for (var attributeName in attributes) {
+                        if (!attributes[attributeName]) {
+                            continue;
+                        }
+                        stringifiedAttributes += '; ' + attributeName;
+                        if (attributes[attributeName] === true) {
+                            continue;
+                        }
 
-				return (document.cookie = key + '=' + value + stringifiedAttributes);
-			}
+                        // Considers RFC 6265 section 5.2:
+                        // ...
+                        // 3.  If the remaining unparsed-attributes contains a %x3B (";")
+                        //     character:
+                        // Consume the characters of the unparsed-attributes up to,
+                        // not including, the first %x3B (";") character.
+                        // ...
+                        stringifiedAttributes += '=' + attributes[attributeName].split(';')[0];
+                    }
 
-			function get (key, json) {
-				if (typeof document === 'undefined') {
-					return;
-				}
+                    return (document.cookie = key + '=' + value + stringifiedAttributes);
+                }
 
-				var jar = {};
-				// To prevent the for loop in the first place assign an empty array
-				// in case there are no cookies at all.
-				var cookies = document.cookie ? document.cookie.split('; ') : [];
-				var i = 0;
+                function get(key, json) {
+                    if (typeof document === 'undefined') {
+                        return;
+                    }
 
-				for (; i < cookies.length; i++) {
-					var parts = cookies[i].split('=');
-					var cookie = parts.slice(1).join('=');
+                    var jar = {};
+                    // To prevent the for loop in the first place assign an empty array
+                    // in case there are no cookies at all.
+                    var cookies = document.cookie ? document.cookie.split('; ') : [];
+                    var i = 0;
 
-					if (!json && cookie.charAt(0) === '"') {
-						cookie = cookie.slice(1, -1);
-					}
+                    for (; i < cookies.length; i++) {
+                        var parts = cookies[i].split('=');
+                        var cookie = parts.slice(1).join('=');
 
-					try {
-						var name = decode(parts[0]);
-						cookie = (converter.read || converter)(cookie, name) ||
-							decode(cookie);
+                        if (!json && cookie.charAt(0) === '"') {
+                            cookie = cookie.slice(1, -1);
+                        }
 
-						if (json) {
-							try {
-								cookie = JSON.parse(cookie);
-							} catch (e) {}
-						}
+                        try {
+                            var name = decode(parts[0]);
+                            cookie = (converter.read || converter)(cookie, name) ||
+                                decode(cookie);
 
-						jar[name] = cookie;
+                            if (json) {
+                                try {
+                                    cookie = JSON.parse(cookie);
+                                } catch (e) { }
+                            }
 
-						if (key === name) {
-							break;
-						}
-					} catch (e) {}
-				}
+                            jar[name] = cookie;
 
-				return key ? jar[key] : jar;
-			}
+                            if (key === name) {
+                                break;
+                            }
+                        } catch (e) { }
+                    }
 
-			api.set = set;
-			api.get = function (key) {
-				return get(key, false /* read as raw */);
-			};
-			api.getJSON = function (key) {
-				return get(key, true /* read as json */);
-			};
-			api.remove = function (key, attributes) {
-				set(key, '', extend(attributes, {
-					expires: -1
-				}));
-			};
+                    return key ? jar[key] : jar;
+                }
 
-			api.defaults = {};
+                api.set = set;
+                api.get = function (key) {
+                    return get(key, false /* read as raw */);
+                };
+                api.getJSON = function (key) {
+                    return get(key, true /* read as json */);
+                };
+                api.remove = function (key, attributes) {
+                    set(key, '', extend(attributes, {
+                        expires: -1
+                    }));
+                };
 
-			api.withConverter = init;
+                api.defaults = {};
 
-			return api;
-		}
+                api.withConverter = init;
 
-		return init(function () {});
-	}));
+                return api;
+            }
 
-	</script>
-	</body>
+            return init(function () { });
+        }));
+    </script>
+    <style type="text/css">
+        .form {
+            margin: 10px auto;
+            max-width: 500px;
+            padding: 20px 12px 10px 20px;
+            font: 13px "Lucida Sans Unicode", "Lucida Grande", Arial, Helvetica, sans-serif;
+        }
+
+        .form li {
+            padding: 0;
+            display: block;
+            list-style: none;
+            margin: 10px 0 0 0;
+        }
+
+        .form label {
+            margin: 0 0 3px 0;
+            padding: 0px;
+            display: block;
+            font-weight: bold;
+        }
+
+        .form input[type=text],
+        .form input[type=date],
+        .form input[type=datetime],
+        .form input[type=number],
+        .form input[type=search],
+        .form input[type=time],
+        .form input[type=url],
+        .form input[type=email],
+        textarea,
+        select {
+            box-sizing: border-box;
+            -webkit-box-sizing: border-box;
+            -moz-box-sizing: border-box;
+            background-color: white;
+            border: 1px solid rgb(190, 190, 190);
+            padding: 7px;
+            margin: 0px;
+            -webkit-transition: all 0.30s ease-in-out;
+            -moz-transition: all 0.30s ease-in-out;
+            -ms-transition: all 0.30s ease-in-out;
+            -o-transition: all 0.30s ease-in-out;
+            outline: none;
+        }
+
+        .form input[type=text]:focus,
+        .form input[type=date]:focus,
+        .form input[type=datetime]:focus,
+        .form input[type=number]:focus,
+        .form input[type=search]:focus,
+        .form input[type=time]:focus,
+        .form input[type=url]:focus,
+        .form input[type=email]:focus,
+        .form textarea:focus,
+        .form select:focus {
+            -moz-box-shadow: 0 0 8px #88D5E9;
+            -webkit-box-shadow: 0 0 8px #88D5E9;
+            box-shadow: 0 0 8px #88D5E9;
+            border: 1px solid #88D5E9;
+        }
+
+        .form .field-divided {
+            width: 49%;
+        }
+
+        .form .field-long {
+            width: 100%;
+        }
+
+        .form .field-select {
+            width: 100%;
+        }
+
+        .form .field-textarea {
+            height: 100px;
+        }
+
+        .form input[type=submit],
+        .form input[type=button] {
+            background: #000000;
+            padding: 8px 15px 8px 15px;
+            border: none;
+            color: #fff;
+        }
+
+        .form input[type=submit]:hover,
+        .form input[type=button]:hover {
+            background: #313131;
+            box-shadow: none;
+            -moz-box-shadow: none;
+            -webkit-box-shadow: none;
+        }
+
+        .form .required {
+            color: red;
+        }
+        .form .advanced {
+            color: rgb(131, 131, 131);
+        }
+    </style>
+    <script>
+        function getParameterByName(name, url) {
+            if (!url) url = window.location.href;
+            name = name.replace(/[\[\]]/g, '\\$&');
+            var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
+                results = regex.exec(url);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, ' '));
+        }
+    </script>
+</head>
+
+<body>
+    <script>
+        function onSubmit(e) { 
+            e.preventDefault();             
+            onChangeParameter();
+            if (document.getElementById("errors").innerHTML.length > 0) {
+                document.getElementById("linkText").style.display = "none";
+                document.getElementById("link").style.display = "none";
+            } else {
+                document.getElementById("linkText").style.display = "";
+                document.getElementById("link").style.display = "";
+            }
+            return false;
+        }
+        function onChangeParameter() {
+            document.getElementById("linkText").innerHTML = "";
+            document.getElementById("link").innerHTML = "";
+            var url = document.getElementById("url").value;
+            if (typeof url !== 'string' || url.length < 3) {
+                document.getElementById("errors").innerHTML = "URL Required";
+                return false;    
+            }
+            if (!/((([A-Za-z]{3,9}:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((?:\/[\+~%\/\.\w\-_]*)?\??(?:[\-\+=&;%@\.\w_]*)#?(?:[\.\!\/\\\w]*))?)/.test(url)) {
+                document.getElementById("errors").innerHTML = "Bad URL";
+                return false;    
+            }
+            var tracker = document.getElementById("tracker").value;
+            if (typeof tracker !== 'string' || tracker.length < 3) {
+                document.getElementById("errors").innerHTML = "Tracker Required";
+                return false;    
+            }
+            var auth = document.getElementById("auth").value;
+            if (typeof auth === 'string' && auth.length > 0 && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(document.getElementById("auth").value)) {
+                document.getElementById("errors").innerHTML = "Bad Author ID";
+                return false;    
+            }
+            document.getElementById("errors").innerHTML = "";
+            var link = `https://${document.getElementById("tracker").value}/rdr/v1/?gu=1&url=${encodeURIComponent(document.getElementById("url").value)}`; //added gu for generated_url = 1 = true
+            link += document.getElementById("ptyp").value ? `&ptyp=${encodeURIComponent(document.getElementById("ptyp").value)}` : '';
+            link += document.getElementById("source").value ? `&utm_source=${encodeURIComponent(document.getElementById("source").value)}` : '';
+            link += document.getElementById("medium").value ? `&utm_medium=${encodeURIComponent(document.getElementById("medium").value)}` : '';
+            link += document.getElementById("campaign").value ? `&utm_campaign=${encodeURIComponent(document.getElementById("campaign").value)}` : '';
+            link += document.getElementById("term").value ? `&utm_term=${encodeURIComponent(document.getElementById("term").value)}` : '';
+            link += document.getElementById("aff").value ? `&aff=${encodeURIComponent(document.getElementById("aff").value)}` : '';
+            link += document.getElementById("sink").value ? `&sink=${encodeURIComponent(document.getElementById("sink").value)}` : '';
+            link += document.getElementById("score").value ? `&score=${encodeURIComponent(document.getElementById("score").value)}` : '';
+            link += document.getElementById("xid").value ? `&xid=${encodeURIComponent(document.getElementById("xid").value)}` : '';
+            link += document.getElementById("ver").value ? `&ver=${encodeURIComponent(document.getElementById("ver").value)}` : '';
+            link += document.getElementById("auth").value ? `&auth=${encodeURIComponent(document.getElementById("auth").value)}` : '';
+            link += document.getElementById("ename").value ? `&utm_content=${encodeURIComponent(document.getElementById("ename").value)}` : '';
+            link += document.getElementById("etyp").value ? `&etype=${encodeURIComponent(document.getElementById("etyp").value)}` : '';
+            link += document.getElementById("ref").value ? `&ref=${encodeURIComponent(document.getElementById("ref").value)}` : '';
+            document.getElementById("linkText").innerHTML = link;
+            document.getElementById("link").innerHTML = link;
+            document.getElementById("link").href = link;
+
+        }
+        function onChangeTracker() {
+            Cookies.set('tracker', document.getElementById("tracker").value);
+            onChangeParameter();            
+        }
+    </script>
+    <form onsubmit="return onSubmit(event);">
+        <ul class="form">
+            <li>
+                <label>Tracking Server <span class="required">*</span></label>
+                <input id="tracker" placeholder="tr.example.com" type="text" onchange="onChangeTracker()"
+                    class="field-long" style="text-transform: lowercase;" />
+            </li>
+            <li>
+                <label>Url<span class="required">*</span></label>
+                <input id="url" placeholder="https://example.com/whatsinthenews.html" type="text" onchange="onChangeParameter()" class="field-long" />
+            </li>
+            <li>
+                <label>Page Type (What is the URL about?)</label>
+                <select id="ptyp" class="field-select" onchange="onChangeParameter()">
+                    <option value=""></option>
+                    <option value="news">News</option>
+                    <option value="ad">Advertisement</option>
+                    <option value="blog">Blog</option>
+                    <option value="content">Content</option>
+                    <option value="social">Social</option>
+                    <option value="meeting">Meeting</option>
+                </select>
+            </li>
+            <li>
+                <label>Source/UTM_Source (Referring domain, User, Service)</label>
+                <input id="source" placeholder="Ex. andy.com, local_news" type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>            
+            <li>
+                <label>Medium/UTM_Medium</label>
+                <input id="medium" placeholder="Ex. email, sms, ad, invite, etc." type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>            
+            <li>
+                <label>Marketing Campaign Name/UTM_Campaign</label>
+                <input id="campaign" placeholder="Ex. feature1_push_july_2018" type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>            
+            <li>
+                <label>UTM_Term (SEO Search Query Term)</label>
+                <input id="term" placeholder="Ex. weather" type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>            
+            <li>
+                <label>Affiliate ID / Promo Code</label>
+                <input id="aff" placeholder="Ex. bob_winter" type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>                
+            <li>
+                <hr/>
+                <h4 class="advanced">Advanced Options:</h4>
+            </li>
+            <li>
+                <label class="advanced">Local Optimum (What are we wanting the user to do right now?)</label>
+                <input type="text" id="sink" class="field-divided" placeholder="Eliciting Action (Ex. $)" onchange="onChangeParameter()"/>
+                <input type="number" id="score" class="field-divided" placeholder="Eliciting Score (Ex. 0)" onchange="onChangeParameter()"/>
+            </li>
+            <li>
+                <label class="advanced">Experiment ID</label>
+                <input id="xid" placeholder="Ex. login_red_button_july" type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>
+            <li>
+                    <label class="advanced">Variation #</label>
+                    <input id="ver" type="number" class="field-long" onchange="onChangeParameter()"/>
+                </li>            
+            <li>
+                <label class="advanced">Author UUID</label>
+                <input id="auth" placeholder="Ex. 00000000-0000-0000-0000-000000000000" type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>
+            <li>
+                <label class="advanced">Event/Action/UTM_Content</label>
+                <input id="ename" placeholder="Ex. clicked_button_a" type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>            
+            <li>
+                <label class="advanced">Event Type</label>
+                <input id="etyp" placeholder="Ex. user_click" type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>      
+            <!-- <li>
+                <label>Your Message <span class="required">*</span></label>
+                <textarea name="field5" id="field5" class="field-long field-textarea"></textarea>
+            </li> -->
+            <li>
+                <hr/>
+                <input type="submit" value="Submit" />
+            </li>
+            <li>
+                    <p id="errors" class="required"></p>
+                    <p id="linkText" style="display: none;">Link Text</p>
+                    <p><a id="link" href="link" style="display: none;">Link Text 2</a></p>
+            </li>
+        </ul>
+        <input id="ref" type="hidden" />
+    </form>
+    <script>
+        document.getElementById("url").value = getParameterByName('url') || '';
+        document.getElementById("ref").value = Cookies.get('vid') || null;
+        document.getElementById("tracker").value = Cookies.get('tracker') || '';
+    </script>
+</body>
+
 </html>

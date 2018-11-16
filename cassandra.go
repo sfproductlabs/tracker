@@ -382,6 +382,9 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 		}
+		if v["url"] == nil {
+			v["url"] = w.URI
+		}
 
 		//[Email]
 		var ehash *string

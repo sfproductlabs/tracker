@@ -548,7 +548,7 @@ func main() {
 		select {
 		case <-connc:
 			track(&configuration, &w, r)
-			rURL := r.URL.Query()["r"]
+			rURL := r.URL.Query()["url"]
 			if len(rURL) > 0 {
 				http.Redirect(w, r, rURL[0], http.StatusFound)
 			} else {
@@ -686,6 +686,12 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		break
 	default:
 		return nil
+	}
+	_, okc := j["content"].(string)
+	_, oke := j["ename"].(string)
+	if okc && !oke {
+		j["ename"] = j["content"]
+		delete(j, "content")
 	}
 	for idx := range c.Notify {
 		s := &c.Notify[idx]
