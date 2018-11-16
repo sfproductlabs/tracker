@@ -4,7 +4,7 @@ Track every visitor click, setup growth experiments and measure every user outco
 Don't want to give your user data to people you don't trust? Maybe save a GDPR lawsuit by using this. We've seen a marked drop in people sharing their data with Google Analytics, so this will allow you to get your own trusted statistics yourself.
 
 ## Features
-* (Tracking URL Generator)[https://chrome.google.com/webstore/detail/sfpl-visitor-tracker/dhpgldichapkobbnapfikfnoegjmblpa] extension for google chrome.
+* [Tracking URL Generator](https://chrome.google.com/webstore/detail/sfpl-visitor-tracker/dhpgldichapkobbnapfikfnoegjmblpa) extension for google chrome.
 * Tracking API Calls & URLs & GET Redirects
 * Tracking Images (for Emails)
 * Reverse Proxy included (for your Node, Python, etc. API backend)
