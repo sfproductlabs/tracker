@@ -434,7 +434,7 @@ func main() {
 	}
 
 	//////////////////////////////////////// STATUS TEST ROUTE
-	http.HandleFunc("/_status", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		json, _ := json.Marshal([2]KeyValue{KeyValue{Key: "client", Value: getIP(r)}, KeyValue{Key: "conns", Value: configuration.MaximumConnections - len(connc)}})
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -443,7 +443,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// PING PONG TEST ROUTE
-	http.HandleFunc("/_ping", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 		w.Write([]byte(PONG))
 	})
@@ -451,7 +451,7 @@ func main() {
 	//////////////////////////////////////// STATIC CONTENT ROUTE
 	fmt.Println("Serving static content in:", configuration.StaticDirectory)
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
-	pubSlug := "/_pub/" + apiVersion + "/"
+	pubSlug := "/pub/" + apiVersion + "/"
 	http.HandleFunc(pubSlug, func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
@@ -465,7 +465,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// 1x1 PIXEL ROUTE
-	http.HandleFunc("/_img/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/img/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			track(&configuration, &w, r)
@@ -483,7 +483,7 @@ func main() {
 	// Ex. https://localhost:8443/tr/v1/vid/accad/ROCK/ON/lat/5/lon/6/first/true/score/6
 	// OR
 	// {"last":"https://localhost:5001/maps","next":"https://localhost:5001/error/maps/request/unauthorized","params":{"type":"b","origin":"maps","error":"unauthorized","method":"request"},"created":1539072857869,"duration":1959,"vid":"4883a4c0-cb96-11e8-afac-bb666b9727ed","first":"false","sid":"4883cbd0-cb96-11e8-afac-bb666b9727ed"}
-	http.HandleFunc("/_tr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/tr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -508,7 +508,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// Server Tracking Route
-	http.HandleFunc("/_str/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/str/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -544,7 +544,7 @@ func main() {
 
 	//////////////////////////////////////// Redirect Route
 	// Ex. https://localhost:8443/rdr/v1/?r=https%3A%2F%2Fx.com
-	http.HandleFunc("/_rdr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/rdr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			track(&configuration, &w, r)
