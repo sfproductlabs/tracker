@@ -321,7 +321,7 @@
                 return false;    
             }
             document.getElementById("errors").innerHTML = "";
-            var link = `https://${document.getElementById("tracker").value}/rdr/v1/?gu=1&url=${encodeURIComponent(document.getElementById("url").value)}`; //added gu for generated_url = 1 = true
+            var link = `https://${document.getElementById("tracker").value}/rdr/v1/?gu=1}`; //added gu for generated_url = 1 = true
             link += document.getElementById("ptyp").value ? `&ptyp=${encodeURIComponent(document.getElementById("ptyp").value)}` : '';
             link += document.getElementById("source").value ? `&utm_source=${encodeURIComponent(document.getElementById("source").value)}` : '';
             link += document.getElementById("medium").value ? `&utm_medium=${encodeURIComponent(document.getElementById("medium").value)}` : '';
@@ -336,6 +336,8 @@
             link += document.getElementById("ename").value ? `&utm_content=${encodeURIComponent(document.getElementById("ename").value)}` : '';
             link += document.getElementById("etyp").value ? `&etype=${encodeURIComponent(document.getElementById("etyp").value)}` : '';
             link += document.getElementById("ref").value ? `&ref=${encodeURIComponent(document.getElementById("ref").value)}` : '';
+            link = link.toLowerCase();
+            link += `&url=${encodeURIComponent(document.getElementById("url").value)}`;
             document.getElementById("linkText").innerHTML = link;
             document.getElementById("link").innerHTML = link;
             document.getElementById("link").href = link;
@@ -351,7 +353,7 @@
             <li>
                 <label>Tracking Server <span class="required">*</span></label>
                 <input id="tracker" placeholder="tr.example.com" type="text" onchange="onChangeTracker()"
-                    class="field-long" style="text-transform: lowercase;" />
+                    class="field-long"/>
             </li>
             <li>
                 <label>Url<span class="required">*</span></label>
