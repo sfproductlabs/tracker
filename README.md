@@ -45,7 +45,9 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 
 * Install Cassandra or Elassandra
 * Install Schema to Cassandra https://github.com/dioptre/tracker/blob/master/.setup/schema.1.cql
-* Install Nats
+* Insall Go > 1.9.3 (if you want to build from source)
+* Get the tracker (if you want to build from source) ```go get github.com/dioptre/tracker && go build github.com/dioptre/tracker```
+* Install Nats ```go get github.com/nats-io/gnatsd && go build github.com/nats-io/gnatsd```
 * Go through the config.json file and change what you want.
 * Deploy using Docker or ```go build```
 * Use Spark, Kibana, etc to interrogate & ETL to your warehouse
