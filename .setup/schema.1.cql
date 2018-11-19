@@ -41,7 +41,8 @@ create table outcomes (
 create table visitors (
   vid timeuuid, --visitor-id
   sid timeuuid, --session-id
-  app text, --app/release version
+  app text, --app
+  rel text, --app release/version
   created timestamp, --time.Now().UTC() on server
   uid uuid, --user-id
   last text, --last action/slug/url/referrer_url (what i just clicked on)
@@ -82,6 +83,7 @@ create table sessions (
   vid timeuuid, 
   sid timeuuid, 
   app text,
+  rel text, 
   created timestamp, 
   uid uuid, 
   last text, 
@@ -124,6 +126,7 @@ create table events (
   vid timeuuid, 
   sid timeuuid, 
   app text,
+  rel text, 
   created timestamp, 
   uid uuid, 
   last text, 

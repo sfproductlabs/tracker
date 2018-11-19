@@ -315,6 +315,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(temp, "vid")
 			delete(temp, "sid")
 			delete(temp, "app")
+			delete(temp, "rel")
 			delete(temp, "created")
 			delete(temp, "uid")
 			delete(temp, "last")
@@ -423,6 +424,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				vid, 
 				sid, 
 				app,
+				rel,
 				created,
 				uid,
 				last,
@@ -444,11 +446,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				targets,
 				reid
 			) 
-			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?)`, //15
+			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //25
 			w.EventID,
 			v["vid"],
 			v["sid"],
 			v["app"],
+			v["rel"],
 			updated,
 			v["uid"],
 			v["last"],
@@ -657,6 +660,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
                             vid, 
 							sid, 
 							app,
+							rel,
 							created,
 							uid,
                             last,
@@ -688,10 +692,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							tz,
 							vp
                         ) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?) IF NOT EXISTS`, //33
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) IF NOT EXISTS`, //34
 					v["vid"],
 					v["sid"],
 					v["app"],
+					v["rel"],
 					updated,
 					v["uid"],
 					v["last"],
@@ -731,6 +736,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
                             vid, 
 							sid, 
 							app,
+							rel,
 							created,
 							uid,
                             last,
@@ -763,10 +769,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							tz,
 							vp                        
 						) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) IF NOT EXISTS`, //34
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //35
 					v["vid"],
 					v["sid"],
 					v["app"],
+					v["rel"],
 					updated,
 					v["uid"],
 					v["last"],
