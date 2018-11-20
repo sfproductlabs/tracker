@@ -349,7 +349,7 @@
                 const ha = window.location.hostname.split(".");            
                 let dom = ha[ha.length - 1];
                 if (ha.length > 1)
-                    dom = ha[ha.length - 2] + dom;       
+                    dom = ha[ha.length - 2] + "." + dom;       
                 options.domain = dom;
             }
             Cookies.set('tr', document.getElementById("tracker").value, options);
