@@ -705,13 +705,22 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		}
 	}
 	if !wargs.IsServer {
+		host, _, herr := net.SplitHostPort(r.Host)
+		var dom string
+		if herr == nil && net.ParseIP(host) == nil {
+			ha := strings.Split(strings.ToLower(host), ".")
+			dom = ha[len(ha)-1]
+			if len(ha) > 1 {
+				dom = ha[len(ha)-2] + "." + dom
+			}
+		}
 		if vid, ok := j["vid"].(string); ok {
 			expiration := time.Now().Add(99999 * 24 * time.Hour)
-			cookie := http.Cookie{Name: "vid", Value: vid, Expires: expiration, Path: "/"}
+			cookie := http.Cookie{Name: "vid", Value: vid, Expires: expiration, Path: "/", Domain: dom}
 			http.SetCookie(*w, &cookie)
 		} else if vid, ok := j["vid"].(gocql.UUID); ok {
 			expiration := time.Now().Add(99999 * 24 * time.Hour)
-			cookie := http.Cookie{Name: "vid", Value: vid.String(), Expires: expiration, Path: "/"}
+			cookie := http.Cookie{Name: "vid", Value: vid.String(), Expires: expiration, Path: "/", Domain: dom}
 			http.SetCookie(*w, &cookie)
 		}
 	}
