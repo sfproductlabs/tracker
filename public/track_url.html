@@ -336,6 +336,7 @@
             link += document.getElementById("ename").value ? `&utm_content=${encodeURIComponent(document.getElementById("ename").value)}` : '';
             link += document.getElementById("etyp").value ? `&etype=${encodeURIComponent(document.getElementById("etyp").value)}` : '';
             link += document.getElementById("ref").value ? `&ref=${encodeURIComponent(document.getElementById("ref").value)}` : '';
+            link += document.getElementById("uname").value ? `&uname=${encodeURIComponent(document.getElementById("uname").value)}` : '';
             link = link.toLowerCase();
             link += `&url=${encodeURIComponent(document.getElementById("url").value)}`;
             document.getElementById("linkText").innerHTML = link;
@@ -395,17 +396,21 @@
                 <input id="campaign" placeholder="Ex. feature1_push_july_2018" type="text" class="field-long" onchange="onChangeParameter()"/>
             </li>            
             <li>
-                <label>UTM_Term (SEO Search Query Term)</label>
+                <label >Your username</label>
+                <input id="uname" placeholder="Ex. myexampleusername" type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>  
+            <li>
+                <label >Affiliate ID / Promo Code</label>
+                <input id="aff" placeholder="Ex. bob_winter" type="text" class="field-long" onchange="onChangeParameter()"/>
+            </li>  
+            <li>
+                <h4 class="advanced">Advanced Options:</h4>
+                <hr/>
+            </li>
+            <li>
+                <label class="advanced">UTM_Term (SEO Search Query Term)</label>
                 <input id="term" placeholder="Ex. weather" type="text" class="field-long" onchange="onChangeParameter()"/>
             </li>            
-            <li>
-                <label>Affiliate ID / Promo Code</label>
-                <input id="aff" placeholder="Ex. bob_winter" type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>                
-            <li>
-                <hr/>
-                <h4 class="advanced">Advanced Options:</h4>
-            </li>
             <li>
                 <label class="advanced">Local Optimum (What are we wanting the user to do right now?)</label>
                 <input type="text" id="sink" class="field-divided" placeholder="Eliciting Action (Ex. $)" onchange="onChangeParameter()"/>
@@ -436,7 +441,6 @@
                 <textarea name="field5" id="field5" class="field-long field-textarea"></textarea>
             </li> -->
             <li>
-                <hr/>
                 <input type="submit" value="Submit" />
             </li>
             <li>
