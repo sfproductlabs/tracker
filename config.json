@@ -14,7 +14,7 @@
     "ProxyDailyLimit" : 0,
     "ProxyDailyLimitChecker" : "cassandra",
     "IgnoreProxyOptions" : false,
-    "ProxyUrlFilter" : ".*(dontlogthese|login|css|js|json|jpeg|jpg|gif|png)",
+    "ProxyUrlFilter" : ".*(dontlogthese|login|css|js|json|jpeg|jpg|gif|png|ico)",
     "ProxyForceJson" : false,
     "MaximumConnections": 150000,
     "ReadTimeoutSeconds" : 20,

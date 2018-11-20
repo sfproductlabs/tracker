@@ -705,9 +705,12 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		}
 	}
 	if !wargs.IsServer {
-		host, _, herr := net.SplitHostPort(r.Host)
 		var dom string
-		if herr == nil && net.ParseIP(host) == nil {
+		host, _, herr := net.SplitHostPort(r.Host)
+		if herr != nil {
+			host = r.Host
+		}
+		if net.ParseIP(host) == nil {
 			ha := strings.Split(strings.ToLower(host), ".")
 			dom = ha[len(ha)-1]
 			if len(ha) > 1 {
