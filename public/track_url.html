@@ -281,6 +281,11 @@
             if (!results[2]) return '';
             return decodeURIComponent(results[2].replace(/\+/g, ' '));
         }
+
+        function cleanParameter(value) {
+            if (value)
+                return encodeURIComponent(value.replace(/( )/ig, "_").replace(/[^a-zA-Z0-9_]/g, "").toLowerCase());
+        }
     </script>
 </head>
 
@@ -322,21 +327,21 @@
             }
             document.getElementById("errors").innerHTML = "";
             var link = `https://${document.getElementById("tracker").value}/rdr/v1/?gu=1`; //added gu for generated_url = 1 = true
-            link += document.getElementById("ptyp").value ? `&ptyp=${encodeURIComponent(document.getElementById("ptyp").value)}` : '';
-            link += document.getElementById("source").value ? `&utm_source=${encodeURIComponent(document.getElementById("source").value)}` : '';
-            link += document.getElementById("medium").value ? `&utm_medium=${encodeURIComponent(document.getElementById("medium").value)}` : '';
-            link += document.getElementById("campaign").value ? `&utm_campaign=${encodeURIComponent(document.getElementById("campaign").value)}` : '';
-            link += document.getElementById("term").value ? `&utm_term=${encodeURIComponent(document.getElementById("term").value)}` : '';
-            link += document.getElementById("aff").value ? `&aff=${encodeURIComponent(document.getElementById("aff").value)}` : '';
-            link += document.getElementById("sink").value ? `&sink=${encodeURIComponent(document.getElementById("sink").value)}` : '';
+            link += document.getElementById("ptyp").value ? `&ptyp=${cleanParameter(document.getElementById("ptyp").value)}` : '';
+            link += document.getElementById("source").value ? `&utm_source=${cleanParameter(document.getElementById("source").value)}` : '';
+            link += document.getElementById("medium").value ? `&utm_medium=${cleanParameter(document.getElementById("medium").value)}` : '';
+            link += document.getElementById("campaign").value ? `&utm_campaign=${cleanParameter(document.getElementById("campaign").value)}` : '';
+            link += document.getElementById("term").value ? `&utm_term=${cleanParameter(document.getElementById("term").value)}` : '';
+            link += document.getElementById("aff").value ? `&aff=${cleanParameter(document.getElementById("aff").value)}` : '';
+            link += document.getElementById("sink").value ? `&sink=${cleanParameter(document.getElementById("sink").value)}` : '';
             link += document.getElementById("score").value ? `&score=${encodeURIComponent(document.getElementById("score").value)}` : '';
-            link += document.getElementById("xid").value ? `&xid=${encodeURIComponent(document.getElementById("xid").value)}` : '';
-            link += document.getElementById("ver").value ? `&ver=${encodeURIComponent(document.getElementById("ver").value)}` : '';
-            link += document.getElementById("auth").value ? `&auth=${encodeURIComponent(document.getElementById("auth").value)}` : '';
-            link += document.getElementById("ename").value ? `&utm_content=${encodeURIComponent(document.getElementById("ename").value)}` : '';
-            link += document.getElementById("etyp").value ? `&etype=${encodeURIComponent(document.getElementById("etyp").value)}` : '';
-            link += document.getElementById("ref").value ? `&ref=${encodeURIComponent(document.getElementById("ref").value)}` : '';
-            link += document.getElementById("uname").value ? `&uname=${encodeURIComponent(document.getElementById("uname").value)}` : '';
+            link += document.getElementById("xid").value ? `&xid=${cleanParameter(document.getElementById("xid").value)}` : '';
+            link += document.getElementById("ver").value ? `&ver=${cleanParameter(document.getElementById("ver").value)}` : '';
+            link += document.getElementById("auth").value ? `&auth=${cleanParameter(document.getElementById("auth").value)}` : '';
+            link += document.getElementById("ename").value ? `&utm_content=${cleanParameter(document.getElementById("ename").value)}` : '';
+            link += document.getElementById("etyp").value ? `&etype=${cleanParameter(document.getElementById("etyp").value)}` : '';
+            link += document.getElementById("ref").value ? `&ref=${cleanParameter(document.getElementById("ref").value)}` : '';
+            link += document.getElementById("uname").value ? `&uname=${cleanParameter(document.getElementById("uname").value)}` : '';
             link = link.toLowerCase();
             link += `&url=${encodeURIComponent(document.getElementById("url").value)}`;
             document.getElementById("linkText").innerHTML = link;
@@ -363,13 +368,18 @@
     <form onsubmit="return onSubmit(event);">
         <ul class="form">
             <li>
+                <h3>Generate a tracked URL:</h3>
+                <hr/>
+                <p>Only letters, numbers and _ are accepted characters for all values except URL and the tracking server. These values will be auto-corrected.</small></p>
+            </li>
+            <li>
                 <label>Tracking Server <span class="required">*</span></label>
                 <input id="tracker" placeholder="tr.example.com" type="text" onchange="onChangeTracker()"
                     class="field-long"/>
             </li>
             <li>
                 <label>Url<span class="required">*</span></label>
-                <input id="url" placeholder="https://example.com/whatsinthenews.html" type="text" onchange="onChangeParameter()" class="field-long" />
+                <input id="url" placeholder="Ex. https://example.com/whatsinthenews.html" type="text" onchange="onChangeParameter()" class="field-long" />
             </li>
             <li>
                 <label>Page Type (What is the URL about?)</label>
