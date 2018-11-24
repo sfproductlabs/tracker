@@ -17,6 +17,7 @@
     "ProxyUrlFilter" : ".*(dontlogthese|login|css|js|json|jpeg|jpg|gif|png|ico)",
     "ProxyForceJson" : false,
     "MaximumConnections": 150000,
+    "PrefixPrivateHash" : "",
     "ReadTimeoutSeconds" : 20,
     "ReadHeaderTimeoutSeconds" : 20,
     "WriteTimeoutSeconds" : 20,

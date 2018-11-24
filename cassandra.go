@@ -392,7 +392,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if temp, ok := v["ehash"].(string); ok {
 			ehash = &temp
 		} else if temp, ok := v["email"].(string); ok {
-			temp = sha(temp)
+			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
 			ehash = &temp
 		}
 		delete(v, "email")

@@ -160,6 +160,7 @@ type Configuration struct {
 	TLSKey                   string
 	Notify                   []Service
 	Consume                  []Service
+	PrefixPrivateHash        string
 	ProxyUrl                 string
 	ProxyUrlFilter           string
 	IgnoreProxyOptions       bool
