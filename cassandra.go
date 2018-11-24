@@ -303,6 +303,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			json.Unmarshal([]byte(ps), &temp)
 			//De-identify data
 			delete(temp, "email")
+			delete(temp, "ehash")
 			delete(temp, "uname")
 			//Remove column params/duplicates
 			delete(temp, "first")
@@ -382,8 +383,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["url"] = w.URI
 				}
 			}
-		}
-		if v["url"] == nil {
+		} else if v["url"] == nil {
 			v["url"] = w.URI
 		}
 
