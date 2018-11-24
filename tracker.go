@@ -63,7 +63,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/gocql/gocql"
 	"github.com/nats-io/go-nats"
@@ -632,10 +631,17 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		j["vid"] = cookie.Value
 	}
 	//Path
-	p := strings.Split(strings.ToLower(r.URL.Path), "/")
+	p := strings.Split(r.URL.Path, "/")
 	pmax := (len(p) - 2)
 	for i := 1; i <= pmax; i += 2 {
-		j[p[i]] = p[i+1] //TODO: Handle arrays
+		p[i] = strings.ToLower(p[i])
+		switch p[i] {
+		case "ehash", "bhash":
+			j[p[i]] = p[i+1] //TODO: Handle arrays
+			break
+		default:
+			j[p[i]] = strings.ToLower(p[i+1]) //TODO: Handle arrays
+		}
 	}
 	//Inject Params
 	if params, err := json.Marshal(j); err == nil {
@@ -653,8 +659,15 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		for idx := range k {
 			lidx := strings.ToLower(idx)
 			lidx = utmPrefix.ReplaceAllString(lidx, "")
-			j[lidx] = k[idx][0]
-			qp[lidx] = k[idx][0]
+			switch lidx {
+			case "ehash", "bhash":
+				j[lidx] = k[idx][0]  //TODO: Handle arrays
+				qp[lidx] = k[idx][0] //TODO: Handle arrays
+			default:
+				j[lidx] = strings.ToLower(k[idx][0])  //TODO: Handle arrays
+				qp[lidx] = strings.ToLower(k[idx][0]) //TODO: Handle arrays
+			}
+
 		}
 		if len(qp) > 0 {
 			//If we have query params **OVERWRITE** the split URL ones
@@ -673,13 +686,23 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		}
 		if len(body) > 0 {
 			//r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-			for idx := range body {
-				body[idx] = byte(unicode.ToLower(rune(body[idx])))
-			}
+			// for idx := range body {
+			// 	body[idx] = byte(unicode.ToLower(rune(body[idx])))
+			// }
 			b := make(map[string]interface{})
 			if err := json.Unmarshal(body, &b); err == nil {
 				for bpi := range b {
-					j[bpi] = b[bpi]
+					lbpi := strings.ToLower(bpi)
+					switch lbpi {
+					case "ehash", "bhash":
+						j[lbpi] = b[bpi]
+					default:
+						if bpiv, ok := b[bpi].(string); ok {
+							j[lbpi] = strings.ToLower(bpiv)
+						} else if b[bpi] != nil {
+							j[lbpi] = b[bpi]
+						}
+					}
 				}
 			}
 		}
