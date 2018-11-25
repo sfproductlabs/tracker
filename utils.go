@@ -88,13 +88,17 @@ func filterUrl(c *Configuration, s *string, matchGroup *int) error {
 		//Take the last one by default
 		if mi > 0 {
 			*s = matches[mi-1]
+			return nil
 		}
 	} else {
-		if mi > 0 {
+		if mi > *matchGroup {
 			*s = matches[*matchGroup]
+			return nil
 		}
 	}
-	return nil
+	//Fallback
+	filterUrlAppendix(s)
+	return fmt.Errorf("Url Filter Mismatch Regex")
 }
 
 func filterUrlAppendix(s *string) error {
