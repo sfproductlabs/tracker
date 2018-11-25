@@ -98,7 +98,7 @@ func filterUrl(c *Configuration, s *string, matchGroup *int) error {
 	}
 	//Fallback
 	filterUrlAppendix(s)
-	return fmt.Errorf("Url Filter Mismatch Regex")
+	return fmt.Errorf("Mismatch Regex (Url Filter)")
 }
 
 func filterUrlAppendix(s *string) error {
