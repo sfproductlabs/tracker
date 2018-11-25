@@ -83,13 +83,16 @@ func sha(s string) string {
 ////////////////////////////////////////
 func filterUrl(c *Configuration, s *string, matchGroup *int) error {
 	matches := regexFilterUrl.FindStringSubmatch(*s)
+	mi := len(matches)
 	if matchGroup == nil || *matchGroup == 0 {
-		mi := len(matches)
+		//Take the last one by default
 		if mi > 0 {
 			*s = matches[mi-1]
 		}
 	} else {
-		*s = matches[*matchGroup]
+		if mi > 0 {
+			*s = matches[*matchGroup]
+		}
 	}
 	return nil
 }
