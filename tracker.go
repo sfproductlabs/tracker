@@ -173,9 +173,10 @@ type Configuration struct {
 	SchemaVersion            int
 	ApiVersion               int
 	Debug                    bool
-	UrlPrefixFilter          string
+	UrlFilter                string
+	UrlFilterMatchGroup      int
 	AllowOrigin              string
-	FilterPrefix             bool
+	IsUrlFiltered            bool
 	MaximumConnections       int
 	ReadTimeoutSeconds       int
 	ReadHeaderTimeoutSeconds int
@@ -210,12 +211,12 @@ const (
 
 var (
 	// Quote Ident replacer.
-	qiReplacer       = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
+	regexQiReplacer  = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
 	regexCount       = regexp.MustCompile(`\.count\.(.*)`)
 	regexUpdate      = regexp.MustCompile(`\.update\.(.*)`)
-	urlPrefix        = regexp.MustCompile(`(.*)`)
+	regexFilterUrl   = regexp.MustCompile(`(.*)`)
 	regexInternalURI = regexp.MustCompile(`.*(/tr/|/img/|/pub/|/str/|/rdr/).*`) //TODO: MUST FILTER INTERNAL ROUTES, UPDATE IF ADDING A NEW ROUTE, PROXY OK!!!
-	utmPrefix        = regexp.MustCompile(`utm_`)
+	regexUtmPrefix   = regexp.MustCompile(`utm_`)
 )
 
 //////////////////////////////////////// Transparent GIF
@@ -256,10 +257,10 @@ func main() {
 	}
 
 	////////////////////////////////////////SETUP FILTER
-	if configuration.UrlPrefixFilter != "" {
+	if configuration.UrlFilter != "" {
 		fmt.Println("Setting up URL prefix filter...")
-		configuration.FilterPrefix = true
-		urlPrefix, _ = regexp.Compile(configuration.UrlPrefixFilter)
+		configuration.IsUrlFiltered = true
+		regexFilterUrl, _ = regexp.Compile(configuration.UrlFilter)
 	}
 
 	////////////////////////////////////////SETUP ORIGIN
@@ -659,7 +660,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		qp := make(map[string]interface{})
 		for idx := range k {
 			lidx := strings.ToLower(idx)
-			lidx = utmPrefix.ReplaceAllString(lidx, "")
+			lidx = regexUtmPrefix.ReplaceAllString(lidx, "")
 			switch lidx {
 			case "ehash", "bhash":
 				j[lidx] = k[idx][0]  //TODO: Handle arrays

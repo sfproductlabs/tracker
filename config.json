@@ -26,7 +26,8 @@
     "AllowOrigin": "*",
     "DefaultRedirect": "https://sfproductlabs.com",
     "Debug" : true,
-    "UrlPrefixFilter" : "http(s|)://(api|tr|dev|spark|)(\\.|)(sfproductlabs\\.com|localhost)(:[0-9]*|)(/.*)",
+    "UrlFilter" : "http(s|)://(api|tr|dev|spark|)(\\.|)(sfproductlabs\\.com|localhost)(:[0-9]*|)(/[^\\?#]*)(\\?|#|)",
+    "UrlFilterMatchGroup" : 6,
     "IgnoreQueryParamsKey" : "igqp",
     "Notify": [
         {
@@ -36,7 +37,7 @@
                 "127.0.0.1"
             ],
             "Context": "sfpla",
-            "Timeout" : 30,
+            "Timeout" : 300,
             "CACert": "cstarcacert.pem",
             "Cert": "cstarcert.pem",
             "Key": "cstarkey.pem",

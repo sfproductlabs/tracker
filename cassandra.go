@@ -367,24 +367,42 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 		}
 
+		//WARNING: w.URI has destructive changes here
 		//[last],[url]
-		if i.AppConfig.FilterPrefix {
+		if i.AppConfig.IsUrlFiltered {
 			if last, ok := v["last"].(string); ok {
-				filterUrlPrefix(i.AppConfig, &last)
+				filterUrl(i.AppConfig, &last, &i.AppConfig.UrlFilterMatchGroup)
 				v["last"] = last
 			}
 			if url, ok := v["url"].(string); ok {
-				filterUrlPrefix(i.AppConfig, &url)
+				filterUrl(i.AppConfig, &url, &i.AppConfig.UrlFilterMatchGroup)
 				v["url"] = url
 			} else {
 				//check for /tr/ /pub/ /img/ (ignore)
 				if !regexInternalURI.MatchString(w.URI) {
-					filterUrlPrefix(i.AppConfig, &w.URI)
+					filterUrl(i.AppConfig, &w.URI, &i.AppConfig.UrlFilterMatchGroup)
 					v["url"] = w.URI
+				} else {
+					delete(v, "url")
 				}
 			}
-		} else if v["url"] == nil {
-			v["url"] = w.URI
+		} else {
+			if last, ok := v["last"].(string); ok {
+				filterUrlAppendix(&last)
+				v["last"] = last
+			}
+			if url, ok := v["url"].(string); ok {
+				filterUrlAppendix(&url)
+				v["url"] = url
+			} else {
+				//check for /tr/ /pub/ /img/ (ignore)
+				if !regexInternalURI.MatchString(w.URI) {
+					filterUrlAppendix(&w.URI)
+					v["url"] = w.URI
+				} else {
+					delete(v, "url")
+				}
+			}
 		}
 
 		//[Email]
