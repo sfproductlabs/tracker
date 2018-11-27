@@ -231,6 +231,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				auth = &temp2
 			}
 		}
+		//[iid]
+		var iid *gocql.UUID
+		if temp, ok := v["iid"].(string); !ok {
+			if temp2, err := gocql.ParseUUID(temp); err == nil {
+				iid = &temp2
+			}
+		}
 		//[latlon]
 		var latlon *geo_point
 		latf, oklatf := v["lat"].(float64)
@@ -453,10 +460,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				bhash,
 				auth,
 				duration,
+				campaign,
 				xid,
 				split,
 				ename,
 				etyp,
+				iid,
 				ver,
 				sink,
 				score,							
@@ -464,7 +473,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				targets,
 				reid
 			) 
-			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //25
+			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?)`, //27
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -480,10 +489,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			bhash,
 			auth,
 			duration,
+			v["campaign"],
 			v["xid"],
 			v["split"],
 			v["ename"],
 			v["etyp"],
+			iid,
 			version,
 			v["sink"],
 			score,
