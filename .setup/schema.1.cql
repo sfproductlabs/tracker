@@ -143,14 +143,13 @@ create table events (
   split text, 
   ename text, 
   etyp text, 
-  iid uuid, --internal id/reference (ex. newsletterid)
   ver int,
   sink text, 
   score double, 
   params   map<text,text>, 
   --Additional Fields
   targets  map<text,frozen<set<text>>>, --type, components viewed on page/server to see whats working. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}
-  reid timeuuid, --cluster based event on original/related eid
+  rid uuid, --related id/cluster based event on original/related eid or internal id/reference (ex. newsletterid)
   PRIMARY KEY (eid) --perhaps move sid from ck into pk
 );
 
