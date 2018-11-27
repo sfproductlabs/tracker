@@ -219,14 +219,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		updated := time.Now().UTC()
 		//[rid]
 		var rid *gocql.UUID
-		if temp, ok := v["rid"].(string); !ok {
+		if temp, ok := v["rid"].(string); ok {
 			if temp2, err := gocql.ParseUUID(temp); err == nil {
 				rid = &temp2
 			}
 		}
 		//[auth]
 		var auth *gocql.UUID
-		if temp, ok := v["auth"].(string); !ok {
+		if temp, ok := v["auth"].(string); ok {
 			if temp2, err := gocql.ParseUUID(temp); err == nil {
 				auth = &temp2
 			}
