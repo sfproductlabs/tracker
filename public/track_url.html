@@ -326,7 +326,7 @@
                 return false;    
             }
             document.getElementById("errors").innerHTML = "";
-            var link = '?gu=1';
+            var link = '?gu=1'; //added gu for generated_url = 1 = true
             link += document.getElementById("ptyp").value ? `&ptyp=${cleanParameter(document.getElementById("ptyp").value)}` : '';
             link += document.getElementById("source").value ? `&utm_source=${cleanParameter(document.getElementById("source").value)}` : '';
             link += document.getElementById("medium").value ? `&utm_medium=${cleanParameter(document.getElementById("medium").value)}` : '';
@@ -344,7 +344,7 @@
             link += document.getElementById("uname").value ? `&uname=${cleanParameter(document.getElementById("uname").value)}` : '';
             link = link.toLowerCase();
             link += `&url=${encodeURIComponent(document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : link))}`;
-            link = `https://${document.getElementById("tracker").value}/rdr/v1/` + link; //added gu for generated_url = 1 = true
+            link = `https://${document.getElementById("tracker").value}/rdr/v1/` + link; 
             document.getElementById("linkText").innerHTML = link;
             document.getElementById("link").innerHTML = link;
             document.getElementById("link").href = link;
