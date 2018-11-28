@@ -49,7 +49,7 @@ create table visitors (
   url text, --this should always be url slug of **current** url
   ip inet, --client ip
   latlon frozen<geo_point>, --location
-  ptype text, --page category/type 
+  ptyp text, --page category/type 
   bhash text, --browser-hash
   auth uuid, --author of **destination** content
   --Experiment Fields
@@ -90,7 +90,7 @@ create table sessions (
   url text, 
   ip inet,
   latlon frozen<geo_point>,
-  ptype text, 
+  ptyp text, 
   bhash text, 
   auth uuid, 
   duration bigint,  --time since last click/session
@@ -133,7 +133,7 @@ create table events (
   url text, 
   ip inet, 
   latlon frozen<geo_point>, 
-  ptype text, 
+  ptyp text, 
   bhash text, 
   auth uuid, 
   duration bigint,  

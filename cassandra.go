@@ -323,7 +323,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(temp, "url")
 			delete(temp, "ip")
 			delete(temp, "latlon")
-			delete(temp, "ptype")
+			delete(temp, "ptyp")
 			delete(temp, "bhash")
 			delete(temp, "auth")
 			delete(temp, "duration")
@@ -449,7 +449,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				url,
 				ip,
 				latlon,
-				ptype,
+				ptyp,
 				bhash,
 				auth,
 				duration,
@@ -477,7 +477,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["url"],
 			w.IP,
 			latlon,
-			v["ptype"],
+			v["ptyp"],
 			bhash,
 			auth,
 			duration,
@@ -687,7 +687,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							url,
 							ip,
 							latlon,
-							ptype,
+							ptyp,
 							bhash,
 							auth,
 							xid,
@@ -723,7 +723,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["url"],
 					w.IP,
 					latlon,
-					v["ptype"],
+					v["ptyp"],
 					bhash,
 					auth,
 					v["xid"],
@@ -763,7 +763,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							url,
 							ip,
 							latlon,
-							ptype,
+							ptyp,
 							bhash,
 							auth,
                             duration,
@@ -800,7 +800,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["url"],
 					w.IP,
 					latlon,
-					v["ptype"],
+					v["ptyp"],
 					bhash,
 					auth,
 					duration,
