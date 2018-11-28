@@ -296,7 +296,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			score = &s
 		}
 
-		//Force reset the following types...
+		//Exclude the following from **all** params in events,visitors and sessions. Note: further exclusions after events insert.
 		//[params]
 		if ps, ok := v["params"].(string); ok {
 			temp := make(map[string]string)
@@ -337,9 +337,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(temp, "params")
 			delete(temp, "country")
 			delete(temp, "culture")
-			delete(temp, "source")
-			delete(temp, "medium")
-			delete(temp, "campaign")
 			delete(temp, "term")
 			delete(temp, "ref")
 			delete(temp, "aff")
@@ -453,7 +450,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				bhash,
 				auth,
 				duration,
-				campaign,
 				xid,
 				split,
 				ename,
@@ -465,7 +461,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				targets,
 				rid
 			) 
-			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?)`, //26
+			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //25
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -481,7 +477,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			bhash,
 			auth,
 			duration,
-			v["campaign"],
 			v["xid"],
 			v["split"],
 			v["ename"],
@@ -493,6 +488,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["targets"],
 			rid).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[events]:", xerr)
+		}
+
+		//Exclude from params in sessions and visitors. Note: more above.
+		if ps, ok := v["params"].(string); ok {
+			temp := make(map[string]string)
+			json.Unmarshal([]byte(ps), &temp)
+			delete(temp, "source")
+			delete(temp, "medium")
+			delete(temp, "campaign")
+			v["params"] = &temp
 		}
 
 		if !w.IsServer {

@@ -53,7 +53,6 @@ create table visitors (
   bhash text, --browser-hash
   auth uuid, --author of **destination** content
   --Experiment Fields
-  campaign text, --marketing campaign name [chat_invite] AKA utm_campaign
   xid text, --primary experiment id, hypothesis
   split text, --primary experiment split A/B
   ename text, ----event name e.g. "signup_attempt", event-id/event-name, AKA utm_content, AKA action in params ex. Clicked button A, joined-experiment-now
@@ -67,6 +66,7 @@ create table visitors (
   culture text, --EN-US
   source text, --referring domain, user, service [sms] AKA utm_source
   medium text, --email,sms,ad,etc [invite] AKA utm_medium
+  campaign text, --marketing campaign name [chat_invite] AKA utm_campaign
   term text, --seo search query term AKA utm_term
   ref uuid, --referrer uid
   aff text, --affiliate id, promo-code
@@ -95,7 +95,6 @@ create table sessions (
   auth uuid, 
   duration bigint,  --time since last click/session
   --Experiment Fields
-  campaign text,
   xid text, 
   split text, 
   ename text, 
@@ -109,6 +108,7 @@ create table sessions (
   culture text, 
   source text,
   medium text,
+  campaign text,
   term text, 
   ref uuid, 
   aff text,
@@ -138,7 +138,6 @@ create table events (
   auth uuid, 
   duration bigint,  
   --Experiment Fields
-  campaign text,
   xid text, 
   split text, 
   ename text, 
