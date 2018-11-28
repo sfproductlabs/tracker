@@ -326,7 +326,7 @@
                 return false;    
             }
             document.getElementById("errors").innerHTML = "";
-            var link = `https://${document.getElementById("tracker").value}/rdr/v1/?gu=1`; //added gu for generated_url = 1 = true
+            var link = '?gu=1';
             link += document.getElementById("ptyp").value ? `&ptyp=${cleanParameter(document.getElementById("ptyp").value)}` : '';
             link += document.getElementById("source").value ? `&utm_source=${cleanParameter(document.getElementById("source").value)}` : '';
             link += document.getElementById("medium").value ? `&utm_medium=${cleanParameter(document.getElementById("medium").value)}` : '';
@@ -343,7 +343,8 @@
             link += document.getElementById("ref").value ? `&ref=${cleanParameter(document.getElementById("ref").value)}` : '';
             link += document.getElementById("uname").value ? `&uname=${cleanParameter(document.getElementById("uname").value)}` : '';
             link = link.toLowerCase();
-            link += `&url=${encodeURIComponent(document.getElementById("url").value)}`;
+            link += `&url=${encodeURIComponent(document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : link))}`;
+            link = `https://${document.getElementById("tracker").value}/rdr/v1/` + link; //added gu for generated_url = 1 = true
             document.getElementById("linkText").innerHTML = link;
             document.getElementById("link").innerHTML = link;
             document.getElementById("link").href = link;
@@ -381,6 +382,10 @@
                 <label>Url<span class="required">*</span></label>
                 <input id="url" placeholder="Ex. https://example.com/whatsinthenews.html" type="text" onchange="onChangeParameter()" class="field-long" />
             </li>
+            <li>
+                <label>Hide Query Params from Url</label>
+                <input id="hideqp" type="checkbox" onchange="onChangeParameter()"/>
+            </li>                  
             <li>
                 <label>Page Type (What is the URL about?)</label>
                 <select id="ptyp" class="field-select" onchange="onChangeParameter()">
@@ -445,7 +450,7 @@
             <li>
                 <label class="advanced">Event Type</label>
                 <input id="etyp" placeholder="Ex. user_click" type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>      
+            </li>                  
             <!-- <li>
                 <label>Your Message <span class="required">*</span></label>
                 <textarea name="field5" id="field5" class="field-long field-textarea"></textarea>
