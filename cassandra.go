@@ -499,6 +499,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		//Exclude from params in sessions and visitors. Note: more above.
 		if params != nil {
+			delete(*params, "campaign")
 			delete(*params, "source")
 			delete(*params, "medium")
 			if len(*params) == 0 {
