@@ -298,57 +298,64 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		//Exclude the following from **all** params in events,visitors and sessions. Note: further exclusions after events insert.
 		//[params]
+		var params *map[string]interface{}
 		if ps, ok := v["params"].(string); ok {
-			temp := make(map[string]string)
-			json.Unmarshal([]byte(ps), &temp)
-			//De-identify data
-			delete(temp, "email")
-			delete(temp, "ehash")
-			delete(temp, "uname")
-			//Remove column params/duplicates
-			delete(temp, "first")
-			delete(temp, "lat")
-			delete(temp, "lon")
-			delete(temp, "w")
-			delete(temp, "h")
-			delete(temp, "params")
-
-			delete(temp, "vid")
-			delete(temp, "sid")
-			delete(temp, "app")
-			delete(temp, "rel")
-			delete(temp, "created")
-			delete(temp, "uid")
-			delete(temp, "last")
-			delete(temp, "url")
-			delete(temp, "ip")
-			delete(temp, "latlon")
-			delete(temp, "ptyp")
-			delete(temp, "bhash")
-			delete(temp, "auth")
-			delete(temp, "duration")
-			delete(temp, "xid")
-			delete(temp, "split")
-			delete(temp, "ename")
-			delete(temp, "etyp")
-			delete(temp, "ver")
-			delete(temp, "sink")
-			delete(temp, "score")
-			delete(temp, "params")
-			delete(temp, "country")
-			delete(temp, "culture")
-			delete(temp, "term")
-			delete(temp, "ref")
-			delete(temp, "aff")
-			delete(temp, "browser")
-			delete(temp, "device")
-			delete(temp, "os")
-			delete(temp, "tz")
-			delete(temp, "vp")
-			delete(temp, "targets")
-			delete(temp, "rid")
-			v["params"] = &temp
+			json.Unmarshal([]byte(ps), &params)
+		} else if ps, ok := v["params"].(map[string]interface{}); ok {
+			params = &ps
 		}
+		if params != nil {
+			//De-identify data
+			delete(*params, "email")
+			delete(*params, "ehash")
+			delete(*params, "uname")
+			//Remove column params/duplicates
+			delete(*params, "first")
+			delete(*params, "lat")
+			delete(*params, "lon")
+			delete(*params, "w")
+			delete(*params, "h")
+			delete(*params, "params")
+
+			delete(*params, "vid")
+			delete(*params, "sid")
+			delete(*params, "app")
+			delete(*params, "rel")
+			delete(*params, "created")
+			delete(*params, "uid")
+			delete(*params, "last")
+			delete(*params, "url")
+			delete(*params, "ip")
+			delete(*params, "latlon")
+			delete(*params, "ptyp")
+			delete(*params, "bhash")
+			delete(*params, "auth")
+			delete(*params, "duration")
+			delete(*params, "xid")
+			delete(*params, "split")
+			delete(*params, "ename")
+			delete(*params, "etyp")
+			delete(*params, "ver")
+			delete(*params, "sink")
+			delete(*params, "score")
+			delete(*params, "params")
+			delete(*params, "country")
+			delete(*params, "culture")
+			delete(*params, "term")
+			delete(*params, "ref")
+			delete(*params, "aff")
+			delete(*params, "browser")
+			delete(*params, "device")
+			delete(*params, "os")
+			delete(*params, "tz")
+			delete(*params, "vp")
+			delete(*params, "targets")
+			delete(*params, "rid")
+			if len(*params) == 0 {
+				params = nil
+			}
+		}
+
 		//[culture]
 		var culture *string
 		c := strings.Split(w.Language, ",")
@@ -484,20 +491,19 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			version,
 			v["sink"],
 			score,
-			v["params"],
+			params,
 			v["targets"],
 			rid).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[events]:", xerr)
 		}
 
 		//Exclude from params in sessions and visitors. Note: more above.
-		if ps, ok := v["params"].(string); ok {
-			temp := make(map[string]string)
-			json.Unmarshal([]byte(ps), &temp)
-			delete(temp, "source")
-			delete(temp, "medium")
-			delete(temp, "campaign")
-			v["params"] = &temp
+		if params != nil {
+			delete(*params, "source")
+			delete(*params, "medium")
+			if len(*params) == 0 {
+				params = nil
+			}
 		}
 
 		if !w.IsServer {
@@ -738,7 +744,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					version,
 					v["sink"],
 					score,
-					v["params"],
+					params,
 					country,
 					culture,
 					v["source"],
@@ -816,7 +822,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					version,
 					v["sink"],
 					score,
-					v["params"],
+					params,
 					country,
 					culture,
 					v["source"],
