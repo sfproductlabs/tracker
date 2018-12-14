@@ -148,6 +148,10 @@ func (i *NatsService) listen() error {
 					}
 					wargs.WriteType = WRITE_UPDATE
 				case WRITE_DESC_LOG:
+					//The id is actually put into the topic field
+					if j["id"] == nil {
+						j["id"] = m.Subject
+					}
 					wargs.WriteType = WRITE_LOG
 				default:
 				}
