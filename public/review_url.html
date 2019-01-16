@@ -291,10 +291,7 @@
 
 <body>
     <script>
-        function shortenUrl() {
-           window.location = "./review_url.html?x=hi";
-        }
-
+        
         function onSubmit(e) { 
             e.preventDefault();  
             document.getElementById("submitted").checked = true;           
@@ -408,7 +405,7 @@
     <form onsubmit="return onSubmit(event);">
         <ul class="form">
             <li>
-                <h3>Generate a tracked URL:</h3>
+                <h3>Review a URL:</h3>
                 <hr/>
                 <p>Only letters, numbers and _ are accepted characters for all values except URL and the tracking server. These values will be auto-corrected.</small></p>
             </li>
@@ -508,7 +505,7 @@
                     <p id="errors" class="required"></p>
                     <p id="linkText" style="display: none;">Link Text</p>
                     <p><a id="link" href="link" style="display: none;">Link Text 2</a></p>
-                    <input id="shorten" type="button" style="display: none;" value="Shorten" onclick="shortenUrl()" />
+                    <input id="shorten" type="button" style="display: none;" value="Shorten" />
             </li>
         </ul>
         <input id="ref" type="hidden" />
