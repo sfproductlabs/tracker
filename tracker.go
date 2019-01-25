@@ -77,7 +77,7 @@ type session interface {
 	close() error
 	write(w *WriteArgs) error
 	listen() error
-	serve(s *ServiceArgs) error
+	serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error
 }
 
 type KeyValue struct {
@@ -172,6 +172,7 @@ type Configuration struct {
 	TLSKey                   string
 	Notify                   []Service
 	Consume                  []Service
+	API                      Service
 	PrefixPrivateHash        string
 	ProxyUrl                 string
 	ProxyUrlFilter           string
@@ -331,6 +332,8 @@ func main() {
 			} else {
 				fmt.Printf("Notify #%d: Connected to Cassandra: DB_VER %d\n", idx, seq)
 			}
+			//Now attach the one and only API service, replace if multiple
+			configuration.API = *s
 		case SERVICE_TYPE_NATS:
 			//TODO:
 			fmt.Printf("[ERROR] Notify #%d: NATS notifier not implemented\n", idx)
@@ -585,6 +588,38 @@ func main() {
 
 	})
 
+	//////////////////////////////////////// API Route & Functions
+	http.HandleFunc("/rpi/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			//Lets just allow requests to this endpoint
+			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+			w.Header().Set("access-control-allow-credentials", "true")
+			w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
+			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
+			w.Header().Set("access-control-max-age", "1728000")
+			w.WriteHeader(http.StatusOK)
+		} else {
+			select {
+			case <-connc:
+				sargs := ServiceArgs{
+					ServiceType: SVC_GET_REDIRECTS,
+					IP:          getIP(r),
+					EventID:     gocql.TimeUUID(),
+					URI:         r.RequestURI,
+					IsServer:    true,
+				}
+				serveWithArgs(&configuration, &w, r, &sargs)
+				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+				w.WriteHeader(http.StatusOK)
+				connc <- struct{}{}
+			default:
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+			}
+		}
+
+	})
+
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
 	go func() {
 		fmt.Printf("Serving HTTP Redirect on: %s\n", proxyPort)
@@ -607,6 +642,22 @@ func main() {
 		log.Fatal(server.ListenAndServeTLS("", "")) // SERVE HTTPS!
 	}
 
+}
+
+////////////////////////////////////////
+// Serve APIs
+////////////////////////////////////////
+func serveWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, args *ServiceArgs) error {
+	s := &c.API
+	if s != nil && s.Session != nil {
+		if err := s.Session.serve(w, r, args); err != nil {
+			if c.Debug {
+				fmt.Printf("[ERROR] Serving to %s: %s\n", s.Service, err)
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 ////////////////////////////////////////

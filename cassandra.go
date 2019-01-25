@@ -52,6 +52,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -120,13 +121,13 @@ func (i *CassandraService) listen() error {
 	return fmt.Errorf("[ERROR] Cassandra listen not implemented")
 }
 
-func (i *CassandraService) serve(s *ServiceArgs) error {
+func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error {
 	//TODO: Cassandra services
 	err := fmt.Errorf("[ERROR] Cassandra service not implemented")
 	//v := *s.Values
 	switch s.ServiceType {
-	case SVC_GET_REDIRECTS:
-		return nil
+	// case SVC_GET_REDIRECTS:
+	// 	return nil
 	default:
 		return err
 	}
