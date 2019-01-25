@@ -123,7 +123,7 @@ func (i *CassandraService) listen() error {
 
 func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error {
 	//TODO: Cassandra services
-	err := fmt.Errorf("[ERROR] Cassandra service not implemented")
+	err := fmt.Errorf("[ERROR] Cassandra service not implemented %d", s.ServiceType)
 	//v := *s.Values
 	switch s.ServiceType {
 	// case SVC_GET_REDIRECTS:
