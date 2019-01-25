@@ -126,8 +126,11 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 	err := fmt.Errorf("[ERROR] Cassandra service not implemented %d", s.ServiceType)
 	//v := *s.Values
 	switch s.ServiceType {
-	// case SVC_GET_REDIRECTS:
-	// 	return nil
+	case SVC_GET_REDIRECTS:
+		json, _ := json.Marshal([2]KeyValue{KeyValue{Key: "client", Value: "HI"}, KeyValue{Key: "conns", Value: "there"}})
+		(*w).Header().Set("Content-Type", "application/json")
+		(*w).Write(json)
+		return nil
 	default:
 		return err
 	}
