@@ -214,11 +214,21 @@ const (
 	WRITE_DESC_UPDATE = "update"
 	WRITE_DESC_COUNT  = "count"
 	WRITE_DESC_EVENT  = "event"
+	_                 = iota
+	WRITE_LOG         = 1 << iota
+	WRITE_UPDATE      = 1 << iota
+	WRITE_COUNT       = 1 << iota
+	WRITE_EVENT       = 1 << iota
+)
 
-	WRITE_LOG    = 1 << iota
-	WRITE_UPDATE = 1 << iota
-	WRITE_COUNT  = 1 << iota
-	WRITE_EVENT  = 1 << iota
+const (
+	SVC_DESC_GET_REDIRECTS = "getRedirects"
+	SVC_DESC_POST_REDIRECT = "postRedirect"
+	SVC_DESC_GET_REDIRECT  = "getRedirect"
+	_                      = iota
+	SVC_GET_REDIRECTS      = 1 << iota
+	SVC_POST_REDIRECT      = 1 << iota
+	SVC_GET_REDIRECT       = 1 << iota
 )
 
 var (
