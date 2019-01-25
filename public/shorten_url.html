@@ -295,42 +295,18 @@
         function onSubmit(e) { 
             e.preventDefault();  
             document.getElementById("submitted").checked = true;           
-            onChangeParameter();
-            return false;
-        }
-
-        function onChangeParameter() {
-            generateParameters();
-            updateErrors();
-        }
-
-        function updateErrors() {
+            //Check errors
             if (document.getElementById("errors").innerHTML.length > 0) {
-                document.getElementById("linkText").style.display = "none";
                 document.getElementById("link").style.display = "none";
                 document.getElementById("shorten").style.display = "none";
             } else {
-                if (document.getElementById("submitted").checked) {
-                    document.getElementById("linkText").style.display = "";
-                    document.getElementById("link").style.display = "";
+                if (document.getElementById("submitted").checked) {                    
                     document.getElementById("shorten").style.display = "";
                 }
             }
-        }
-        
-        function generateParameters() {
-            //Run checks            
-            if (document.getElementById("internal").checked) {
-                document.getElementById("hideqprow").style.display = "none";
-                document.getElementById("trackerrow").style.display = "none";
-                document.getElementById("hideqp").checked = false;
-            } else {
-                document.getElementById("hideqprow").style.display = "";
-                document.getElementById("trackerrow").style.display = "";
-            }
+       
             
             //Build url
-            document.getElementById("linkText").innerHTML = "";
             document.getElementById("link").innerHTML = "";
             var url = document.getElementById("url").value;
             if (typeof url !== 'string' || url.length < 3) {
@@ -341,52 +317,21 @@
                 document.getElementById("errors").innerHTML = "Bad URL";
                 return false;    
             }
-            var tracker = document.getElementById("tracker").value;
-            if (!document.getElementById("internal").checked && (typeof tracker !== 'string' || tracker.length < 3)) {
-                document.getElementById("errors").innerHTML = "Tracker Required";
+            var redirector = document.getElementById("redirector").value;
+            if (typeof redirector !== 'string' || redirector.length < 3) {
+                document.getElementById("errors").innerHTML = "Redirect Server Required";
                 return false;    
             }
-            var auth = document.getElementById("auth").value;
-            if (typeof auth === 'string' && auth.length > 0 && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(document.getElementById("auth").value)) {
-                document.getElementById("errors").innerHTML = "Bad Author ID";
-                return false;    
-            }
+
             document.getElementById("errors").innerHTML = "";
             var link = ''; 
-            link += document.getElementById("ptyp").value ? `&ptyp=${cleanParameter(document.getElementById("ptyp").value)}` : '';
-            link += document.getElementById("source").value ? `&utm_source=${cleanParameter(document.getElementById("source").value)}` : '';
-            link += document.getElementById("medium").value ? `&utm_medium=${cleanParameter(document.getElementById("medium").value)}` : '';
-            link += document.getElementById("campaign").value ? `&utm_campaign=${cleanParameter(document.getElementById("campaign").value)}` : '';
-            link += document.getElementById("term").value ? `&utm_term=${cleanParameter(document.getElementById("term").value)}` : '';
-            link += document.getElementById("aff").value ? `&aff=${cleanParameter(document.getElementById("aff").value)}` : '';
-            link += document.getElementById("sink").value ? `&sink=${cleanParameter(document.getElementById("sink").value)}` : '';
-            link += document.getElementById("score").value ? `&score=${encodeURIComponent(document.getElementById("score").value)}` : '';
-            link += document.getElementById("xid").value ? `&xid=${cleanParameter(document.getElementById("xid").value)}` : '';
-            link += document.getElementById("ver").value ? `&ver=${cleanParameter(document.getElementById("ver").value)}` : '';
-            link += document.getElementById("auth").value ? `&auth=${document.getElementById("auth").value}` : '';
-            link += document.getElementById("ename").value ? `&utm_content=${cleanParameter(document.getElementById("ename").value)}` : '';
-            link += document.getElementById("etyp").value ? `&etype=${cleanParameter(document.getElementById("etyp").value)}` : '';
-            link += document.getElementById("ref").value ? `&ref=${document.getElementById("ref").value}` : '';
-            link += document.getElementById("uname").value ? `&uname=${cleanParameter(document.getElementById("uname").value)}` : '';
-            link = link.toLowerCase();
-            if (document.getElementById("internal").checked) {
-                if (document.getElementById("url").value.indexOf("?") > -1)
-                    link = document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : "&gu=1" + link);
-                else 
-                    link = document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : "?gu=1" + link);
-            } else {
-                if (document.getElementById("url").value.indexOf("?") > -1)
-                    link += `&url=${encodeURIComponent(document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : "&gu=1" + link))}`;
-                else 
-                    link += `&url=${encodeURIComponent(document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : "?gu=1" + link))}`;
-                link = `https://${document.getElementById("tracker").value}/rdr/v1/?gu=1` + link; //added gu for generated_url = 1 = true
-            }
-            document.getElementById("linkText").innerHTML = link;
-            document.getElementById("link").innerHTML = link;
+            
+            document.getElementById("link").innerHTML =  ""; //`&url=${encodeURIComponent(document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : "?gu=1" + link))}`;
             document.getElementById("link").href = link;
 
         }
-        function onChangeTracker() {
+
+        function onChangeRedirector() {
             let options = { expires: 99999 }
             if (!ipv4v6regex.test(window.location.hostname)) {
                 const ha = window.location.hostname.split(".");            
@@ -395,11 +340,19 @@
                     dom = ha[ha.length - 2] + "." + dom;       
                 options.domain = dom;
             }
-            Cookies.set('tr', document.getElementById("tracker").value, options);
-            onChangeParameter();            
+            Cookies.set('rdr', document.getElementById("redirector").value, options);          
         }
         var ipv4v6regex =  /(^\s*((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\s*$)|(^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$)/;
-
+        
+        function onChangeUid() {
+            let options = { expires: 99999 }
+            Cookies.set('uid', document.getElementById("uid").value, options);
+        }
+        
+        function onChangeKey() {
+            let options = { expires: 99999 }
+            Cookies.set('key', document.getElementById("key").value, options);
+        }
 
     </script>
     <form onsubmit="return onSubmit(event);">
@@ -407,114 +360,49 @@
             <li>
                 <h3>Shorten a URL:</h3>
                 <hr/>
-                <p>Only letters, numbers and _ are accepted characters for all values except URL and the tracking server. These values will be auto-corrected.</small></p>
+                <p>Only letters, numbers and _ are accepted characters for all values except URL and the redirect server. These values will be auto-corrected.</small></p>
             </li>
             <li>
-                <label>Url (please exclude any UTM parameters)<span class="required">*</span></label>
-                <input id="url" placeholder="Ex. https://example.com/whatsinthenews.html" type="text" onchange="onChangeParameter()" class="field-long" />
-            </li>    
-            <li>
-                <label>Is the Url Internal? (Url tracked by us already on the site provided)<span class="required">*</span></label>
-                <input id="internal" type="checkbox" checked onchange="onChangeParameter()"/>                
-            </li> 
-            <li id="trackerrow" style="display: none;">
-                <label>Tracking Server (proxy events through this service)<span class="required">*</span></label>
-                <input id="tracker" placeholder="tr.example.com" type="text" onchange="onChangeTracker()"
-                    class="field-long"/>
-            </li>   
-            <li id="hideqprow" style="display: none;">
-                <label>Don't Pass Query Params to External Url</label>
-                <input id="hideqp" type="checkbox" onchange="onChangeParameter()"/>
-            </li>                          
-            <li>
-                <label>Page Type (What is the URL about?)</label>
-                <select id="ptyp" class="field-select" onchange="onChangeParameter()">
-                    <option value=""></option>
-                    <option value="ad">Advertisement</option>
-                    <option value="blog">Blog</option>
-                    <option value="content">Content</option>
-                    <option value="meeting">Meeting</option>
-                    <option value="news">News</option>
-                    <option value="podcast">Podcast</option>
-                    <option value="social">Social</option>
-                    <option value="blog">Vlog</option>
-                </select>
-            </li>
-            <li>
-                <label>Source/UTM_Source (Referring domain, User, Service)</label>
-                <input id="source" placeholder="Ex. youtube, facebook, instagram, email, oursite, andy.com, local_news" type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>            
-            <li>
-                <label>Advertising Medium/UTM_Medium</label>
-                <input id="medium" placeholder="Ex. email, sms, ad, clickad, bannerad, invite, content etc." type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>            
-            <li>
-                <label>Marketing Campaign Name/UTM_Campaign</label>
-                <input id="campaign" placeholder="Ex. feature1_push_july_2018" type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>                           
-            <li>
-                <label >Affiliate ID / Promo Code</label>
-                <input id="aff" placeholder="Ex. bob_winter" type="text" class="field-long" onchange="onChangeParameter()"/>
+                <label>Redirect Server URL<span class="required">*</span></label>
+                <input id="redirector" placeholder="Ex. tr.example.com" type="text" onchange="onChangeRedirector()" class="field-long"/>
             </li>  
             <li>
-                <h4 class="advanced">Advanced Options:</h4>
+                <label>Shortened Path<span class="required">*</span></label>
+                <input id="path" type="text" class="field-divided" placeholder="Ex. /tv"/>                
+            </li>     
+            <li>
+                <label>Original Url<span class="required">*</span></label>
+                <input id="url" type="text" class="field-long"/>
+            </li>  
+            <li>
+                <h4 class="advanced">Admin Options:</h4>
                 <hr/>
-            </li>
+            </li>                             
             <li>
-                <label class="advanced">UTM_Term (SEO Paid Search Query Term)</label>
-                <input id="term" placeholder="Ex. weather" type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>            
+                <label class="advanced">Redirect Server User<span class="required">*</span></label>
+                <input id="uid" type="text" onchange="onChangeUid()" class="field-long"/>
+            </li>       
             <li>
-                <label class="advanced">Local Optimum (What are we wanting the user to do right now?)</label>
-                <input type="text" id="sink" class="field-divided" placeholder="Eliciting Action (Ex. $)" onchange="onChangeParameter()"/>
-                <input type="number" id="score" class="field-divided" placeholder="Eliciting Score (Ex. 0)" onchange="onChangeParameter()"/>
-            </li>
+                <label class="advanced">Redirect Server Key<span class="required">*</span></label>
+                <input id="key" type="text" onchange="onChangeKey()" class="field-long"/>
+            </li>                    
             <li>
-                <label class="advanced">Experiment ID</label>
-                <input id="xid" placeholder="Ex. login_red_button_july" type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>
-            <li>
-                    <label class="advanced">Variation #</label>
-                    <input id="ver" type="number" class="field-long" onchange="onChangeParameter()"/>
-            </li>            
-            <li>
-                <label class="advanced">Your username</label>
-                <input id="uname" placeholder="Ex. myexampleusername" type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>  
-            <li>
-                <label class="advanced">Author UUID</label>
-                <input id="auth" placeholder="Ex. 00000000-0000-0000-0000-000000000000" type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>      
-            <li>
-                <label class="advanced">Event Type</label>
-                <input id="etyp" placeholder="Ex. user_click" type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>      
-            <li>
-                <label class="advanced">Event/Action/UTM_Content</label>
-                <input id="ename" placeholder="Ex. clicked_button_a" type="text" class="field-long" onchange="onChangeParameter()"/>
-            </li>               
-            <!-- <li>
-                <label>Your Message <span class="required">*</span></label>
-                <textarea name="field5" id="field5" class="field-long field-textarea"></textarea>
-            </li> -->
-            <li>
-                <input type="submit" value="Submit" />
+                <input type="submit" value="Check" />
             </li>
             <li>
                     <input id="submitted" type="checkbox" style="display: none;"/>
                     <p id="errors" class="required"></p>
-                    <p id="linkText" style="display: none;">Link Text</p>
-                    <p><a id="link" href="link" style="display: none;">Link Text 2</a></p>
-                    <input id="shorten" type="button" style="display: none;" value="Shorten" />
+                    <p><a id="link" href="link" style="display: none;"></a></p>
+                    <input id="shorten" type="button" style="display: none;" value="Confirm" />
             </li>
         </ul>
         <input id="ref" type="hidden" />
     </form>
     <script>
         document.getElementById("url").value = getParameterByName('url') || '';
-        document.getElementById("ref").value = Cookies.get('vid') || null;
-        document.getElementById("tracker").value = Cookies.get('tr') || '';
-        onChangeParameter();
+        document.getElementById("redirector").value = Cookies.get('rdr') || '';
+        document.getElementById("uid").value = Cookies.get('uid') || '';
+        document.getElementById("key").value = Cookies.get('key') || '';
     </script>
 </body>
 
