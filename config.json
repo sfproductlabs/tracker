@@ -2,7 +2,7 @@
     "Domains": [
         "dev.sfproductlabs.com"
     ],
-    "SchemaVersion": 1,
+    "SchemaVersion": 2,
     "ApiVersion": 1,
     "StaticDirectory": "public",
     "ProxyUrl": "http://localhost:3030",
