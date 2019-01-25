@@ -125,6 +125,11 @@ func (i *NatsService) write(w *WriteArgs) error {
 	return i.ec.Publish(i.Configuration.Context, w.Values)
 }
 
+func (i *NatsService) serve(s *ServiceArgs) error {
+	//TODO: Nats services
+	return fmt.Errorf("[ERROR] Nats service not implemented")
+}
+
 //////////////////////////////////////// NATS
 // Listen
 func (i *NatsService) listen() error {

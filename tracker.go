@@ -77,6 +77,7 @@ type session interface {
 	close() error
 	write(w *WriteArgs) error
 	listen() error
+	serve(s *ServiceArgs) error
 }
 
 type KeyValue struct {
@@ -112,6 +113,17 @@ type WriteArgs struct {
 	Language  string
 	URI       string
 	EventID   gocql.UUID
+}
+
+type ServiceArgs struct {
+	ServiceType int
+	Values      *map[string]interface{}
+	IsServer    bool
+	IP          string
+	Browser     string
+	Language    string
+	URI         string
+	EventID     gocql.UUID
 }
 
 type Service struct {

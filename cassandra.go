@@ -120,6 +120,11 @@ func (i *CassandraService) listen() error {
 	return fmt.Errorf("[ERROR] Cassandra listen not implemented")
 }
 
+func (i *CassandraService) serve(s *ServiceArgs) error {
+	//TODO: Cassandra services
+	return fmt.Errorf("[ERROR] Cassandra service not implemented")
+}
+
 //////////////////////////////////////// C*
 func (i *CassandraService) write(w *WriteArgs) error {
 	err := fmt.Errorf("Could not write to any cassandra server in cluster")
