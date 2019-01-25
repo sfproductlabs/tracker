@@ -608,9 +608,12 @@ func main() {
 					URI:         r.RequestURI,
 					IsServer:    true,
 				}
-				serveWithArgs(&configuration, &w, r, &sargs)
 				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-				w.WriteHeader(http.StatusOK)
+				if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
+					w.WriteHeader(http.StatusOK)
+				} else {
+					w.WriteHeader(http.StatusBadRequest)
+				}
 				connc <- struct{}{}
 			default:
 				w.Header().Set("Retry-After", "1")
