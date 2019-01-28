@@ -65,6 +65,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+	"github.com/gorilla/mux"
 	"github.com/nats-io/go-nats"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -117,7 +118,7 @@ type WriteArgs struct {
 
 type ServiceArgs struct {
 	ServiceType int
-	Values      *map[string]interface{}
+	Values      *map[string]string
 	IsServer    bool
 	IP          string
 	Browser     string
@@ -408,7 +409,25 @@ func main() {
 		connc <- struct{}{}
 	}
 
-	//////////////////////////////////////// PROXY ROUTE
+	//////////////////////////////////////// REDIRECT URL & SHORTENER
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-connc:
+			sargs := ServiceArgs{
+				ServiceType: SVC_GET_REDIRECT,
+			}
+			if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
+				w.WriteHeader(http.StatusNotFound)
+				w.Write([]byte(err.Error()))
+			}
+			connc <- struct{}{}
+		default:
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+		}
+	})
+
+	//////////////////////////////////////// PROXY API ROUTES
 	if configuration.ProxyUrl != "" {
 		fmt.Println("Proxying to:", configuration.ProxyUrl)
 		origin, _ := url.Parse(configuration.ProxyUrl)
@@ -423,7 +442,7 @@ func main() {
 		}
 		proxy := &httputil.ReverseProxy{Director: director}
 		proxyFilter, _ := regexp.Compile(configuration.ProxyUrlFilter)
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 			if !configuration.IgnoreProxyOptions && r.Method == http.MethodOptions {
 				//Lets just allow requests to this endpoint
 				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -588,40 +607,55 @@ func main() {
 
 	})
 
-	//////////////////////////////////////// API Route & Functions
-	http.HandleFunc("/rpi/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			//Lets just allow requests to this endpoint
-			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-			w.Header().Set("access-control-allow-credentials", "true")
-			w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
-			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
-			w.Header().Set("access-control-max-age", "1728000")
-			w.WriteHeader(http.StatusOK)
-		} else {
-			select {
-			case <-connc:
-				sargs := ServiceArgs{
-					ServiceType: SVC_GET_REDIRECTS,
-					IP:          getIP(r),
-					EventID:     gocql.TimeUUID(),
-					URI:         r.RequestURI,
-					IsServer:    true,
-				}
-				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-				if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
-					w.WriteHeader(http.StatusOK)
-				} else {
-					w.WriteHeader(http.StatusBadRequest)
-				}
-				connc <- struct{}{}
-			default:
-				w.Header().Set("Retry-After", "1")
-				http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+	//////////////////////////////////////// Redirect API Route & Functions
+	rtr := mux.NewRouter()
+	rtr.HandleFunc("/rpi/"+apiVersion+"{_dummy:.*}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+		w.Header().Set("access-control-allow-credentials", "true")
+		w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
+		w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
+		w.Header().Set("access-control-max-age", "1728000")
+		w.WriteHeader(http.StatusOK)
+	}).Methods("OPTIONS")
+	rtr.HandleFunc("/rpi/"+apiVersion+"/redirects/{uid}/{password}/{host}", func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-connc:
+			params := mux.Vars(r)
+			sargs := ServiceArgs{
+				ServiceType: SVC_GET_REDIRECTS,
+				Values:      &params,
 			}
+			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+			if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(err.Error()))
+			}
+			connc <- struct{}{}
+		default:
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 		}
-
-	})
+	}).Methods("GET")
+	rtr.HandleFunc("/rpi/"+apiVersion+"/redirect/{uid}/{password}", func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-connc:
+			params := mux.Vars(r)
+			sargs := ServiceArgs{
+				ServiceType: SVC_POST_REDIRECT,
+				Values:      &params,
+			}
+			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+			if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(err.Error()))
+			}
+			connc <- struct{}{}
+		default:
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+		}
+	}).Methods("POST")
+	http.Handle("/rpi/"+apiVersion+"/", rtr)
 
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
 	go func() {

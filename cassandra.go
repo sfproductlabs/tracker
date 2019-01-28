@@ -51,8 +51,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -121,18 +123,126 @@ func (i *CassandraService) listen() error {
 	return fmt.Errorf("[ERROR] Cassandra listen not implemented")
 }
 
+func (i *CassandraService) auth(s *ServiceArgs) error {
+	//TODO: AG implement JWT
+	if *s.Values == nil {
+		return fmt.Errorf("User not provided")
+	}
+	uid := (*s.Values)["uid"]
+	if uid == "" {
+		return fmt.Errorf("User ID not provided")
+	}
+	password := (*s.Values)["password"]
+	if password == "" {
+		return fmt.Errorf("User pass not provided")
+	}
+	var pwd string
+	if err := i.Session.Query(`SELECT pwd FROM accounts where uid=?`, uid).Scan(&pwd); err == nil {
+		if pwd != sha(password) {
+			return fmt.Errorf("Bad pass")
+		}
+		return nil
+	} else {
+		return err
+	}
+
+}
+
 func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error {
-	//TODO: Cassandra services
-	err := fmt.Errorf("[ERROR] Cassandra service not implemented %d", s.ServiceType)
-	//v := *s.Values
 	switch s.ServiceType {
 	case SVC_GET_REDIRECTS:
-		json, _ := json.Marshal([2]KeyValue{KeyValue{Key: "client", Value: "HI"}, KeyValue{Key: "conns", Value: "there"}})
-		(*w).Header().Set("Content-Type", "application/json")
-		(*w).Write(json)
-		return nil
+		if err := i.auth(s); err != nil {
+			return err
+		}
+		if results, err := i.Session.Query(`SELECT * FROM redirect_history`).Iter().SliceMap(); err == nil {
+			json, _ := json.Marshal(map[string]interface{}{"results": results})
+			(*w).Header().Set("Content-Type", "application/json")
+			(*w).WriteHeader(http.StatusOK)
+			(*w).Write(json)
+			return nil
+		} else {
+			return err
+		}
+	case SVC_GET_REDIRECT:
+		//TODO: AG ADD CACHE
+		var redirect string
+		if err := i.Session.Query(`SELECT urlto FROM redirects where urlfrom=?`, fmt.Sprintf("%s%s", r.Host, r.URL.Path)).Scan(&redirect); err == nil {
+			http.Redirect(*w, r, redirect, http.StatusFound)
+			return nil
+		} else {
+			return err
+		}
+	case SVC_POST_REDIRECT:
+		if err := i.auth(s); err != nil {
+			return err
+		}
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return fmt.Errorf("Bad JS (body)")
+		}
+		if len(body) > 0 {
+			b := make(map[string]interface{})
+			if err := json.Unmarshal(body, &b); err == nil {
+				updated := time.Now().UTC()
+				urlfrom := strings.ToLower(strings.TrimSpace(b["urlfrom"].(string)))
+				urlto := strings.TrimSpace(b["urlto"].(string))
+				if urlfrom == "" || urlto == "" {
+					return fmt.Errorf("Bad URL (null)")
+				}
+				if strings.EqualFold(urlfrom, urlto) {
+					return fmt.Errorf("Bad URL (equal)")
+				}
+				var urltoURL url.URL
+				if checkTo, err := url.Parse(urlto); err != nil {
+					return fmt.Errorf("Bad URL (destination)")
+				} else {
+					urltoURL = *checkTo
+					for _, d := range i.AppConfig.Domains {
+						if strings.EqualFold(checkTo.Host, strings.TrimSpace(d)) {
+							return fmt.Errorf("Bad URL (self-referential)")
+						}
+					}
+				}
+				var urlfromURL url.URL
+				if checkFrom, err := url.Parse(urlfrom); err != nil {
+					return fmt.Errorf("Bad URL (from)")
+				} else {
+					urlfromURL = *checkFrom
+				}
+
+				if err := i.Session.Query(`INSERT into redirect_history (
+					urlfrom, 
+					hostfrom,
+					slugfrom, 
+					urlto, 
+					hostto, 
+					pathto, 
+					searchto, 
+					updated, 
+					updater
+				) values (?,?,?,?,?,?,?,?,?)`,
+					urlfrom,
+					strings.ToLower(urlfromURL.Host),
+					strings.ToLower(urlfromURL.Path),
+					urlto,
+					strings.ToLower(urltoURL.Host),
+					strings.ToLower(urltoURL.Path),
+					b["searchto"],
+					updated,
+					(*s.Values)["uid"],
+				).Exec(); err != nil {
+					return err
+				}
+				(*w).WriteHeader(http.StatusOK)
+				return nil
+			} else {
+				return fmt.Errorf("Bad request (data)")
+			}
+		} else {
+			return fmt.Errorf("Bad request (body)")
+		}
 	default:
-		return err
+		return fmt.Errorf("[ERROR] Cassandra service not implemented %d", s.ServiceType)
 	}
 
 }
