@@ -125,6 +125,7 @@ func (i *CassandraService) listen() error {
 
 func (i *CassandraService) auth(s *ServiceArgs) error {
 	//TODO: AG implement JWT
+	//TODO: AG implement creds (check domain level auth)
 	if *s.Values == nil {
 		return fmt.Errorf("User not provided")
 	}
