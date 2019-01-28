@@ -292,7 +292,7 @@
 <body>
     <script>
         function shortenUrl() {
-           window.location = "./review_url.html?x=hi";
+           window.location = `./shorten_url.html?url=${encodeURIComponent(document.getElementById("link").href)}`;
         }
 
         function onSubmit(e) { 

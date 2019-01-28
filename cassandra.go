@@ -209,7 +209,23 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				} else {
 					urlfromURL = *checkFrom
 				}
-
+				if len(urlfromURL.Path) < 2 {
+					return fmt.Errorf("Bad URL (from path)")
+				}
+				results, _ := i.Session.Query(`INSERT into redirects (
+					urlfrom, 					
+					urlto,
+					updated, 
+					updater 
+				) values (?,?,?,?) IF NOT EXISTS`,
+					strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path),
+					urlto,
+					updated,
+					(*s.Values)["uid"],
+				).NoSkipMetadata().Iter().SliceMap()
+				if false == results[0]["[applied]"] {
+					return fmt.Errorf("URL exists")
+				}
 				if err := i.Session.Query(`INSERT into redirect_history (
 					urlfrom, 
 					hostfrom,

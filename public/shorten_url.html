@@ -309,6 +309,41 @@
           function getHost(url) {
               return getRootUrl(url).replace(/.*\/\/(.*)/,"$1")
           }
+
+          function sortTable() {
+            var table, rows, switching, i, x, y, shouldSwitch;
+            table = document.getElementById("redirects");
+            switching = true;
+            /* Make a loop that will continue until
+            no switching has been done: */
+            while (switching) {
+              // Start by saying: no switching is done:
+              switching = false;
+              rows = table.rows;
+              /* Loop through all table rows (except the
+              first, which contains table headers): */
+              for (i = 1; i < (rows.length - 1); i++) {
+                // Start by saying there should be no switching:
+                shouldSwitch = false;
+                /* Get the two elements you want to compare,
+                one from current row and one from the next: */
+                x = rows[i].getElementsByTagName("TD")[0];
+                y = rows[i + 1].getElementsByTagName("TD")[0];
+                // Check if the two rows should switch place:
+                if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                  // If so, mark as a switch and break the loop:
+                  shouldSwitch = true;
+                  break;
+                }
+              }
+              if (shouldSwitch) {
+                /* If a switch has been marked, make the switch
+                and mark that a switch has been done: */
+                rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                switching = true;
+              }
+            }
+          }
     </script>
 </head>
 
@@ -318,11 +353,11 @@
             const url = `https://${document.getElementById("redirector").value}/rpi/v1/redirect/${document.getElementById("uid").value}/${document.getElementById("key").value}`;
             var el = document.createElement('a');
             el.href = document.getElementById("url").value;
-            console.log(el, el.host, el.path, el.search)
+            var link = `https://${document.getElementById("redirector").value}${document.getElementById("path").value}`;
             fetch(url, {
                 method : "POST",                    
                  body : JSON.stringify({
-                     urlfrom : `https://${document.getElementById("redirector").value}${document.getElementById("path").value}`,
+                     urlfrom : link,
                      hostfrom : document.getElementById("redirector").value,
                      slugfrom : document.getElementById("path").value,
                      urlto : document.getElementById("url").value,
@@ -330,12 +365,22 @@
                      pathto : el.pathname,
                      searchto : el.search,
                  })
-            }).then(
+            }).then(                
                 response => response.text() // .json(), etc.
                 // same as function(response) {return response.text();}
             ).then(
-                html => console.log(html)
-            );   
+                html => {
+                    if (!html) {
+                        alert('Success')
+                        document.getElementById("link").style.display = "";
+                        document.getElementById("link").innerHTML = link;
+                        document.getElementById("link").href =  link;
+                    } else {
+                        alert(html);
+                        document.getElementById("link").style.display = "none";
+                    }
+                }
+            );  
             return false;
         }
 
@@ -383,16 +428,17 @@
                 }
                 if (response.results && response.results.length) {
                     let table = document.getElementById("redirects");
-                    for (i = 1; i < (table.rows.length - 1); i++) {
-                        document.getElementById("redirects").deleteRow(1);
+                    for (i = table.rows.length - 1 ; i > 0; i--) {
+                        table.deleteRow(1);
                     }
                     table.style.display = "";
-                    var row = table.insertRow(1);
-                    var cell1 = row.insertCell(0);
-                    var cell2 = row.insertCell(1);
-                    cell1.innerHTML = "NEW CELL1";
-                    cell2.innerHTML = "NEW CELL2";
-                    console.log(response.results)
+                    for (i = 0; i < (response.results.length); i++) {
+                        var row = table.insertRow(i+1);
+                        var cell1 = row.insertCell(0);
+                        var cell2 = row.insertCell(1);
+                        cell1.innerHTML = response.results[i].urlfrom;
+                        cell2.innerHTML = response.results[i].urlto;
+                    }
                 }
             });
 
@@ -454,17 +500,17 @@
                 <input id="key" type="text" onchange="onChangeKey()" class="field-long"/>
             </li>                    
             <li>
-                <input type="submit" value="Check" />
+                <input type="submit" value="Check Existing" />
             </li>
             <li>
                     <input id="submitted" type="checkbox" style="display: none;"/>
                     <p id="errors" class="required"></p>
-                    <table id="redirects" style="display: none;">
+                    <table id="redirects" style="display: none;margin-bottom:1.4rem;">
                         <tr>
-                            <th>From</th>
+                            <th onclick="sortTable()" style="cursor: pointer;">From</th>
                             <th>To</th>
                         </tr>                        
-                    </table>
+                    </table>                    
                     <input id="shorten" type="button" style="display: none;" value="Confirm" onclick="onConfirm();" />
                     <p><a id="link" href="link" style="display: none;"></a></p>
                     
