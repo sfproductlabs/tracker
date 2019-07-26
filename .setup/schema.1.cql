@@ -14,7 +14,7 @@ create table sequences (
   seq int,
   PRIMARY KEY (name)
 );
-insert into sequences (name, seq) values('DB_VER',1);
+insert into sequences (name, seq) values('DB_VER',2);
 
 create type geo_point (
  lat double,
@@ -26,21 +26,28 @@ create type viewport (
  h bigint
 );
 
+create table hosts (
+  hhash text,
+  hostname text,
+  primary key((hhash), hostname) 
+);
 
 --how many successful outcomes/intentions/local optimizations this day
 create table outcomes (
+  hhash text,
   outcome text,
   sink text,
   created date,
   url text,
   total counter,
-  primary key((outcome), sink, url, created)
+  primary key((hhash, outcome), sink, url, created)
 );
 
 --This should only be written to once a user first visits (vid==sid), AKA acquisitions
 create table visitors (
   vid timeuuid, --visitor-id
   sid timeuuid, --session-id
+  hhash text, --host-hash
   app text, --app
   rel text, --app release/version
   created timestamp, --time.Now().UTC() on server
@@ -82,6 +89,7 @@ create table visitors (
 create table sessions (
   vid timeuuid, 
   sid timeuuid, 
+  hhash text,
   app text,
   rel text, 
   created timestamp, 
@@ -125,6 +133,7 @@ create table events (
   eid timeuuid, --event id, server generated, unique to every event
   vid timeuuid, 
   sid timeuuid, 
+  hhash text,
   app text,
   rel text, 
   created timestamp, 
@@ -153,50 +162,149 @@ create table events (
 );
 
 create table nodes (
+  hhash text,
   vid timeuuid, 
   uid uuid,
   ip inet,
   sid timeuuid, 
-  PRIMARY KEY ((vid), ip)
+  PRIMARY KEY ((hhash, vid), ip)
 );
 
 create table locations (
+  hhash text,
   vid timeuuid, 
   latlon frozen<geo_point>,
   uid uuid,
   sid timeuuid, 
-  PRIMARY KEY ((vid, latlon))
+  PRIMARY KEY ((hhash, vid, latlon))
 );
 
 create table aliases (
+  hhash text,
   vid timeuuid,
   uid uuid, 
   sid timeuuid, 
-  PRIMARY KEY ((vid), uid)
+  PRIMARY KEY ((hhash, vid), uid)
 );
 
 create table users (
+  hhash text,
   uid uuid,
   vid timeuuid,   
   sid timeuuid, 
-  PRIMARY KEY ((uid), vid)
+  PRIMARY KEY ((hhash, uid), vid)
 );
 
 create table usernames (
+  hhash text,
   uhash text,
   vid timeuuid,   
   sid timeuuid, 
-  PRIMARY KEY ((uhash), vid)
+  PRIMARY KEY ((hhash, uhash), vid)
 );
 
 
 create table emails (
+  hhash text,
   ehash text, --from email
   vid timeuuid,   
   sid timeuuid,
-  PRIMARY KEY ((ehash))
+  PRIMARY KEY ((hhash, ehash))
 );
 
+create table hits (  
+  hhash text,
+  url text, 
+  total counter,
+  primary key((hhash, url)) 
+);
+
+create table ips (  
+  hhash text,
+  ip inet, 
+  total counter,
+  primary key((hhash, ip)) 
+);
+
+create table reqs (  
+  hhash text,
+  vid timeuuid, 
+  total counter,
+  primary key((hhash, vid)) 
+);
+
+create table browsers (
+  hhash text,
+  bhash text,
+  browser text, --user-agent
+  total counter,
+  primary key((hhash, bhash), browser)
+);
+
+create table referrers (
+  hhash text,
+  url text,
+  total counter,
+  primary key((hhash, url)) 
+);
+
+create table referrals (
+  hhash text,
+  ref uuid, --referrer uid
+  vid timeuuid, 
+  gen int, --growth loop / generation
+  primary key((hhash, vid)) 
+);
+
+create table affiliates (
+  hhash text,
+  aff text, --external. EX. magazine
+  vid timeuuid, 
+  primary key((hhash, vid)) 
+);
+
+create table redirects (
+  hhash text,
+  urlfrom text, --without the protocol (https)
+  urlto text, --with protocol
+  updated timestamp,  
+  updater uuid,
+  primary key(urlfrom)
+);
+
+create table redirect_history (
+  urlfrom text, --without the protocol (https)
+  hostfrom text,
+  slugfrom text,
+  urlto text, --with protocol
+  hostto text,
+  pathto text,
+  searchto text,
+  updated timestamp,  
+  updater uuid,
+  primary key((hostfrom),updated)
+)
+WITH CLUSTERING ORDER BY (updated DESC);
+CREATE INDEX hostto_redirect_history_idx ON redirect_history ( hostto );
+
+create table accounts (
+  uid uuid, 
+  pwd text,
+  ip inet,
+  msg text,
+  expires timestamp,
+  creds map<text,frozen<map<text,text>>>, --host, claim[yes]
+  created timestamp,
+  owner uuid,
+  primary key((uid))
+);
+--https://localhost:8443/rpi/v1/redirects/00000000-0000-0000-0000-000000000000/password/nytimes.com
+--insert into accounts (uid,pwd,msg,expires,creds,created,owner) values (00000000-0000-0000-0000-000000000000,'W6ph5Mm5Pz8GgiULbPgzG37mj9g=', 'demo admin user',toTimestamp('2999-01-01'),{'*':{'*':'*'}}, toTimestamp(now()),00000000-0000-0000-0000-000000000000);
+--insert into redirects (urlfrom,urlto) values ('localhost:8443/tv','https://google.com');
+
+--NATS Specializations
+
+--limit service usage
 create table dailies (  
   ip inet, 
   day date,
@@ -204,52 +312,6 @@ create table dailies (
   primary key((ip),day) 
 )
 WITH CLUSTERING ORDER BY (day DESC);
-
-create table hits (  
-  url text, 
-  total counter,
-  primary key((url)) 
-);
-
-create table ips (  
-  ip inet, 
-  total counter,
-  primary key((ip)) 
-);
-
-create table reqs (  
-  vid timeuuid, 
-  total counter,
-  primary key((vid)) 
-);
-
-create table browsers (
-  bhash text,
-  browser text, --user-agent
-  total counter,
-  primary key((bhash), browser)
-);
-
-create table referrers (
-  url text,
-  total counter,
-  primary key((url)) 
-);
-
-create table referrals (
-  ref uuid, --referrer uid
-  vid timeuuid, 
-  gen int, --growth loop / generation
-  primary key((vid)) 
-);
-
-create table affiliates (
-  aff text, --external. EX. magazine
-  vid timeuuid, 
-  primary key((vid)) 
-);
-
---NATS Specializations
 
 -- Esp. Server Debugging
 create table counters (  

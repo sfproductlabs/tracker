@@ -53,6 +53,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -213,12 +214,21 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				if len(urlfromURL.Path) < 2 {
 					return fmt.Errorf("Bad URL (from path)")
 				}
+				//[hhash]
+				var hhash *string
+				addr, _, _ := net.SplitHostPort(r.Host)
+				if addr != "" {
+					temp := strconv.FormatInt(int64(hash(addr)), 36)
+					hhash = &temp
+				}
 				results, _ := i.Session.Query(`INSERT into redirects (
+					hhash,
 					urlfrom, 					
 					urlto,
 					updated, 
 					updater 
-				) values (?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+				) values (?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+					hhash,
 					strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path),
 					urlto,
 					updated,
@@ -424,6 +434,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			temp := int64(ver)
 			version = &temp
 		}
+		//[hhash]
+		var hhash *string
+		if w.Host != "" {
+			temp := strconv.FormatInt(int64(hash(w.Host)), 36)
+			hhash = &temp
+		}
 		//[bhash]
 		var bhash *string
 		if w.Browser != "" {
@@ -578,8 +594,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//////////////////////////////////////////////
 
 		//ips
-		if xerr := i.Session.Query(`UPDATE ips set total=total+1 where ip=?`,
-			w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
+		if xerr := i.Session.Query(`UPDATE ips set total=total+1 where hhash=? AND ip=?`,
+			hhash, w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[ips]:", xerr)
 		}
 
@@ -588,7 +604,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			(
 				eid,
 				vid, 
-				sid, 
+				sid,
+				hhash, 
 				app,
 				rel,
 				created,
@@ -612,10 +629,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				targets,
 				rid
 			) 
-			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //25
+			values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?)`, //26
 			w.EventID,
 			v["vid"],
 			v["sid"],
+			hhash,
 			v["app"],
 			v["rel"],
 			updated,
@@ -672,8 +690,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//hits
 			if _, ok := v["url"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE hits set total=total+1 where url=?`,
-					v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				if xerr := i.Session.Query(`UPDATE hits set total=total+1 where hhash=? AND url=?`,
+					hhash, v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[hits]:", xerr)
 				}
 			}
@@ -692,15 +710,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//outcome
 			if outcome, ok := v["outcome"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where outcome=? AND sink=? AND created=? AND url=?`, outcome, v["sink"], updated, v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where hhash=? AND outcome=? AND sink=? AND created=? AND url=?`,
+					hhash, outcome, v["sink"], updated, v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[outcomes]:", xerr)
 				}
 			}
 
 			//referrers
 			if _, ok := v["last"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where url=?`,
-					v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where hhash=? AND url=?`,
+					hhash, v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[referrers]:", xerr)
 				}
 			}
@@ -709,31 +728,49 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if v["ref"] != nil {
 				if xerr := i.Session.Query(`INSERT into referrals 
 					(
+						hhash,
 						vid, 
 						ref
 					) 
-					values (?,?) IF NOT EXISTS`, //2
+					values (?,?,?) IF NOT EXISTS`, //3
+					hhash,
 					v["vid"],
 					v["ref"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[referrals]:", xerr)
 				}
 			}
 
+			//hosts
+			if w.Host != "" {
+				if xerr := i.Session.Query(`INSERT into hosts 
+					(
+						hhash,
+						hostname						
+					) 
+					values (?,?) IF NOT EXISTS`, //2
+					hhash,
+					w.Host).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[hosts]:", xerr)
+				}
+			}
+
 			//browsers
-			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where browser=? AND bhash=?`,
-				w.Browser, bhash).Exec(); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where hhash=? AND browser=? AND bhash=?`,
+				hhash, w.Browser, bhash).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[browsers]:", xerr)
 			}
 
 			//nodes
 			if xerr := i.Session.Query(`INSERT into nodes 
 				(
+					hhash,
 					vid, 
 					uid,
 					ip,
 					sid
 				) 
-				values (?,?,?,?)`, //4
+				values (?,?,?,?,?)`, //4
+				hhash,
 				v["vid"],
 				v["uid"],
 				w.IP,
@@ -745,12 +782,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if latlon != nil {
 				if xerr := i.Session.Query(`INSERT into locations 
 				(
+					hhash,
 					vid, 
 					latlon,
 					uid,
 					sid
 				) 
-				values (?,?,?,?)`, //4
+				values (?,?,?,?,?)`, //5
+					hhash,
 					v["vid"],
 					latlon,
 					v["uid"],
@@ -763,11 +802,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if v["uid"] != nil {
 				if xerr := i.Session.Query(`INSERT into aliases 
 					(
+						hhash,
 						vid, 
 						uid,
 						sid
 					) 
-					values (?,?,?)`, //3
+					values (?,?,?,?)`, //4
+					hhash,
 					v["vid"],
 					v["uid"],
 					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
@@ -779,11 +820,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if v["uid"] != nil {
 				if xerr := i.Session.Query(`INSERT into users 
 					(
+						hhash,
 						vid, 
 						uid,
 						sid
 					) 
-					values (?,?,?)`, //3
+					values (?,?,?,?)`, //4
+					hhash,
 					v["vid"],
 					v["uid"],
 					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
@@ -795,11 +838,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if uhash != nil {
 				if xerr := i.Session.Query(`INSERT into usernames 
 					(
+						hhash,
 						vid, 
 						uhash,
 						sid
 					) 
-					values (?,?,?)`, //3
+					values (?,?,?,?)`, //4
+					hhash,
 					v["vid"],
 					uhash,
 					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
@@ -811,11 +856,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if ehash != nil {
 				if xerr := i.Session.Query(`INSERT into emails
 					(
+						hhash,
 						vid, 
 						ehash,
 						sid
 					) 
-					values (?,?,?)`, //3
+					values (?,?,?,?)`, //4
+					hhash,
 					v["vid"],
 					ehash,
 					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
@@ -824,8 +871,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 
 			//reqs
-			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where vid=?`,
-				v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where hhash=? AND vid=?`,
+				hhash, v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[reqs]:", xerr)
 			}
 
@@ -835,6 +882,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
                         (
                             vid, 
 							sid, 
+							hhash,
 							app,
 							rel,
 							created,
@@ -868,9 +916,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							tz,
 							vp
                         ) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) IF NOT EXISTS`, //34
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //35
 					v["vid"],
 					v["sid"],
+					hhash,
 					v["app"],
 					v["rel"],
 					updated,
@@ -911,6 +960,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
                         (
                             vid, 
 							sid, 
+							hhash,
 							app,
 							rel,
 							created,
@@ -945,9 +995,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							tz,
 							vp                        
 						) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //35
+                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?) IF NOT EXISTS`, //36
 					v["vid"],
 					v["sid"],
+					hhash,
 					v["app"],
 					v["rel"],
 					updated,

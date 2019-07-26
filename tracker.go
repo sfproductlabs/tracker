@@ -113,6 +113,7 @@ type WriteArgs struct {
 	Browser   string
 	Language  string
 	URI       string
+	Host      string
 	EventID   gocql.UUID
 }
 
@@ -565,11 +566,13 @@ func main() {
 		} else {
 			select {
 			case <-connc:
+				addr, _, _ := net.SplitHostPort(r.Host)
 				wargs := WriteArgs{
 					WriteType: WRITE_EVENT,
 					IP:        getIP(r),
 					EventID:   gocql.TimeUUID(),
 					URI:       r.RequestURI,
+					Host:      addr,
 					IsServer:  true,
 				}
 				trackWithArgs(&configuration, &w, r, &wargs)
@@ -713,12 +716,14 @@ func check(c *Configuration, r *http.Request) error {
 ////////////////////////////////////////
 func track(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 	//Setup
+	addr, _, _ := net.SplitHostPort(r.Host)
 	wargs := WriteArgs{
 		WriteType: WRITE_EVENT,
 		IP:        getIP(r),
 		Browser:   r.Header.Get("user-agent"),
 		Language:  r.Header.Get("accept-language"),
 		URI:       r.RequestURI,
+		Host:      addr,
 		EventID:   gocql.TimeUUID(),
 	}
 	return trackWithArgs(c, w, r, &wargs)
@@ -827,6 +832,9 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	if okc && !oke {
 		j["ename"] = j["content"]
 		delete(j, "content")
+	}
+	if wargs.Host == "" {
+		wargs.Host, _, _ = net.SplitHostPort(r.Host)
 	}
 	for idx := range c.Notify {
 		s := &c.Notify[idx]
