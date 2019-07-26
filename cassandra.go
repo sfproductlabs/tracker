@@ -227,7 +227,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					urlto,
 					updated, 
 					updater 
-				) values (?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+				) values (?,?,?,?,?) IF NOT EXISTS`,
 					hhash,
 					strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path),
 					urlto,
