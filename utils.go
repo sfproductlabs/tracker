@@ -111,6 +111,22 @@ func filterUrlAppendix(s *string) error {
 	return nil
 }
 
+func filterUrlPrefix(s *string) error {
+	*s = strings.ToLower(*s)
+	if s != nil {
+		i := strings.Index(*s, "https://")
+		if i > -1 {
+			*s = (*s)[i+6:]
+			return nil
+		}
+		i = strings.Index(*s, "http://")
+		if i > -1 {
+			*s = (*s)[i+5:]
+		}
+	}
+	return nil
+}
+
 ////////////////////////////////////////
 // cacheDir in /tmp for SSL
 ////////////////////////////////////////

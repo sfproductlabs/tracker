@@ -541,15 +541,18 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if i.AppConfig.IsUrlFiltered {
 			if last, ok := v["last"].(string); ok {
 				filterUrl(i.AppConfig, &last, &i.AppConfig.UrlFilterMatchGroup)
+				filterUrlPrefix(&last)
 				v["last"] = last
 			}
 			if url, ok := v["url"].(string); ok {
 				filterUrl(i.AppConfig, &url, &i.AppConfig.UrlFilterMatchGroup)
+				filterUrlPrefix(&url)
 				v["url"] = url
 			} else {
 				//check for /tr/ /pub/ /img/ (ignore)
 				if !regexInternalURI.MatchString(w.URI) {
 					filterUrl(i.AppConfig, &w.URI, &i.AppConfig.UrlFilterMatchGroup)
+					filterUrlPrefix(&w.URI)
 					v["url"] = w.URI
 				} else {
 					delete(v, "url")
@@ -557,15 +560,18 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 		} else {
 			if last, ok := v["last"].(string); ok {
+				filterUrlPrefix(&last)
 				filterUrlAppendix(&last)
 				v["last"] = last
 			}
 			if url, ok := v["url"].(string); ok {
+				filterUrlPrefix(&url)
 				filterUrlAppendix(&url)
 				v["url"] = url
 			} else {
 				//check for /tr/ /pub/ /img/ (ignore)
 				if !regexInternalURI.MatchString(w.URI) {
+					filterUrlPrefix(&w.URI)
 					filterUrlAppendix(&w.URI)
 					v["url"] = w.URI
 				} else {

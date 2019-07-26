@@ -423,7 +423,8 @@ func main() {
 			} else {
 				addr, _, _ := net.SplitHostPort(r.Host)
 				values := make(map[string]interface{})
-				values["ename"] = "redirect"
+				values["etyp"] = "rdr"
+				values["ename"] = "sht_rdr"
 				values["last"] = r.RequestURI
 				wargs := WriteArgs{
 					WriteType: WRITE_EVENT,
