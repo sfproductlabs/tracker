@@ -169,6 +169,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 		//TODO: AG ADD CACHE
 		var redirect string
 		if err := i.Session.Query(`SELECT urlto FROM redirects where urlfrom=?`, fmt.Sprintf("%s%s", r.Host, r.URL.Path)).Scan(&redirect); err == nil {
+			s.Values = &map[string]string{"Redirect": redirect}
 			http.Redirect(*w, r, redirect, http.StatusFound)
 			return nil
 		} else {
@@ -221,22 +222,26 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					temp := strconv.FormatInt(int64(hash(addr)), 36)
 					hhash = &temp
 				}
-				results, _ := i.Session.Query(`INSERT into redirects (
+				if /* results, */ err := i.Session.Query(`INSERT into redirects (
 					hhash,
 					urlfrom, 					
 					urlto,
 					updated, 
 					updater 
-				) values (?,?,?,?,?) IF NOT EXISTS`,
+				) values (?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
 					hhash,
 					strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path),
 					urlto,
 					updated,
 					(*s.Values)["uid"],
-				).NoSkipMetadata().Iter().SliceMap()
-				if false == results[0]["[applied]"] {
-					return fmt.Errorf("URL exists")
+				).Exec(); err != nil {
+					return err
 				}
+				// Removed 'IF NOT EXISTS'
+				//.NoSkipMetadata().Iter().SliceMap()
+				// if false == results[0]["[applied]"] {
+				// 	return fmt.Errorf("URL exists")
+				// }
 				if err := i.Session.Query(`INSERT into redirect_history (
 					urlfrom, 
 					hostfrom,

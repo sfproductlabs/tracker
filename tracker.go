@@ -420,6 +420,23 @@ func main() {
 			if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
 				w.WriteHeader(http.StatusNotFound)
 				w.Write([]byte(err.Error()))
+			} else {
+				addr, _, _ := net.SplitHostPort(r.Host)
+				values := make(map[string]interface{})
+				values["ename"] = "redirect"
+				values["last"] = r.RequestURI
+				wargs := WriteArgs{
+					WriteType: WRITE_EVENT,
+					IP:        getIP(r),
+					Browser:   r.Header.Get("user-agent"),
+					Language:  r.Header.Get("accept-language"),
+					EventID:   gocql.TimeUUID(),
+					URI:       (*sargs.Values)["Redirect"],
+					Host:      addr,
+					IsServer:  false,
+					Values:    &values,
+				}
+				trackWithArgs(&configuration, &w, r, &wargs)
 			}
 			connc <- struct{}{}
 		default:
@@ -733,7 +750,12 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	//Normalize all data TOLOWERCASE
 
 	//Process
-	j := make(map[string]interface{})
+	var j map[string]interface{}
+	if wargs.Values != nil {
+		j = *wargs.Values
+	} else {
+		j = make(map[string]interface{})
+	}
 
 	//Try to get user from header or user cookie
 	userHeader := r.Header.Get("User")
