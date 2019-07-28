@@ -53,6 +53,9 @@ RUN go build
 
 ####################################################################################
 
+# add host if not using aws
+#RUN echo "192.168.0.222  nats-seed1" >> /etc/hosts
+
 # copy files to other locations
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY tracker.supervisor.conf /etc/supervisor/conf.d/tracker.supervisor.conf
