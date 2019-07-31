@@ -381,6 +381,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			hhash = &temp
 		}
 		//check host account id
+		//don't track without it
+		//SEVERELY LIMITING SO DON'T USE IT
 		var hAccountID *string
 		if w.Host != "" && i.AppConfig.AccountHashMixer != "" {
 			temp := strconv.FormatInt(int64(hash(w.Host+i.AppConfig.AccountHashMixer)), 36)
