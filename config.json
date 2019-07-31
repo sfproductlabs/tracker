@@ -29,6 +29,7 @@
     "UrlFilter" : "http(s|)://(api|tr|dev|spark|)(\\.|)(sfproductlabs\\.com|localhost)(:[0-9]*|)(/[^\\?#]*)(\\?|#|)",
     "UrlFilterMatchGroup" : 6,
     "IgnoreQueryParamsKey" : "igqp",
+    "AccountHashMixer" : "s0MpGNhqoc96NND5pYwH",
     "Notify": [
         {
             "Service": "cassandra",

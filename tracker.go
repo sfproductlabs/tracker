@@ -200,6 +200,7 @@ type Configuration struct {
 	MaxHeaderBytes           int
 	DefaultRedirect          string
 	IgnoreQueryParamsKey     string
+	AccountHashMixer         string
 }
 
 //////////////////////////////////////// Constants

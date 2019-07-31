@@ -374,6 +374,22 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//////////////////////////////////////////////
 		//FIX VARS
 		//////////////////////////////////////////////
+		//[hhash]
+		var hhash *string
+		if w.Host != "" {
+			temp := strconv.FormatInt(int64(hash(w.Host)), 36)
+			hhash = &temp
+		}
+		//check host account id
+		var hAccountID *string
+		if w.Host != "" && i.AppConfig.AccountHashMixer != "" {
+			temp := strconv.FormatInt(int64(hash(w.Host+i.AppConfig.AccountHashMixer)), 36)
+			hAccountID = &temp
+			if v["acct"].(string) != *hAccountID {
+				err := fmt.Errorf("[ERROR] Host: %s Account-ID: %s Incorrect for (acct): %s", w.Host, *hAccountID, v["acct"])
+				return err
+			}
+		}
 		//[updated]
 		updated := time.Now().UTC()
 		//[rid]
@@ -439,12 +455,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			temp := int64(ver)
 			version = &temp
 		}
-		//[hhash]
-		var hhash *string
-		if w.Host != "" {
-			temp := strconv.FormatInt(int64(hash(w.Host)), 36)
-			hhash = &temp
-		}
 		//[bhash]
 		var bhash *string
 		if w.Browser != "" {
@@ -474,6 +484,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "email")
 			delete(*params, "ehash")
 			delete(*params, "uname")
+			delete(*params, "acct")
 			//Remove column params/duplicates
 			delete(*params, "first")
 			delete(*params, "lat")
