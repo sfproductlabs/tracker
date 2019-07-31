@@ -3,9 +3,9 @@
 # Build with: sudo docker build -t tracker .
 ####################################################################################
 
-FROM debian:stable-slim
-WORKDIR /root/tracker
-ADD . /root/tracker
+FROM debian:latest
+WORKDIR /app/tracker
+ADD . /app/tracker
 EXPOSE 443
 EXPOSE 80
 
@@ -32,7 +32,7 @@ RUN bash -c 'echo "net.core.somaxconn = 8192" >> /etc/sysctl.conf' \
 
 # update packages and install required ones
 RUN apt update && apt upgrade -y && apt install -y \
-  golang-1.8-go \
+  golang \
   supervisor \
   git \
   libssl-dev \
@@ -47,11 +47,14 @@ RUN apt autoclean -y && apt autoremove -y
 RUN pip install awscli --upgrade
 
 # build app in production mode
-RUN /usr/lib/go-1.8/bin/go get github.com/dioptre/tracker
-RUN /usr/lib/go-1.8/bin/go install github.com/dioptre/tracker
-RUN /usr/lib/go-1.8/bin/go build
+RUN go get github.com/dioptre/tracker
+RUN go install github.com/dioptre/tracker
+RUN go build
 
 ####################################################################################
+
+# add host if not using aws
+#RUN echo "192.168.0.222  nats-seed1" >> /etc/hosts
 
 # copy files to other locations
 COPY supervisord.conf /etc/supervisor/supervisord.conf
@@ -64,3 +67,5 @@ RUN chmod +x dockercmd.sh
 
 # startup command
 CMD ./dockercmd.sh
+#sudo docker build -t tracker .
+#sudo docker run -p 443:443 -p 80:80 tracker
