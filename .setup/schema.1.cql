@@ -5,7 +5,7 @@
 
 -- SFPLA
 --drop keyspace sfpla;
-create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'DC1':'1' }; --analytics
+create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'dc1':'1' }; --analytics
 
 use sfpla;
 

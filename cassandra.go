@@ -773,7 +773,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					) 
 					values (?,?) IF NOT EXISTS`, //2
 					hhash,
-					w.Host).Exec(); xerr != nil && i.AppConfig.Debug {
+					w.Host).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[hosts]:", xerr)
 				}
 			}

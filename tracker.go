@@ -858,7 +858,10 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		delete(j, "content")
 	}
 	if wargs.Host == "" {
-		wargs.Host, _, _ = net.SplitHostPort(r.Host)
+		var err error
+		if wargs.Host, _, err = net.SplitHostPort(r.Host); err != nil {
+			wargs.Host = r.Host
+		}
 	}
 	for idx := range c.Notify {
 		s := &c.Notify[idx]
