@@ -53,7 +53,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -217,11 +216,12 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				}
 				//[hhash]
 				var hhash *string
-				addr, _, _ := net.SplitHostPort(r.Host)
+				addr := getHost(r)
 				if addr != "" {
 					temp := strconv.FormatInt(int64(hash(addr)), 36)
 					hhash = &temp
 				}
+
 				if /* results, */ err := i.Session.Query(`INSERT into redirects (
 					hhash,
 					urlfrom, 					

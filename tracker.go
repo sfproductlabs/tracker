@@ -422,7 +422,6 @@ func main() {
 				w.WriteHeader(http.StatusNotFound)
 				w.Write([]byte(err.Error()))
 			} else {
-				addr, _, _ := net.SplitHostPort(r.Host)
 				values := make(map[string]interface{})
 				values["etyp"] = "redirect"
 				values["ename"] = "short_rdr"
@@ -434,7 +433,7 @@ func main() {
 					Language:  r.Header.Get("accept-language"),
 					EventID:   gocql.TimeUUID(),
 					URI:       (*sargs.Values)["Redirect"],
-					Host:      addr,
+					Host:      getHost(r),
 					IsServer:  false,
 					Values:    &values,
 				}
@@ -585,13 +584,12 @@ func main() {
 		} else {
 			select {
 			case <-connc:
-				addr, _, _ := net.SplitHostPort(r.Host)
 				wargs := WriteArgs{
 					WriteType: WRITE_EVENT,
 					IP:        getIP(r),
 					EventID:   gocql.TimeUUID(),
 					URI:       r.RequestURI,
-					Host:      addr,
+					Host:      getHost(r),
 					IsServer:  true,
 				}
 				trackWithArgs(&configuration, &w, r, &wargs)
@@ -684,8 +682,7 @@ func main() {
 		fmt.Printf("Serving HTTP Redirect on: %s\n", proxyPort)
 		if configuration.UseLocalTLS {
 			http.ListenAndServe(proxyPort, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				addr, _, _ := net.SplitHostPort(req.Host)
-				http.Redirect(w, req, "https://"+addr+proxyPortTLS+req.RequestURI, http.StatusFound)
+				http.Redirect(w, req, "https://"+getHost(req)+proxyPortTLS+req.RequestURI, http.StatusFound)
 			}))
 
 		} else {
@@ -735,14 +732,13 @@ func check(c *Configuration, r *http.Request) error {
 ////////////////////////////////////////
 func track(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 	//Setup
-	addr, _, _ := net.SplitHostPort(r.Host)
 	wargs := WriteArgs{
 		WriteType: WRITE_EVENT,
 		IP:        getIP(r),
 		Browser:   r.Header.Get("user-agent"),
 		Language:  r.Header.Get("accept-language"),
 		URI:       r.RequestURI,
-		Host:      addr,
+		Host:      getHost(r),
 		EventID:   gocql.TimeUUID(),
 	}
 	return trackWithArgs(c, w, r, &wargs)
@@ -858,10 +854,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 		delete(j, "content")
 	}
 	if wargs.Host == "" {
-		var err error
-		if wargs.Host, _, err = net.SplitHostPort(r.Host); err != nil {
-			wargs.Host = r.Host
-		}
+		wargs.Host = getHost(r)
 	}
 	for idx := range c.Notify {
 		s := &c.Notify[idx]
@@ -876,10 +869,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	}
 	if !wargs.IsServer {
 		var dom string
-		host, _, herr := net.SplitHostPort(r.Host)
-		if herr != nil {
-			host = r.Host
-		}
+		host := getHost(r)
 		if net.ParseIP(host) == nil {
 			ha := strings.Split(strings.ToLower(host), ".")
 			dom = ha[len(ha)-1]

@@ -145,7 +145,18 @@ func cacheDir() (dir string) {
 func getIP(r *http.Request) string {
 	ip := r.Header.Get("X-Forwarded-For")
 	if ip == "" {
-		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+		var err error
+		if ip, _, err = net.SplitHostPort(r.RemoteAddr); err != nil {
+			return r.RemoteAddr
+		}
 	}
 	return ip
+}
+
+func getHost(r *http.Request) string {
+	if addr, _, err := net.SplitHostPort(r.Host); err != nil {
+		return r.Host
+	} else {
+		return addr
+	}
 }
