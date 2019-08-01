@@ -26,7 +26,7 @@
     "AllowOrigin": "*",
     "DefaultRedirect": "https://sfproductlabs.com",
     "Debug" : true,
-    "UrlFilter" : "http(s|)://(api|tr|dev|spark|)(\\.|)(sfproductlabs\\.com|localhost)(:[0-9]*|)(/[^\\?#]*)(\\?|#|)",
+    "UrlFilter" : "http(s|)://(api|tr|dev|spark|)(\\.staging\\.|\\.|)(sfproductlabs\\.com|localhost)(:[0-9]*|)(/[^\\?#]*)(\\?|#|)",
     "UrlFilterMatchGroup" : 6,
     "IgnoreQueryParamsKey" : "igqp",
     "AccountHashMixer" : "",
