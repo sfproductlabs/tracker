@@ -773,7 +773,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					) 
 					values (?,?) IF NOT EXISTS`, //2
 					hhash,
-					w.Host).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					w.Host).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[hosts]:", xerr)
 				}
 			}
@@ -940,7 +940,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							tz,
 							vp
                         ) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) IF NOT EXISTS`, //35
+						values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) 
+						IF NOT EXISTS`, //35
 					v["vid"],
 					v["sid"],
 					hhash,
@@ -975,7 +976,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["device"],
 					v["os"],
 					v["tz"],
-					vp).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					vp).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[visitors]:", xerr)
 				}
 
@@ -1019,7 +1020,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							tz,
 							vp                        
 						) 
-                        values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?) IF NOT EXISTS`, //36
+						values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?) 
+						IF NOT EXISTS`, //36
 					v["vid"],
 					v["sid"],
 					hhash,
@@ -1055,7 +1057,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["device"],
 					v["os"],
 					v["tz"],
-					vp).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
+					vp).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[sessions]:", xerr)
 				}
 

@@ -6,6 +6,8 @@
 -- SFPLA
 --drop keyspace sfpla;
 create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'dc1':'1' }; --analytics
+--For a dev machine...
+--CREATE KEYSPACE sfpla WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}
 
 use sfpla;
 
