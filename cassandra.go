@@ -975,7 +975,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["device"],
 					v["os"],
 					v["tz"],
-					vp).Exec(); xerr != nil && i.AppConfig.Debug {
+					vp).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[visitors]:", xerr)
 				}
 
@@ -1055,7 +1055,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["device"],
 					v["os"],
 					v["tz"],
-					vp).Exec(); xerr != nil && i.AppConfig.Debug {
+					vp).Consistency(gocql.One).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[sessions]:", xerr)
 				}
 
