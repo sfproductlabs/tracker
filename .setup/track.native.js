@@ -16,8 +16,8 @@ const tr = function(obj) {
     try {
         api
             .post('/tr/v1/', obj, { headers: { 'x-gigawatts': '1.21' } })
-            .then(response => response)
-            .then(console.log)
+            //.then(response => response)
+            //.then(console.log)
     } catch (ex) {
         console.log('TRACKER ERROR: ', ex)
     }
@@ -32,6 +32,7 @@ export default function track(current, force) {
     json.app = 'native';
     json.created = params.current.time;
     json.duration = params.current.time - historical;    
+    json.rel = Secrets.VERSION || 1;
     
     //Device
     //https://github.com/react-native-community/react-native-device-info
