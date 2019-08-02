@@ -300,8 +300,8 @@ create table accounts (
   owner uuid,
   primary key((uid))
 );
---https://localhost:8443/rpi/v1/redirects/00000000-0000-0000-0000-000000000000/password/nytimes.com
---insert into accounts (uid,pwd,msg,expires,creds,created,owner) values (00000000-0000-0000-0000-000000000000,'W6ph5Mm5Pz8GgiULbPgzG37mj9g=', 'demo admin user',toTimestamp('2999-01-01'),{'*':{'*':'*'}}, toTimestamp(now()),00000000-0000-0000-0000-000000000000);
+--https://localhost:8443/rpi/v1/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/nytimes.com
+--insert into accounts (uid,pwd,msg,expires,creds,created,owner) values (14fb0860-b4bf-11e9-8971-7b80435315ac,'W6ph5Mm5Pz8GgiULbPgzG37mj9g=', 'demo admin user',toTimestamp('2999-01-01'),{'*':{'*':'*'}}, toTimestamp(now()),14fb0860-b4bf-11e9-8971-7b80435315ac);
 --insert into redirects (urlfrom,urlto) values ('localhost:8443/tv','https://google.com');
 
 --NATS Specializations
