@@ -205,6 +205,13 @@ create table usernames (
   PRIMARY KEY ((hhash, uhash), vid)
 );
 
+create table cells (
+  hhash text,
+  chash text, --from cell phone
+  vid timeuuid,   
+  sid timeuuid,
+  PRIMARY KEY ((hhash, chash))
+);
 
 create table emails (
   hhash text,

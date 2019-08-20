@@ -483,6 +483,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 		if params != nil {
 			//De-identify data
+			delete(*params, "cell")
+			delete(*params, "chash")
 			delete(*params, "email")
 			delete(*params, "ehash")
 			delete(*params, "uname")
@@ -592,6 +594,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 		}
+
+		//[Cell Phone]
+		var chash *string
+		if temp, ok := v["chash"].(string); ok {
+			chash = &temp
+		} else if temp, ok := v["cell"].(string); ok {
+			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
+			chash = &temp
+		}
+		delete(v, "cell")
 
 		//[Email]
 		var ehash *string
@@ -891,6 +903,24 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					ehash,
 					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[emails]:", xerr)
+				}
+			}
+
+			//chash
+			if chash != nil {
+				if xerr := i.Session.Query(`INSERT into cells
+					(
+						hhash,
+						vid, 
+						chash,
+						sid
+					) 
+					values (?,?,?,?)`, //4
+					hhash,
+					v["vid"],
+					chash,
+					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
+					fmt.Println("C*[cells]:", xerr)
 				}
 			}
 
