@@ -57,7 +57,7 @@ Send the server something to track:
 ### REST Payload Example
 In the following example, we use tuplets to persist what's needed to track (Ex. {"tr":"v1"})
 ```
-https://localhost:8443/tr/v1/vid/00000000-0000-0000-0000-000000000000/ROCK/ON/lat/37.232332/lon/6.32233223/first/true/score/6/ref/00000000-0000-0000-0000-000000000001
+https://localhost:8443/tr/v1/vid/14fb0860-b4bf-11e9-8971-7b80435315ac/ROCK/ON/lat/37.232332/lon/6.32233223/first/true/score/6/ref/14fb0860-b4bf-11e9-8971-7b80435315ac
 ```
 ### JSON Payload Example (Method:POST, Body)
 Descriptions of the columns we send are in the schema file above. (Ex. vid = visitorId)
