@@ -78,6 +78,7 @@ create table visitors (
   campaign text, --marketing campaign name [chat_invite] AKA utm_campaign
   term text, --seo search query term AKA utm_term
   ref uuid, --referrer uid
+  rcode text, --referrer code
   aff text, --affiliate id, promo-code
   browser text,
   device text, 
@@ -121,6 +122,7 @@ create table sessions (
   campaign text,
   term text, 
   ref uuid, 
+  rcode text, 
   aff text,
   browser text,
   device text, 
@@ -260,6 +262,14 @@ create table referrers (
 create table referrals (
   hhash text,
   ref uuid, --referrer uid
+  vid timeuuid, 
+  gen int, --growth loop / generation
+  primary key((hhash, vid)) 
+);
+
+create table referred (
+  hhash text,
+  rcode text, --referrer code
   vid timeuuid, 
   gen int, --growth loop / generation
   primary key((hhash, vid)) 
