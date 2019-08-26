@@ -372,6 +372,28 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//go func() {
 
 		//////////////////////////////////////////////
+		//FIX CASE
+		//////////////////////////////////////////////
+		cleanString(&(w.Browser))
+		cleanString(&(w.Host))
+		cleanInterfaceString(v["app"])
+		cleanInterfaceString(v["rel"])
+		cleanInterfaceString(v["ptyp"])
+		cleanInterfaceString(v["xid"])
+		cleanInterfaceString(v["split"])
+		cleanInterfaceString(v["ename"])
+		cleanInterfaceString(v["etyp"])
+		cleanInterfaceString(v["sink"])
+		cleanInterfaceString(v["source"])
+		cleanInterfaceString(v["medium"])
+		cleanInterfaceString(v["campaign"])
+		cleanInterfaceString(v["term"])
+		cleanInterfaceString(v["rcode"])
+		cleanInterfaceString(v["aff"])
+		cleanInterfaceString(v["device"])
+		cleanInterfaceString(v["os"])
+
+		//////////////////////////////////////////////
 		//FIX VARS
 		//////////////////////////////////////////////
 		//[hhash]
@@ -542,6 +564,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		c := strings.Split(w.Language, ",")
 		if len(c) > 0 {
 			culture = &c[0]
+			cleanString(culture)
 		}
 		//[country]
 		//TODO: Use GeoIP too
@@ -601,6 +624,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if temp, ok := v["chash"].(string); ok {
 			chash = &temp
 		} else if temp, ok := v["cell"].(string); ok {
+			temp = strings.ToLower(strings.TrimSpace(temp))
 			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
 			chash = &temp
 		}
@@ -611,6 +635,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if temp, ok := v["ehash"].(string); ok {
 			ehash = &temp
 		} else if temp, ok := v["email"].(string); ok {
+			temp = strings.ToLower(strings.TrimSpace(temp))
 			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
 			ehash = &temp
 		}
@@ -621,6 +646,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if temp, ok := v["uhash"].(string); ok {
 			uhash = &temp
 		} else if temp, ok := v["uname"].(string); ok {
+			temp = strings.ToLower(strings.TrimSpace(temp))
 			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
 			uhash = &temp
 		}
@@ -634,6 +660,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if xerr := i.Session.Query(`UPDATE ips set total=total+1 where hhash=? AND ip=?`,
 			hhash, w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[ips]:", xerr)
+		}
+
+		//routed
+		if xerr := i.Session.Query(`UPDATE routed set url=? where hhash=? AND ip=?`,
+			v["url"], hhash, w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[routed]:", xerr)
 		}
 
 		//events

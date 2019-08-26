@@ -112,8 +112,8 @@ func filterUrlAppendix(s *string) error {
 }
 
 func filterUrlPrefix(s *string) error {
-	*s = strings.ToLower(*s)
 	if s != nil {
+		*s = strings.ToLower(*s)
 		i := strings.Index(*s, "https://")
 		if i > -1 {
 			*s = (*s)[i+6:]
@@ -123,6 +123,21 @@ func filterUrlPrefix(s *string) error {
 		if i > -1 {
 			*s = (*s)[i+5:]
 		}
+	}
+	return nil
+}
+
+func cleanInterfaceString(i interface{}) error {
+	s := &i
+	if temp, ok := (*s).(string); ok {
+		*s = strings.ToLower(strings.TrimSpace(temp))
+	}
+	return nil
+}
+
+func cleanString(s *string) error {
+	if s != nil && *s != "" {
+		*s = strings.ToLower(strings.TrimSpace(*s))
 	}
 	return nil
 }
