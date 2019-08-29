@@ -541,6 +541,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "sink")
 			delete(*params, "score")
 			delete(*params, "params")
+			delete(*params, "gaid")
+			delete(*params, "idfa")
 			delete(*params, "country")
 			delete(*params, "culture")
 			delete(*params, "term")
@@ -1005,6 +1007,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 sink,
 							 score,							
 							 params,
+							 gaid,
+							 idfa,
 							 country,
 							 culture,
 							 source,
@@ -1020,8 +1024,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //36
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?) 
+						 IF NOT EXISTS`, //38
 					v["vid"],
 					v["sid"],
 					hhash,
@@ -1044,6 +1048,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["sink"],
 					score,
 					params,
+					v["gaid"],
+					v["idfa"],
 					country,
 					culture,
 					v["source"],
@@ -1087,6 +1093,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 sink,
 							 score,							
 							 params,
+							 gaid,
+							 idfa,
 							 country,
 							 culture,
 							 source,
@@ -1102,8 +1110,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp                        
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //37
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?) 
+						 IF NOT EXISTS`, //39
 					v["vid"],
 					v["sid"],
 					hhash,
@@ -1127,6 +1135,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["sink"],
 					score,
 					params,
+					v["gaid"],
+					v["idfa"],
 					country,
 					culture,
 					v["source"],

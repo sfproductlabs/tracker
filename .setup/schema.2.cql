@@ -5,7 +5,7 @@
 
 -- SFPLA
 --drop keyspace sfpla;
-create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'dc1':'1' }; --analytics
+create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'DC1':'1' }; --analytics
 --For a dev machine...
 --CREATE KEYSPACE sfpla WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}
 
@@ -71,6 +71,8 @@ create table visitors (
   score double, --score (where user is in sink/intention)
   params map<text,text>, --all additional experiment params, (include global-optimum-experimentid[outcome], a/b[type], etc)
   --Landing Fields
+  gaid text, --google advertising id
+  idfa text, --apple advertising id
   country text, --ISO-2
   culture text, --EN-US
   source text, --referring domain, user, service [sms] AKA utm_source
@@ -115,6 +117,8 @@ create table sessions (
   score double, 
   params map<text,text>, 
   --Landing Fields
+  gaid text,
+  idfa text,
   country text, 
   culture text, 
   source text,
