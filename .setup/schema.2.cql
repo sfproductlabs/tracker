@@ -5,7 +5,7 @@
 
 -- SFPLA
 --drop keyspace sfpla;
-create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'DC1':'1' }; --analytics
+create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'dc1':'1' }; --analytics
 --For a dev machine...
 --CREATE KEYSPACE sfpla WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}
 
@@ -48,6 +48,7 @@ create table outcomes (
 --This should only be written to once a user first visits (vid==sid), AKA acquisitions
 create table visitors (
   vid timeuuid, --visitor-id
+  did text, --device-id
   sid timeuuid, --session-id
   hhash text, --host-hash
   app text, --app
@@ -93,6 +94,7 @@ create table visitors (
 --Session-starts written to once a user first starts a session, AKA session-starts
 create table sessions (
   vid timeuuid, 
+  did text, 
   sid timeuuid, 
   hhash text,
   app text,
