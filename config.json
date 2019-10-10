@@ -10,6 +10,7 @@
     "TLSCert" : "./.setup/keys/example/server.crt",
     "TLSKey" : "./.setup/keys/example/server.key",
     "ProxyPortTLS" : ":8443",
+    "ProxyPortRedirect" : "",
     "ProxyPort" : ":8080",
     "ProxyDailyLimit" : 0,
     "ProxyDailyLimitChecker" : "cassandra",
