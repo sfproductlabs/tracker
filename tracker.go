@@ -182,6 +182,7 @@ type Configuration struct {
 	ProxyForceJson           bool
 	ProxyPort                string
 	ProxyPortTLS             string
+	ProxyPortRedirect        string
 	ProxyDailyLimit          uint64
 	ProxyDailyLimitChecker   string //Service, Ex. casssandra
 	ProxyDailyLimitCheck     func(string) uint64
@@ -309,7 +310,11 @@ func main() {
 	if !configuration.UseLocalTLS && (configuration.ProxyPort != "" || configuration.ProxyPortTLS != "") {
 		log.Fatalln("[CRITICAL] Can not use non-standard ports with LetsEncyrpt")
 	}
-
+	// allow redirect target port to be different than listening port (443 vs. 8443)
+	proxyPortRedirect := proxyPortTLS
+	if configuration.ProxyPortRedirect != "" {
+		proxyPortRedirect = configuration.ProxyPortRedirect
+	}
 	//////////////////////////////////////// LOAD NOTIFIERS
 	for idx := range configuration.Notify {
 		s := &configuration.Notify[idx]
@@ -679,10 +684,10 @@ func main() {
 
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
 	go func() {
-		fmt.Printf("Serving HTTP Redirect on: %s\n", proxyPort)
+		fmt.Printf("Serving HTTP Redirect from %s to %s\n", proxyPort, proxyPortRedirect)
 		if configuration.UseLocalTLS {
 			http.ListenAndServe(proxyPort, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				http.Redirect(w, req, "https://"+getHost(req)+proxyPortTLS+req.RequestURI, http.StatusFound)
+				http.Redirect(w, req, "https://"+getHost(req)+proxyPortRedirect+req.RequestURI, http.StatusFound)
 			}))
 
 		} else {
