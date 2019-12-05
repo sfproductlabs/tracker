@@ -695,6 +695,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 xid,
 				 split,
 				 ename,
+				 source,
+				 medium,
+				 campaign,
+				 term,
 				 etyp,
 				 ver,
 				 sink,
@@ -703,7 +707,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 targets,
 				 rid
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?)`, //26
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? )`, //30
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -723,6 +727,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["xid"],
 			v["split"],
 			v["ename"],
+			v["source"],
+			v["medium"],
+			v["campaign"],
+			v["term"],
 			v["etyp"],
 			version,
 			v["sink"],
