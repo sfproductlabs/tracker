@@ -81,7 +81,7 @@ create table visitors (
   medium text, --email,sms,ad,etc [invite] AKA utm_medium
   campaign text, --marketing campaign name [chat_invite] AKA utm_campaign
   term text, --seo search query term AKA utm_term
-  ref uuid, --referrer uid
+  ref uuid, --referrer vid
   rcode text, --referrer code
   aff text, --affiliate id, promo-code
   browser text,
