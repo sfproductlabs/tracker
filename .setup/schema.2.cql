@@ -5,9 +5,10 @@
 
 -- SFPLA
 --drop keyspace sfpla;
-create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'dc1':'1' }; --analytics
+CREATE KEYSPACE sfpla WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '1'}  AND durable_writes = true;
+-- create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'dc1':'1' }; --analytics
 --For a dev machine...
---CREATE KEYSPACE sfpla WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}
+-- CREATE KEYSPACE sfpla WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}
 
 use sfpla;
 
@@ -80,7 +81,7 @@ create table visitors (
   medium text, --email,sms,ad,etc [invite] AKA utm_medium
   campaign text, --marketing campaign name [chat_invite] AKA utm_campaign
   term text, --seo search query term AKA utm_term
-  ref uuid, --referrer uid
+  ref uuid, --referrer vid
   rcode text, --referrer code
   aff text, --affiliate id, promo-code
   browser text,
@@ -160,6 +161,10 @@ create table events (
   xid text, 
   split text, 
   ename text, 
+  source text, 
+  medium text, 
+  campaign text, 
+  term text,
   etyp text, 
   ver int,
   sink text, 
@@ -332,7 +337,8 @@ create table accounts (
   primary key((uid))
 );
 --https://localhost:8443/rpi/v1/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/nytimes.com
---insert into accounts (uid,pwd,msg,expires,creds,created,owner) values (14fb0860-b4bf-11e9-8971-7b80435315ac,'W6ph5Mm5Pz8GgiULbPgzG37mj9g=', 'demo admin user',toTimestamp('2999-01-01'),{'*':{'*':'*'}}, toTimestamp(now()),14fb0860-b4bf-11e9-8971-7b80435315ac);
+insert into sfpla.accounts (uid,pwd,msg,expires,creds,created,owner) values (14fb0860-b4bf-11e9-8971-7b80435315ac,'W6ph5Mm5Pz8GgiULbPgzG37mj9g=', 'demo admin user',toTimestamp('2999-01-01'),{'*':{'*':'*'}}, toTimestamp(now()),14fb0860-b4bf-11e9-8971-7b80435315ac);
+--password=password
 --insert into redirects (urlfrom,urlto) values ('localhost:8443/tv','https://google.com');
 
 --INTERNAL & EXTERNAL SERVICES

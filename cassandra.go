@@ -199,9 +199,11 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					return fmt.Errorf("Bad URL (destination)")
 				} else {
 					urltoURL = *checkTo
-					for _, d := range i.AppConfig.Domains {
-						if strings.EqualFold(checkTo.Host, strings.TrimSpace(d)) {
-							return fmt.Errorf("Bad URL (self-referential)")
+					if !strings.Contains(checkTo.Path, "/rdr/") {
+						for _, d := range i.AppConfig.Domains {
+							if strings.EqualFold(checkTo.Host, strings.TrimSpace(d)) {
+								return fmt.Errorf("Bad URL (self-referential)")
+							}
 						}
 					}
 				}
@@ -538,7 +540,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "duration")
 			delete(*params, "xid")
 			delete(*params, "split")
-			delete(*params, "ename")
 			delete(*params, "etyp")
 			delete(*params, "ver")
 			delete(*params, "sink")
@@ -548,7 +549,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "idfa")
 			delete(*params, "country")
 			delete(*params, "culture")
-			delete(*params, "term")
 			delete(*params, "ref")
 			delete(*params, "aff")
 			delete(*params, "browser")
@@ -559,6 +559,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "targets")
 			delete(*params, "rid")
 			delete(*params, "rcode")
+
+			delete(*params, "ename")
+			delete(*params, "source")
+			delete(*params, "medium")
+			delete(*params, "campaign")
+			delete(*params, "term")
+
 			if len(*params) == 0 {
 				params = nil
 			}
@@ -695,6 +702,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 xid,
 				 split,
 				 ename,
+				 source,
+				 medium,
+				 campaign,
+				 term,
 				 etyp,
 				 ver,
 				 sink,
@@ -703,7 +714,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 targets,
 				 rid
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?)`, //26
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? )`, //30
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -723,6 +734,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["xid"],
 			v["split"],
 			v["ename"],
+			v["source"],
+			v["medium"],
+			v["campaign"],
+			v["term"],
 			v["etyp"],
 			version,
 			v["sink"],

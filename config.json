@@ -9,7 +9,7 @@
     "UseLocalTLS": true,
     "TLSCert" : "./.setup/keys/example/server.crt",
     "TLSKey" : "./.setup/keys/example/server.key",
-    "ProxyPortTLS" : ":8443",
+    "ProxyPortTLS" : ":443",
     "ProxyPortRedirect" : "",
     "ProxyPort" : ":8080",
     "ProxyDailyLimit" : 0,
