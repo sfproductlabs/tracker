@@ -1,0 +1,36 @@
+{
+  "name": "tracker",
+  "version": "1.0.0",
+  "description": "Telemetry for growth hacking. Part of the SFPL experimentation framework.",
+  "main": "index.js",
+  "dependencies": {
+    "webpack-cli": "^3.3.10"
+  },
+  "devDependencies": {
+    "dotenv": "^8.2.0",
+    "webpack": "^4.41.5",
+    "webpack-dotenv-plugin": "^2.1.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dioptre/tracker.git"
+  },
+  "keywords": [
+    "growth",
+    "telemetry",
+    "hacking",
+    "experimentation",
+    "framework",
+    "client",
+    "js"
+  ],
+  "author": "SF Product Labs",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/dioptre/tracker/issues"
+  },
+  "homepage": "https://github.com/dioptre/tracker#readme"
+}
