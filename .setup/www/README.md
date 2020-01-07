@@ -1,3 +1,6 @@
+# Create your own .env file
+Base it on the .env.sample
+
 # Build 
 ```./build.sh```
 
