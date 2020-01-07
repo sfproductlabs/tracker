@@ -7,7 +7,7 @@ const DotenvPlugin = require('webpack-dotenv-plugin');
 
 module.exports = {
  entry: 'index.js',
- mode: 'development',
+ mode: 'production',
  plugins: [
     // ...
     new DotenvPlugin({ // makes vars available to the application js code
