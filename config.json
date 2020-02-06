@@ -1,5 +1,6 @@
 {
     "Domains": [
+        "localhost",
         "dev.sfproductlabs.com"
     ],
     "SchemaVersion": 2,

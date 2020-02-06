@@ -199,6 +199,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					return fmt.Errorf("Bad URL (destination)")
 				} else {
 					urltoURL = *checkTo
+					//fmt.Println(urltoURL.Query, strings.ToLower(urltoURL.Path))
 					for _, d := range i.AppConfig.Domains {
 						if strings.EqualFold(checkTo.Host, strings.TrimSpace(d)) {
 							return fmt.Errorf("Bad URL (self-referential)")
@@ -333,6 +334,15 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			level = &temp
 		}
 
+		var topic string
+		if ttemp1, ok := v["topic"].(string); ok {
+			topic = ttemp1;			
+		} else {
+			if ttemp2, ok2 := v["id"].(string); ok2 {
+				topic = ttemp2;
+			}
+		}
+
 		return i.Session.Query(`INSERT INTO logs
 		 (
 			 id,
@@ -354,7 +364,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["ldate"],
 			time.Now().UTC(),
 			ltime,
-			v["id"],
+			topic,
 			v["name"],
 			v["host"],
 			v["hostname"],

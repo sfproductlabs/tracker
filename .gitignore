@@ -21,3 +21,5 @@ cache*
 pem/
 *.swp
 config.*.json
+
+.DS_Store
