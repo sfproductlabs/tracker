@@ -1,0 +1,25 @@
+
+version: "3.4"
+services:
+  cassandra:
+     image: docker.pkg.github.com/dioptre/elassandra-docker/elassandra:latest
+     expose:
+       - "9042"
+     ports:
+       - "9042:9042"
+       - "9160:9160"
+     network_mode: host  
+     hostname: cassandra
+     container_name: cassandra
+     volumes: 
+       - ./.setup:/tmp/.csetup
+     command: >
+              bash -c "((sleep 60s && cqlsh --ssl < /tmp/.csetup/schema.2.cql &) && (/docker-entrypoint.sh cassandra -f))"
+  nats:
+    image: docker.pkg.github.com/dioptre/nats/nats:latest
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+    networks:
+      - default

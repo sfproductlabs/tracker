@@ -86,6 +86,17 @@ sudo docker run -p 8443:443 tracker
 ```
 * Then upload/use (try AWS ECS).
 
+## Privacy
+Since GDPR, honest reporting about user telemetry is required. The default tracker for online (https://github.com/dioptre/tracker/blob/master/.setup/www/track.js) uses a number of cookies by default:
+* COOKIE_REFERRAL (ref): An entity that referred you to the site. 
+* COOKIE_EXPERIMENT (xid): An experiment that you are in. A/B testing a button title for example.
+* COOKIE_EXP_PARAMS (params): Additional information (experiment parameters) that stores information about you anonymously that can be used to tailor the experience to you.
+* COOKIE_TRACK (trc): The last time you were tracked.
+* COOKIE_VID (vid): Your unique id. This is consistent across all sessions, and is stored on your device.
+* COOKIE_SESS (sess,sid): The session id. Each time you visit/use the site its approximately broken into session ids.
+* COOKIE_JWT (jwt): The encrypted token of your user. This may optionally include your user id (uid) if logged in.
+
+
 ## Credits
 * [DragonGate](https://github.com/dioptre/DragonGate)
 * [SF Product Labs](https://sfproductlabs.com)

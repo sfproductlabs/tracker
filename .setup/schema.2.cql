@@ -5,10 +5,10 @@
 
 -- SFPLA
 --drop keyspace sfpla;
--- CREATE KEYSPACE sfpla WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '2'}  AND durable_writes = true;
+CREATE KEYSPACE sfpla WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '1'}  AND durable_writes = true;
 -- create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'dc1':'1' }; --analytics
 --For a dev machine...
---CREATE KEYSPACE sfpla WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}
+-- CREATE KEYSPACE sfpla WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}
 
 use sfpla;
 
@@ -337,7 +337,8 @@ create table accounts (
   primary key((uid))
 );
 --https://localhost:8443/rpi/v1/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/nytimes.com
---insert into accounts (uid,pwd,msg,expires,creds,created,owner) values (14fb0860-b4bf-11e9-8971-7b80435315ac,'W6ph5Mm5Pz8GgiULbPgzG37mj9g=', 'demo admin user',toTimestamp('2999-01-01'),{'*':{'*':'*'}}, toTimestamp(now()),14fb0860-b4bf-11e9-8971-7b80435315ac);
+insert into sfpla.accounts (uid,pwd,msg,expires,creds,created,owner) values (14fb0860-b4bf-11e9-8971-7b80435315ac,'W6ph5Mm5Pz8GgiULbPgzG37mj9g=', 'demo admin user',toTimestamp('2999-01-01'),{'*':{'*':'*'}}, toTimestamp(now()),14fb0860-b4bf-11e9-8971-7b80435315ac);
+--password=password
 --insert into redirects (urlfrom,urlto) values ('localhost:8443/tv','https://google.com');
 
 --INTERNAL & EXTERNAL SERVICES
