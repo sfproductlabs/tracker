@@ -69,7 +69,7 @@ Descriptions of the columns we send are in the schema file above. (Ex. vid = vis
 Be extremely careful with schema. For performance, the _tracker_ takes client requests, and dumps the connection for speed. Any params (additional params stored in the record dictionary need to be a string (typeof s == 'string') in javascript/json. https://github.com/sfproductlabs/tracker/blob/0b205c5937ca6362ba7226b065e9750d79d107e0/.setup/schema.2.cql#L50
 
 #### Debugging
-You can run a docker version of tracker using ```docker-compose up```. There is a setting in the ```config.json``` to enable debug tracing on the command line. It will print any errors to the console of the running service. These are not saved, or distributed to any log for performance reasons. So test test test.
+You can run a docker version of tracker using ```docker-compose up``` then ```./tracker``` after tracker is built. There is a setting in the ```config.json``` to enable debug tracing on the command line. It will print any errors to the console of the running service. These are not saved, or distributed to any log for performance reasons. So test test test.
 
 
 #### Failed Example
