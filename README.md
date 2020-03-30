@@ -64,6 +64,27 @@ Descriptions of the columns we send are in the schema file above. (Ex. vid = vis
 ```json
 {"last":"https://localhost:5001/cw.html","url":"https://localhost:5001/cw.html","params":{"type":"a","aff":"Bespoke"},"created":1539102052702,"duration":34752,"vid":"3d0be300-cbd2-11e8-aa59-ffd128a54d91","first":"false","sid":"3d0be301-cbd2-11e8-aa59-ffd128a54d91","tz":"America/Los_Angeles","device":"Linux","os":"Linux","sink":"cw$","score":1,"eid":"cw-a","uid":"admin"}
 ```
+### Testing
+
+Be extremely careful with schema. For performance, the _tracker_ takes client requests, and dumps the connection for speed. Any params (additional params stored in the record dictionary need to be a string (typeof s == 'string') in javascript/json. https://github.com/sfproductlabs/tracker/blob/0b205c5937ca6362ba7226b065e9750d79d107e0/.setup/schema.2.cql#L50
+
+
+#### Failed Example
+```
+curl -k --header "Content-Type: application/json" \
+  --request POST \
+  --data '{"app":"native","email":"lalala@aaa.com","uid":"179ea090-6e8c-11ea-bb89-1d0ba023ecf8","uname":null,"tz":"Europe/Warsaw","device":"Handset","os":"iOS 13.4","did":"758152C1-278C-4C80-84A0-CF771B000835","w":375,"h":667,"rel":1,"sid":"c1dcf340-6eaa-11ea-a0b8-6120e9776df7","time":1585149028377,"ename":"filter_results","etyp":"filter","ptyp":"own_rooms","page":1,"vid":"016f2740-6e8c-11ea-9f0b-5d70c66851be"}' \
+  https://localhost:443/tr/v1/ -vvv
+```
+#### Good Example
+* Notice the additional param "page" needed to be a string
+* Notice the "rel" application release also needed to be a string 
+```
+curl -k --header "Content-Type: application/json" \
+  --request POST \
+  --data '{"app":"native","email":"lalala@aaa.com","uid":"179ea090-6e8c-11ea-bb89-1d0ba023ecf8","uname":null,"tz":"Europe/Warsaw","device":"Handset","os":"iOS 13.4","did":"758152C1-278C-4C80-84A0-CF771B000835","w":375,"h":667,"rel":"1","sid":"c1dcf340-6eaa-11ea-a0b8-6120e9776df7","time":1585149028377,"ename":"filter_results","etyp":"filter","ptyp":"own_rooms","page":"1","vid":"016f2740-6e8c-11ea-9f0b-5d70c66851be"}' \
+  https://localhost:443/tr/v1/ -vvv
+```
 
 ### Deploy
 * Get a certificate:
