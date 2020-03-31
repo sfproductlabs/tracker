@@ -403,6 +403,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		cleanInterfaceString(v["aff"])
 		cleanInterfaceString(v["device"])
 		cleanInterfaceString(v["os"])
+		cleanInterfaceString(v["relation"])
 
 		//////////////////////////////////////////////
 		//FIX VARS
@@ -567,6 +568,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "vp")
 			delete(*params, "targets")
 			delete(*params, "rid")
+			delete(*params, "relation")
 			delete(*params, "rcode")
 
 			delete(*params, "ename")
@@ -721,9 +723,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 score,							
 				 params,
 				 targets,
-				 rid
+				 rid,
+				 relation
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? )`, //30
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?)`, //31
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -753,7 +756,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			score,
 			params,
 			v["targets"],
-			rid).Exec(); xerr != nil && i.AppConfig.Debug {
+			rid,
+			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[events]:", xerr)
 		}
 

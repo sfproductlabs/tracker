@@ -172,7 +172,8 @@ create table events (
   params   map<text,text>, 
   --Additional Fields
   targets  map<text,frozen<set<text>>>, --type, components viewed on page/server to see whats working. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}
-  rid uuid, --related id/cluster based event on original/related eid or internal id/reference (ex. newsletterid)
+  relation text, --related object (period delimited) ex. xcs.thread
+  rid uuid, --relation id/cluster based event on original/related eid or internal id/reference (ex. newsletterid)
   PRIMARY KEY (eid) --perhaps move sid from ck into pk
 );
 
