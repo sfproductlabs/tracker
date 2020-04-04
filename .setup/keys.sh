@@ -117,48 +117,8 @@ function generateTrust {
     -storepass $TRUSTSTOREPASS
 }
 
-#########################################################
 
-######## staging #########
-OUTDIR=$PWD/keys/staging
-CA_CERT=$OUTDIR/rootCa.crt
-CA_KEY=$OUTDIR/rootCa.key
-CA_SRL=$OUTDIR/rootCa.srl
-CA_SUBJECT=/CN=rootCa/OU=STAGING/O=SFPL/C=US/
-
-#ca
-generateCa
-
-#nginx
-generateModule nginx \
-  "CN=NGINX, OU=STAGING, O=SFPL, C=US" \
-  san=dns:api.staging.sfpl.com,dns:bps.staging.sfpl.com,dns:sso.staging.sfpl.com
-
-#cassandra
-generateModule cassandra-server \
-  "CN=CASSANDRA-SERVER, OU=STAGING, O=SFPL, C=US" \
-  san=dns:cassandra1.staging.sfpl.com,dns:cassandra2.staging.sfpl.com,dns:cassandra3.staging.sfpl.com
-
-generateModule cassandra-client \
-  "CN=CASSANDRA-CLIENT, OU=STAGING, O=SFPL, C=US" \
-  san=dns:cassandra-client.staging.sfpl.com
-
-generateTrust cassandra-truststore cassandra-client 
-
-#nats
-generateModule nats-server \
-  "CN=NATS-SERVER, OU=STAGING, O=SFPL, C=US" \
-  san=dns:nats1.staging.sfpl.com,dns:nats2.staging.sfpl.com,dns:nats3.staging.sfpl.com
-
-generateModule nats-client \
-  "CN=NATS-CLIENT, OU=STAGING, O=SFPL, C=US" \
-  san=dns:nats-client.staging.sfpl.com
-
-openssl genpkey -algorithm rsa -out $OUTDIR/priv.key
-openssl rsa -in $OUTDIR/priv.key -pubout -out $OUTDIR/pub.key
-
-######## production #########
-OUTDIR=$PWD/keys/production
+OUTDIR=$PWD/keys
 CA_CERT=$OUTDIR/rootCa.crt
 CA_KEY=$OUTDIR/rootCa.key
 CA_SRL=$OUTDIR/rootCa.srl
@@ -170,27 +130,27 @@ generateCa
 #nginx
 generateModule nginx \
   "CN=NGINX, OU=PRODUCTION, O=SFPL, C=US" \
-  san=dns:api.sfpl.com,dns:bps.sfpl.com,dns:sso.sfpl.com
+  san=dns:api.sfpl.io,dns:bps.sfpl.io,dns:sso.sfpl.io,dns:tr.sfpl.io
 
 #cassandra
 generateModule cassandra-server \
   "CN=CASSANDRA-SERVER, OU=PRODUCTION, O=SFPL, C=US" \
-  san=dns:cassandra1.sfpl.com,dns:cassandra2.sfpl.com,dns:cassandra3.sfpl.com
+  san=dns:cassandra1.sfpl.io,dns:cassandra2.sfpl.io,dns:cassandra3.sfpl.io
 
 generateModule cassandra-client \
   "CN=CASSANDRA-CLIENT, OU=PRODUCTION, O=SFPL, C=US" \
-  san=dns:cassandra-client.sfpl.com
+  san=dns:cassandra-client.sfpl.io
 
 generateTrust cassandra-truststore cassandra-client
 
 #nats
 generateModule nats-server \
   "CN=NATS-SERVER, OU=PRODUCTION, O=SFPL, C=US" \
-  san=dns:nats1.sfpl.com,dns:nats2.sfpl.com,dns:nats3.sfpl.com
+  san=dns:nats1.sfpl.io,dns:nats2.sfpl.io,dns:nats3.sfpl.io
 
 generateModule nats-client \
   "CN=NATS-CLIENT, OU=PRODUCTION, O=SFPL, C=US" \
-  san=dns:nats-client.sfpl.com
+  san=dns:nats-client.sfpl.io
 
 openssl genpkey -algorithm rsa -out $OUTDIR/priv.key
 openssl rsa -in $OUTDIR/priv.key -pubout -out $OUTDIR/pub.key
