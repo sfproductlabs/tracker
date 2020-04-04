@@ -7,10 +7,10 @@ FROM debian:latest
 
 # update packages and install required ones
 RUN apt update && apt upgrade -y && apt install -y \
-  golang \
-  git \
-  libssl-dev \
-  python-pip \
+#  golang \
+#  git \
+#  libssl-dev \
+#  python-pip \
   jq \
   && apt autoclean -y \
   && apt autoremove -y
