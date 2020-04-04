@@ -1,7 +1,8 @@
 {
     "Domains": [
         "localhost",
-        "dev.sfproductlabs.com"
+        "dev.sfpl.io",
+        "tr.sfpl.io"
     ],
     "SchemaVersion": 2,
     "ApiVersion": 1,
@@ -26,9 +27,9 @@
     "IdleTimeoutSeconds" : 20,
     "MaxHeaderBytes" : 1048576,
     "AllowOrigin": "*",
-    "DefaultRedirect": "https://sfproductlabs.com",
+    "DefaultRedirect": "https://sfpl.io",
     "Debug" : true,
-    "UrlFilter" : "http(s|)://(api|tr|dev|spark|)(\\.staging\\.|\\.|)(sfproductlabs\\.com|localhost)(:[0-9]*|)(/[^\\?#]*)(\\?|#|)",
+    "UrlFilter" : "http(s|)://(api|tr|dev|spark|)(\\.staging\\.|\\.|)(sfpl\\.io|localhost)(:[0-9]*|)(/[^\\?#]*)(\\?|#|)",
     "UrlFilterMatchGroup" : 6,
     "IgnoreQueryParamsKey" : "igqp",
     "AccountHashMixer" : "",

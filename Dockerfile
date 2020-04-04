@@ -11,7 +11,7 @@ EXPOSE 80
 
 ####################################################################################
 
-# ulimit incrase (set in docker templats/aws ecs-task-definition too!!)
+# ulimit increase (set in docker templats/aws ecs-task-definition too!!)
 RUN bash -c 'echo "root hard nofile 16384" >> /etc/security/limits.conf' \
  && bash -c 'echo "root soft nofile 16384" >> /etc/security/limits.conf' \
  && bash -c 'echo "* hard nofile 16384" >> /etc/security/limits.conf' \
@@ -33,39 +33,23 @@ RUN bash -c 'echo "net.core.somaxconn = 8192" >> /etc/sysctl.conf' \
 # update packages and install required ones
 RUN apt update && apt upgrade -y && apt install -y \
   golang \
-  supervisor \
   git \
   libssl-dev \
   python-pip \
-  jq \
-  sudo
+  jq 
 
 # apt cleanup
-RUN apt autoclean -y && apt autoremove -y
+# RUN apt autoclean -y && apt autoremove -y
 
-# install latest AWS CLI
-RUN pip install awscli --upgrade
+# build app instead of just publishing
+# RUN go get github.com/dioptre/tracker
+# RUN go install github.com/dioptre/tracker
+# RUN go build
 
-# build app in production mode
-RUN go get github.com/dioptre/tracker
-RUN go install github.com/dioptre/tracker
-RUN go build
-
-####################################################################################
-
-# add host if not using aws
-#RUN echo "192.168.0.222  nats-seed1" >> /etc/hosts
-
-# copy files to other locations
-COPY supervisord.conf /etc/supervisor/supervisord.conf
-COPY tracker.supervisor.conf /etc/supervisor/conf.d/tracker.supervisor.conf
-
-# make startup script executable
-RUN chmod +x dockercmd.sh
 
 ####################################################################################
 
 # startup command
-CMD ./dockercmd.sh
+CMD dockercmd.sh
 #sudo docker build -t tracker .
 #sudo docker run -p 443:443 -p 80:80 tracker
