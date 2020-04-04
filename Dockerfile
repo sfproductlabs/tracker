@@ -4,10 +4,25 @@
 ####################################################################################
 
 FROM debian:latest
-WORKDIR /app/tracker
-ADD . /app/tracker
-EXPOSE 443
-EXPOSE 80
+
+# update packages and install required ones
+RUN apt update && apt upgrade -y && apt install -y \
+  golang \
+  git \
+  libssl-dev \
+  python-pip \
+  jq \
+  && apt autoclean -y \
+  && apt autoremove -y
+
+# apt cleanup
+# RUN apt autoclean -y && apt autoremove -y
+
+# build app instead of just publishing
+# RUN go get github.com/dioptre/tracker
+# RUN go install github.com/dioptre/tracker
+# RUN go build
+
 
 ####################################################################################
 
@@ -30,26 +45,16 @@ RUN bash -c 'echo "net.core.somaxconn = 8192" >> /etc/sysctl.conf' \
 
 ####################################################################################
 
-# update packages and install required ones
-RUN apt update && apt upgrade -y && apt install -y \
-  golang \
-  git \
-  libssl-dev \
-  python-pip \
-  jq 
 
-# apt cleanup
-# RUN apt autoclean -y && apt autoremove -y
-
-# build app instead of just publishing
-# RUN go get github.com/dioptre/tracker
-# RUN go install github.com/dioptre/tracker
-# RUN go build
-
+WORKDIR /app/tracker
+ADD . /app/tracker
+EXPOSE 443
+EXPOSE 80
 
 ####################################################################################
 
 # startup command
-CMD dockercmd.sh
+CMD ["/usr/bin/nice", "-n 5", "/app/tracker/tracker"] 
+# Can also clean logs > /dev/null 2>&1
 #sudo docker build -t tracker .
 #sudo docker run -p 443:443 -p 80:80 tracker
