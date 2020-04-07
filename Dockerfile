@@ -4,6 +4,7 @@
 ####################################################################################
 
 FROM debian:latest
+EXPOSE 443 80
 
 # update packages and install required ones
 RUN apt update && apt upgrade -y && apt install -y \
@@ -11,6 +12,7 @@ RUN apt update && apt upgrade -y && apt install -y \
 #  git \
 #  libssl-dev \
 #  python-pip \
+  dnsutils \
   jq \
   && apt autoclean -y \
   && apt autoremove -y
@@ -48,8 +50,7 @@ RUN bash -c 'echo "net.core.somaxconn = 8192" >> /etc/sysctl.conf' \
 
 WORKDIR /app/tracker
 ADD . /app/tracker
-EXPOSE 443
-EXPOSE 80
+
 
 ####################################################################################
 

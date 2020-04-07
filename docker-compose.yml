@@ -25,4 +25,5 @@ services:
       - "8222:8222"
     networks:
       - default
+#jq manual https://stedolan.github.io/jq/manual/
 #cat config.json | jq '(.Notify[].Hosts) |= ["1","2"]'
