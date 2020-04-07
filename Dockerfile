@@ -55,7 +55,7 @@ ADD . /app/tracker
 ####################################################################################
 
 # startup command
-CMD ["/usr/bin/nice", "-n 5", "/app/tracker/tracker"] 
+CMD ["/usr/bin/nice", "-n", "5", "/app/tracker/tracker"] 
 # Can also clean logs > /dev/null 2>&1
 #sudo docker build -t tracker .
 #sudo docker run -p 443:443 -p 80:80 tracker
