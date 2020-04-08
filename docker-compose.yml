@@ -2,7 +2,7 @@
 version: "3.4"
 services:
   cassandra:
-     image: docker.pkg.github.com/dioptre/elassandra-docker/elassandra:latest
+     image: sfproductlabs/elassandra:latest
      expose:
        - "9042"
      ports:
@@ -25,5 +25,3 @@ services:
       - "8222:8222"
     networks:
       - default
-#jq manual https://stedolan.github.io/jq/manual/
-#cat config.json | jq '(.Notify[].Hosts) |= ["1","2"]'

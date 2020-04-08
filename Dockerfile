@@ -50,7 +50,7 @@ RUN bash -c 'echo "net.core.somaxconn = 8192" >> /etc/sysctl.conf' \
 
 WORKDIR /app/tracker
 ADD . /app/tracker
-
+RUN bash -c 'rm /app/tracker/temp.config.json'
 
 ####################################################################################
 
