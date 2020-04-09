@@ -4,7 +4,7 @@
 ####################################################################################
 
 FROM debian:latest
-EXPOSE 443 80
+EXPOSE 8443 8080
 
 # update packages and install required ones
 RUN apt update && apt upgrade -y && apt install -y \
