@@ -170,7 +170,7 @@ type Configuration struct {
 	Domains                  []string //Domains in Trust, LetsEncrypt domains
 	StaticDirectory          string   //Static FS Directory (./public/)
 	UseLocalTLS              bool
-	IgnoreInsecureTLS		 bool
+	IgnoreInsecureTLS        bool
 	TLSCert                  string
 	TLSKey                   string
 	Notify                   []Service
