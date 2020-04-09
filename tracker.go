@@ -170,6 +170,7 @@ type Configuration struct {
 	Domains                  []string //Domains in Trust, LetsEncrypt domains
 	StaticDirectory          string   //Static FS Directory (./public/)
 	UseLocalTLS              bool
+	IgnoreInsecureTLS		 bool
 	TLSCert                  string
 	TLSKey                   string
 	Notify                   []Service
@@ -398,6 +399,7 @@ func main() {
 		TLSConfig: &tls.Config{ // SEC PARAMS
 			GetCertificate:           certManager.GetCertificate,
 			PreferServerCipherSuites: true,
+			InsecureSkipVerify:       configuration.IgnoreInsecureTLS,
 			CipherSuites: []uint16{
 				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
 				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
