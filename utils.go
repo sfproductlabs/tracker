@@ -169,7 +169,7 @@ func getIP(r *http.Request) string {
 }
 
 func cleanIP(ip string) string {
-	ipa := strings.Split(ip, " ,ghijklmnopqrstuvwxyzGHIJKLMNOPQRSTUVWXYZ\\/'\"+=-)(*&^%$#@!~`[]{}|;'?><")
+	ipa := strings.Split(ip, " ,\t\r\nghijklmnopqrstuvwxyzGHIJKLMNOPQRSTUVWXYZ\\/'\"+=-)(*&^%$#@!~`[]{}|;'?><")
 	for i := len(ipa) - 1; i > -1; i-- {
 		if ipp := net.ParseIP(ipa[i]); ipp != nil {
 			return ipp.String()
