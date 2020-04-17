@@ -337,10 +337,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		var topic string
 		if ttemp1, ok := v["topic"].(string); ok {
-			topic = ttemp1;			
+			topic = ttemp1
 		} else {
 			if ttemp2, ok2 := v["id"].(string); ok2 {
-				topic = ttemp2;
+				topic = ttemp2
 			}
 		}
 
@@ -573,6 +573,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			delete(*params, "ename")
 			delete(*params, "source")
+			delete(*params, "content")
 			delete(*params, "medium")
 			delete(*params, "campaign")
 			delete(*params, "term")
