@@ -776,9 +776,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//[vid]
 			isNew := false
+			w.SaveCookie = true
 			if _, ok := v["vid"].(string); !ok {
 				if _, uok := v["uid"].(string); uok {
 					v["vid"] = v["uid"]
+					w.SaveCookie = false
 				} else {
 					v["vid"] = w.EventID
 				}

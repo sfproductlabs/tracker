@@ -106,15 +106,16 @@ type Filter struct {
 }
 
 type WriteArgs struct {
-	WriteType int
-	Values    *map[string]interface{}
-	IsServer  bool
-	IP        string
-	Browser   string
-	Language  string
-	URI       string
-	Host      string
-	EventID   gocql.UUID
+	WriteType  int
+	Values     *map[string]interface{}
+	IsServer   bool
+	SaveCookie bool
+	IP         string
+	Browser    string
+	Language   string
+	URI        string
+	Host       string
+	EventID    gocql.UUID
 }
 
 type ServiceArgs struct {
@@ -874,7 +875,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 			}
 		}
 	}
-	if !wargs.IsServer {
+	if !wargs.IsServer && wargs.SaveCookie {
 		var dom string
 		host := getHost(r)
 		if net.ParseIP(host) == nil {
