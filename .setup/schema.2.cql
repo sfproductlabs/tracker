@@ -55,14 +55,14 @@ create table visitors (
   app text, --app
   rel text, --app release/version
   created timestamp, --time.Now().UTC() on server
-  uid uuid, --user-id
+  uid timeuuid, --user-id
   last text, --last action/slug/url/referrer_url (what i just clicked on)
   url text, --this should always be url slug of **current** url
   ip inet, --client ip
   latlon frozen<geo_point>, --location
   ptyp text, --page category/type 
   bhash text, --browser-hash
-  auth uuid, --author of **destination** content
+  auth timeuuid, --author of **destination** content
   --Experiment Fields
   xid text, --primary experiment id, hypothesis
   split text, --primary experiment split A/B
@@ -81,7 +81,7 @@ create table visitors (
   medium text, --email,sms,ad,etc [invite] AKA utm_medium
   campaign text, --marketing campaign name [chat_invite] AKA utm_campaign
   term text, --seo search query term AKA utm_term
-  ref uuid, --referrer vid
+  ref timeuuid, --referrer vid
   rcode text, --referrer code
   aff text, --affiliate id, promo-code
   browser text,
@@ -101,14 +101,14 @@ create table sessions (
   app text,
   rel text, 
   created timestamp, 
-  uid uuid, 
+  uid timeuuid, 
   last text, 
   url text, 
   ip inet,
   latlon frozen<geo_point>,
   ptyp text, 
   bhash text, 
-  auth uuid, 
+  auth timeuuid, 
   duration bigint,  --time since last click/session
   --Experiment Fields
   xid text, 
@@ -128,7 +128,7 @@ create table sessions (
   medium text,
   campaign text,
   term text, 
-  ref uuid, 
+  ref timeuuid, 
   rcode text, 
   aff text,
   browser text,
@@ -148,14 +148,14 @@ create table events (
   app text,
   rel text, 
   created timestamp, 
-  uid uuid, 
+  uid timeuuid, 
   last text, 
   url text, 
   ip inet, 
   latlon frozen<geo_point>, 
   ptyp text, 
   bhash text, 
-  auth uuid, 
+  auth timeuuid, 
   duration bigint,  
   --Experiment Fields
   xid text, 
@@ -173,14 +173,14 @@ create table events (
   --Additional Fields
   targets  map<text,frozen<set<text>>>, --type, components viewed on page/server to see whats working. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}
   relation text, --related object (period delimited) ex. xcs.thread
-  rid uuid, --relation id/cluster based event on original/related eid or internal id/reference (ex. newsletterid)
+  rid timeuuid, --relation id/cluster based event on original/related eid or internal id/reference (ex. newsletterid)
   PRIMARY KEY (eid) --perhaps move sid from ck into pk
 );
 
 create table nodes (
   hhash text,
   vid timeuuid, 
-  uid uuid,
+  uid timeuuid,
   ip inet,
   sid timeuuid, 
   PRIMARY KEY ((hhash, vid), ip)
@@ -190,7 +190,7 @@ create table locations (
   hhash text,
   vid timeuuid, 
   latlon frozen<geo_point>,
-  uid uuid,
+  uid timeuuid,
   sid timeuuid, 
   PRIMARY KEY ((hhash, vid, latlon))
 );
@@ -198,14 +198,14 @@ create table locations (
 create table aliases (
   hhash text,
   vid timeuuid,
-  uid uuid, 
+  uid timeuuid, 
   sid timeuuid, 
   PRIMARY KEY ((hhash, vid), uid)
 );
 
 create table users (
   hhash text,
-  uid uuid,
+  uid timeuuid,
   vid timeuuid,   
   sid timeuuid, 
   PRIMARY KEY ((hhash, uid), vid)
@@ -281,7 +281,7 @@ create table referrers (
 
 create table referrals (
   hhash text,
-  ref uuid, --referrer uid
+  ref timeuuid, --referrer uid
   vid timeuuid, 
   gen int, --growth loop / generation
   primary key((hhash, vid)) 
@@ -307,7 +307,7 @@ create table redirects (
   urlfrom text, --without the protocol (https)
   urlto text, --with protocol
   updated timestamp,  
-  updater uuid,
+  updater timeuuid,
   primary key(urlfrom)
 );
 
@@ -320,21 +320,21 @@ create table redirect_history (
   pathto text,
   searchto text,
   updated timestamp,  
-  updater uuid,
+  updater timeuuid,
   primary key((hostfrom),updated)
 )
 WITH CLUSTERING ORDER BY (updated DESC);
 CREATE INDEX hostto_redirect_history_idx ON redirect_history ( hostto );
 
 create table accounts (
-  uid uuid, 
+  uid timeuuid, 
   pwd text,
   ip inet,
   msg text,
   expires timestamp,
   creds map<text,frozen<map<text,text>>>, --host, claim[yes]
   created timestamp,
-  owner uuid,
+  owner timeuuid,
   primary key((uid))
 );
 --https://localhost:8443/rpi/v1/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/nytimes.com
@@ -349,9 +349,9 @@ create table services (
   roles   set<text>,
   expiry date,
   created timestamp,
-  owner uuid,
+  owner timeuuid,
   updated timestamp,
-  updater uuid,
+  updater timeuuid,
   primary key       (name)
 );
 
@@ -360,16 +360,16 @@ create table queues (
   id timeuuid,
   src text, --source action Ex. sms
   sid timeuuid, --source id Ex. sms-id
-  skey text, --source key (if not a uuid) like for cohorts: "name"
+  skey text, --source key (if not a timeuuid) like for cohorts: "name"
   ip text, --Requestor IP
   host text, --Host executing service
   schedule timestamp,
   started timestamp,
   completed timestamp,
   updated timestamp,
-  updater uuid,
+  updater timeuuid,
   created timestamp,  
-  owner uuid,
+  owner timeuuid,
   PRIMARY KEY ((id))
 );
 CREATE INDEX queues_type_idx ON queues ( src );
@@ -386,7 +386,7 @@ create table action_names (
 create table actions (
   sid timeuuid, --source id Ex. message-id
   src text, --source action Ex. message, queues
-  did uuid, --unique id differentiator (Ex uid)
+  did timeuuid, --unique id differentiator (Ex uid)
   dsrc text, --Ex diffentiator source ex. uid
   meta map<text,text>, --METADATA, SPLIT etc.
   exqid timeuuid, --executing queue id
@@ -401,7 +401,7 @@ create table actions_ext (
   sid text, --source id, audit id, inc. external Ex. SES message-id
   svc text, --Ex. SES, 'message', 'sms, 'action'
   iid timeuuid, --internal id (Esp. action id)
-  uid uuid, --optional user id
+  uid timeuuid, --optional user id
   created timestamp,
   updated timestamp,
   meta map<text,text>, --METADATA Ex. Clean to ehash *not* email:xxx.x.com, bounce:true, etc.
@@ -417,7 +417,7 @@ create table cohorts (
   started timestamp,
   completed timestamp,
   created timestamp,
-  owner uuid,
+  owner timeuuid,
   PRIMARY KEY ((name))
 );
 
@@ -445,13 +445,13 @@ create table messages (
   sink text,
   score double,
   promo text, --promo code to pass through
-  ref uuid, --referrer uid (Select)
+  ref timeuuid, --referrer uid (Select)
   aff text, --affiliate uname or code (Select)
   repl map<text,text>, --text to replace ex Hi {{fn}} -> becomes -> Hi Andrew, Prepend "text." to use Raw text instead of the user record Ex. {{text.msg}}. Only start off with one "text." message body in Admin UI (text.msg)
   created timestamp,
-  owner uuid,
+  owner timeuuid,
   updated timestamp,
-  updater uuid,
+  updater timeuuid,
   PRIMARY KEY ((id))
 );
 
@@ -483,7 +483,7 @@ create table logs (
   name text, 
   host text, 
   hostname text, 
-  owner uuid,
+  owner timeuuid,
   ip inet,
   level int, 
   msg text,
