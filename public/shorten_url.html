@@ -482,7 +482,7 @@
             <li>
                 <label>Redirect From Path (Shortened)<span class="required">*</span></label>
                 <input id="path" type="text" class="field-divided" placeholder="Ex. /tv"/>
-                <p>Refresh if you'd like to auto-generate something else.</p>                
+                <p><small>Refresh if you'd like to auto-generate something else.</small></p>                
             </li>     
             <li>
                 <label>Redirect To (URL)<span class="required">*</span></label>
@@ -521,7 +521,7 @@
     </form>
     <script>
         document.getElementById("url").value = getParameterByName('url') || '';
-        document.getElementById("redirector").value = Cookies.get('rdr') || '';
+        document.getElementById("redirector").value = Cookies.get('rdr') || window.location.host;
         document.getElementById("uid").value = Cookies.get('uid') || '';
         document.getElementById("key").value = Cookies.get('key') || '';
 

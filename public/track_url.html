@@ -533,7 +533,7 @@
     <script>
         document.getElementById("url").value = getParameterByName('url') || '';
         document.getElementById("ref").value = Cookies.get('vid') || null;
-        document.getElementById("tracker").value = Cookies.get('tr') || window.location.hostname;
+        document.getElementById("tracker").value = Cookies.get('tr') || window.location.host;
         onChangeParameter();
     </script>
 </body>
