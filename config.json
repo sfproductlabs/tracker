@@ -13,6 +13,7 @@
     "StaticDirectory": "public",
     "ProxyUrl": "http://localhost:3030",
     "UseLocalTLS": true,
+    "IgnoreInsecureTLS": true,
     "TLSCert" : "./.setup/keys/nginx.crt",
     "TLSKey" : "./.setup/keys/nginx.key",
     "ProxyPortTLS" : ":8443",

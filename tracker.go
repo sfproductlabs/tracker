@@ -106,15 +106,16 @@ type Filter struct {
 }
 
 type WriteArgs struct {
-	WriteType int
-	Values    *map[string]interface{}
-	IsServer  bool
-	IP        string
-	Browser   string
-	Language  string
-	URI       string
-	Host      string
-	EventID   gocql.UUID
+	WriteType  int
+	Values     *map[string]interface{}
+	IsServer   bool
+	SaveCookie bool
+	IP         string
+	Browser    string
+	Language   string
+	URI        string
+	Host       string
+	EventID    gocql.UUID
 }
 
 type ServiceArgs struct {
@@ -170,6 +171,7 @@ type Configuration struct {
 	Domains                  []string //Domains in Trust, LetsEncrypt domains
 	StaticDirectory          string   //Static FS Directory (./public/)
 	UseLocalTLS              bool
+	IgnoreInsecureTLS        bool
 	TLSCert                  string
 	TLSKey                   string
 	Notify                   []Service
@@ -398,6 +400,7 @@ func main() {
 		TLSConfig: &tls.Config{ // SEC PARAMS
 			GetCertificate:           certManager.GetCertificate,
 			PreferServerCipherSuites: true,
+			InsecureSkipVerify:       configuration.IgnoreInsecureTLS,
 			CipherSuites: []uint16{
 				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
 				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
@@ -872,7 +875,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 			}
 		}
 	}
-	if !wargs.IsServer {
+	if !wargs.IsServer && wargs.SaveCookie {
 		var dom string
 		host := getHost(r)
 		if net.ParseIP(host) == nil {

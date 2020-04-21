@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>SF Product Labs</title>
+    <title>Setup Tracked URL - SF Product Labs</title>
     <script>
         /*!
          * JavaScript Cookie v2.2.0
@@ -315,8 +315,8 @@
             } else {
                 if (document.getElementById("submitted").checked) {
                     document.getElementById("linkText").style.display = "";
-                    document.getElementById("link").style.display = "";
-                    document.getElementById("shorten").style.display = "";
+                    if (!document.getElementById("pixel").checked) document.getElementById("link").style.display = "";
+                    if (!document.getElementById("pixel").checked) document.getElementById("shorten").style.display = "";
                 }
             }
         }
@@ -326,11 +326,22 @@
             if (document.getElementById("internal").checked) {
                 document.getElementById("hideqprow").style.display = "none";
                 document.getElementById("trackerrow").style.display = "none";
-                document.getElementById("hideqp").checked = false;
+                document.getElementById("hideqp").checked = true;
             } else {
                 document.getElementById("hideqprow").style.display = "";
                 document.getElementById("trackerrow").style.display = "";
             }
+            if (document.getElementById("pixel").checked) {
+                document.getElementById("hideqp").checked = true;
+                document.getElementById("internal").checked = true;
+                document.getElementById("internalrow").style.display = "none";
+                document.getElementById("trackerrow").style.display = "";
+                document.getElementById("hideqprow").style.display = "none";
+            } else {
+                document.getElementById("internalrow").style.display = "";
+                document.getElementById("hideqprow").style.display = "";
+            }
+
             
             //Build url
             document.getElementById("linkText").innerHTML = "";
@@ -345,7 +356,7 @@
                 return false;    
             }
             var tracker = document.getElementById("tracker").value;
-            if (!document.getElementById("internal").checked && (typeof tracker !== 'string' || tracker.length < 3)) {
+            if ((document.getElementById("pixel").checked || !document.getElementById("internal").checked) && (typeof tracker !== 'string' || tracker.length < 3)) {
                 document.getElementById("errors").innerHTML = "Tracker Required";
                 return false;    
             }
@@ -368,21 +379,23 @@
             link += document.getElementById("ver").value ? `&ver=${cleanParameter(document.getElementById("ver").value)}` : '';
             link += document.getElementById("auth").value ? `&auth=${document.getElementById("auth").value}` : '';
             link += document.getElementById("ename").value ? `&utm_content=${cleanParameter(document.getElementById("ename").value)}` : '';
-            link += document.getElementById("etyp").value ? `&etype=${cleanParameter(document.getElementById("etyp").value)}` : '';
+            link += document.getElementById("etyp").value ? `&etyp=${cleanParameter(document.getElementById("etyp").value)}` : '';
             link += document.getElementById("ref").value ? `&ref=${document.getElementById("ref").value}` : '';
             link += document.getElementById("uname").value ? `&uname=${cleanParameter(document.getElementById("uname").value)}` : '';
             link = link.toLowerCase();
-            if (document.getElementById("internal").checked) {
+            if (document.getElementById("internal").checked && !document.getElementById("pixel").checked) {
                 if (document.getElementById("url").value.indexOf("?") > -1)
                     link = document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : "&gu=1" + link);
                 else 
                     link = document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : "?gu=1" + link);
             } else {
+                linktype = (document.getElementById("pixel").checked) ? "img" : "rdr";
                 if (document.getElementById("url").value.indexOf("?") > -1)
                     link += `&url=${encodeURIComponent(document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : "&gu=1" + link))}`;
                 else 
                     link += `&url=${encodeURIComponent(document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : "?gu=1" + link))}`;
-                link = `https://${document.getElementById("tracker").value}/rdr/v1/?gu=1` + link; //added gu for generated_url = 1 = true
+                
+                link = `https://${document.getElementById("tracker").value}/${linktype}/v1/?gu=1` + link; //added gu for generated_url = 1 = true
             }
             document.getElementById("linkText").innerHTML = link;
             document.getElementById("link").innerHTML = link;
@@ -413,10 +426,14 @@
                 <p>Only letters, numbers and _ are accepted characters for all values except URL and the tracking server. These values will be auto-corrected.</small></p>
             </li>
             <li>
+                <label>Do you want to paste in a transparent pixel into an email or website?</label>
+                <input id="pixel" type="checkbox" unchecked onchange="onChangeParameter()"/>                
+            </li> 
+            <li id="urlrow">
                 <label>Url (please exclude any UTM parameters)<span class="required">*</span></label>
                 <input id="url" placeholder="Ex. https://example.com/whatsinthenews.html" type="text" onchange="onChangeParameter()" class="field-long" />
             </li>    
-            <li>
+            <li id="internalrow">
                 <label>Is the Url Internal? (Url tracked by us already on the site provided)<span class="required">*</span></label>
                 <input id="internal" type="checkbox" checked onchange="onChangeParameter()"/>                
             </li> 
@@ -516,7 +533,7 @@
     <script>
         document.getElementById("url").value = getParameterByName('url') || '';
         document.getElementById("ref").value = Cookies.get('vid') || null;
-        document.getElementById("tracker").value = Cookies.get('tr') || '';
+        document.getElementById("tracker").value = Cookies.get('tr') || window.location.hostname;
         onChangeParameter();
     </script>
 </body>
