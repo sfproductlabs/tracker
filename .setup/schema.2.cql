@@ -59,6 +59,7 @@ create table visitors (
   last text, --last action/slug/url/referrer_url (what i just clicked on)
   url text, --this should always be url slug of **current** url
   ip inet, --client ip
+  iphash text, 
   latlon frozen<geo_point>, --location
   ptyp text, --page category/type 
   bhash text, --browser-hash
@@ -105,6 +106,7 @@ create table sessions (
   last text, 
   url text, 
   ip inet,
+  iphash text, 
   latlon frozen<geo_point>,
   ptyp text, 
   bhash text, 
@@ -151,7 +153,8 @@ create table events (
   uid timeuuid, 
   last text, 
   url text, 
-  ip inet, 
+  ip inet,
+  iphash text, 
   latlon frozen<geo_point>, 
   ptyp text, 
   bhash text, 
@@ -181,9 +184,10 @@ create table nodes (
   hhash text,
   vid timeuuid, 
   uid timeuuid,
+  iphash text,
   ip inet,
   sid timeuuid, 
-  PRIMARY KEY ((hhash, vid), ip)
+  PRIMARY KEY ((hhash, vid), iphash)
 );
 
 create table locations (
@@ -485,6 +489,7 @@ create table logs (
   hostname text, 
   owner timeuuid,
   ip inet,
+  iphash text,
   level int, 
   msg text,
   params map<text,text>,

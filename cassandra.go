@@ -344,6 +344,18 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 		}
 
+		cleanInterfaceString(v["ip"])
+		cleanInterfaceString(v["topic"])
+		cleanInterfaceString(v["name"])
+		cleanInterfaceString(v["host"])
+		cleanInterfaceString(v["hostname"])
+		cleanInterfaceString(v["msg"])
+
+		var iphash string
+		if temp, ok := v["ip"].(string); ok && temp != "" {
+			iphash = strconv.FormatInt(int64(hash(temp)), 36)
+		}
+
 		return i.Session.Query(`INSERT INTO logs
 		 (
 			 id,
@@ -356,11 +368,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			 hostname, 
 			 owner,
 			 ip,
+			 iphash,
 			 level, 
 			 msg,
 			 params
 		 ) 
-		 values (?,?,?,?,?,?,?,?,?,? ,?,?,?)`, //13
+		 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?)`, //14
 			gocql.TimeUUID(),
 			v["ldate"],
 			time.Now().UTC(),
@@ -371,6 +384,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["hostname"],
 			v["owner"],
 			v["ip"],
+			iphash,
 			level,
 			v["msg"],
 			v["params"]).Exec()
@@ -413,6 +427,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if w.Host != "" {
 			temp := strconv.FormatInt(int64(hash(w.Host)), 36)
 			hhash = &temp
+		}
+		//[iphash]
+		var iphash string
+		if w.IP != "" {
+			iphash = strconv.FormatInt(int64(hash(w.IP)), 36)
 		}
 		//check host account id
 		//don't track without it
@@ -517,6 +536,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 		if params != nil {
 			//De-identify data
+			delete(*params, "hhash")
+			delete(*params, "iphash")
 			delete(*params, "cell")
 			delete(*params, "chash")
 			delete(*params, "email")
@@ -706,6 +727,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 last,
 				 url,
 				 ip,
+				 iphash,
 				 latlon,
 				 ptyp,
 				 bhash,
@@ -727,7 +749,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 rid,
 				 relation
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?)`, //31
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?)`, //32
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -739,6 +761,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["last"],
 			v["url"],
 			w.IP,
+			iphash,
 			latlon,
 			v["ptyp"],
 			bhash,
@@ -892,13 +915,15 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					 vid, 
 					 uid,
 					 ip,
+					 iphash,
 					 sid
 				 ) 
-				 values (?,?,?,?,?)`, //4
+				 values (?,?,?,?,?,?)`, //6
 				hhash,
 				v["vid"],
 				v["uid"],
 				w.IP,
+				iphash,
 				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[nodes]:", xerr)
 			}
@@ -1034,6 +1059,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 last,
 							 url,
 							 ip,
+							 iphash,
 							 latlon,
 							 ptyp,
 							 bhash,
@@ -1063,8 +1089,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //39
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,?) 
+						 IF NOT EXISTS`, //40
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1076,6 +1102,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["last"],
 					v["url"],
 					w.IP,
+					iphash,
 					latlon,
 					v["ptyp"],
 					bhash,
@@ -1121,6 +1148,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 last,
 							 url,
 							 ip,
+							 iphash,
 							 latlon,
 							 ptyp,
 							 bhash,
@@ -1151,8 +1179,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp                        
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //40
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?) 
+						 IF NOT EXISTS`, //41
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1164,6 +1192,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["last"],
 					v["url"],
 					w.IP,
+					iphash,
 					latlon,
 					v["ptyp"],
 					bhash,
