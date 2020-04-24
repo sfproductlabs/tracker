@@ -353,7 +353,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		var iphash string
 		if temp, ok := v["ip"].(string); ok && temp != "" {
+			//128 bits = ipv6
 			iphash = strconv.FormatInt(int64(hash(temp)), 36)
+			iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
+			iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
+			iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
 		}
 
 		return i.Session.Query(`INSERT INTO logs
@@ -431,7 +435,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//[iphash]
 		var iphash string
 		if w.IP != "" {
+			//128 bits = ipv6
 			iphash = strconv.FormatInt(int64(hash(w.IP)), 36)
+			iphash = iphash + strconv.FormatInt(int64(hash(w.IP+iphash)), 36)
+			iphash = iphash + strconv.FormatInt(int64(hash(w.IP+iphash)), 36)
+			iphash = iphash + strconv.FormatInt(int64(hash(w.IP+iphash)), 36)
 		}
 		//check host account id
 		//don't track without it
