@@ -94,7 +94,7 @@ func (i *CassandraService) connect() error {
 	i.Configuration.Session = i
 
 	//Setup rand
-	rand.Seed(time.Now().UnixNano())
+	rand.Seed(time.Now().UTC().UnixNano())
 
 	//Setup limit checker (cassandra)
 	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CASSANDRA {
@@ -696,6 +696,39 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			uhash = &temp
 		}
 		delete(v, "uname")
+
+		//EventID
+		if w.EventID.Timestamp() == 0 {
+			w.EventID = gocql.TimeUUID()
+		}
+		//[vid]
+		isNew := false
+		if vidstring, ok := v["vid"].(string); !ok {
+			v["vid"] = gocql.TimeUUID()
+			isNew = true
+		} else {
+			//Let's override the event id too
+			tempvid, _ := gocql.ParseUUID(vidstring)
+			if tempvid.Timestamp() == 0 {
+				v["vid"] = gocql.TimeUUID()
+				isNew = true
+			}
+		}
+		//[sid]
+		if sidstring, ok := v["sid"].(string); !ok {
+			if isNew {
+				v["sid"] = v["vid"]
+			} else {
+				v["sid"] = gocql.TimeUUID()
+			}
+		} else {
+			tempuuid, _ := gocql.ParseUUID(sidstring)
+			if tempuuid.Timestamp() == 0 {
+				v["sid"] = gocql.TimeUUID()
+			} else {
+				v["sid"] = tempuuid
+			}
+		}
 
 		//////////////////////////////////////////////
 		//Persist

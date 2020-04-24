@@ -54,6 +54,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -284,6 +285,10 @@ func main() {
 	if cache == "" {
 		log.Fatal("Bad Cache.")
 	}
+
+	//////////////////////////////////////// Prime rand
+	//Setup rand
+	rand.Seed(time.Now().UTC().UnixNano())
 
 	////////////////////////////////////////SETUP FILTER
 	if configuration.UrlFilter != "" {
