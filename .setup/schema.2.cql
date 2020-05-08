@@ -72,7 +72,7 @@ create table visitors (
   ver int, --experiment/sink version/variation
   sink text, --local-optimum/intention, Ex. want user to sign up for offer X
   score double, --score (where user is in sink/intention)
-  params map<text,text>, --all additional experiment params, (include global-optimum-experimentid[outcome], a/b[type], etc)
+  params map<text,text>, --all additional experiment params,passive multivariate experiments (xid,split), (include global-optimum-experimentid[outcome], a/b[type], etc)
   --Landing Fields
   gaid text, --google advertising id
   idfa text, --apple advertising id
