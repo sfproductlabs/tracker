@@ -53,25 +53,20 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Deploy using Docker or ```go build```
 * Use Spark, Kibana, etc to interrogate & ETL to your warehouse
 
+## API
+### Track Request
 Send the server something to track:
-### REST Payload Example
+
+#### REST Payload Example
 In the following example, we use tuplets to persist what's needed to track (Ex. {"tr":"v1"})
 ```
 https://localhost:8443/tr/v1/vid/14fb0860-b4bf-11e9-8971-7b80435315ac/ROCK/ON/lat/37.232332/lon/6.32233223/first/true/score/6/ref/14fb0860-b4bf-11e9-8971-7b80435315ac
 ```
-### JSON Payload Example (Method:POST, Body)
+#### JSON Payload Example (Method:POST, Body)
 Descriptions of the columns we send are in the schema file above. (Ex. vid = visitorId)
 ```json
 {"last":"https://localhost:5001/cw.html","url":"https://localhost:5001/cw.html","params":{"type":"a","aff":"Bespoke"},"created":1539102052702,"duration":34752,"vid":"3d0be300-cbd2-11e8-aa59-ffd128a54d91","first":"false","sid":"3d0be301-cbd2-11e8-aa59-ffd128a54d91","tz":"America/Los_Angeles","device":"Linux","os":"Linux","sink":"cw$","score":1,"eid":"cw-a","uid":"admin"}
 ```
-### Testing
-
-Be extremely careful with schema. For performance, the _tracker_ takes client requests, and dumps the connection for speed. Any params (additional params stored in the record dictionary need to be a string (typeof s == 'string') in javascript/json. https://github.com/sfproductlabs/tracker/blob/0b205c5937ca6362ba7226b065e9750d79d107e0/.setup/schema.2.cql#L50
-
-#### Debugging
-You can run a docker version of tracker using ```docker-compose up``` then ```./tracker``` after tracker is built. There is a setting in the ```config.json``` to enable debug tracing on the command line. It will print any errors to the console of the running service. These are not saved, or distributed to any log for performance reasons. So test test test.
-
-
 #### Failed Example
 ```
 curl -k --header "Content-Type: application/json" \
@@ -88,6 +83,28 @@ curl -k --header "Content-Type: application/json" \
   --data '{"app":"native","email":"lalala@aaa.com","uid":"179ea090-6e8c-11ea-bb89-1d0ba023ecf8","uname":null,"tz":"Europe/Warsaw","device":"Handset","os":"iOS 13.4","did":"758152C1-278C-4C80-84A0-CF771B000835","w":375,"h":667,"rel":"1","sid":"c1dcf340-6eaa-11ea-a0b8-6120e9776df7","time":1585149028377,"ename":"filter_results","etyp":"filter","ptyp":"own_rooms","page":"1","vid":"016f2740-6e8c-11ea-9f0b-5d70c66851be"}' \
   https://localhost:443/tr/v1/ -vvv
 ```
+
+### Shortened URLs
+
+#### List Shortened URLs for a site
+```
+curl -k --request GET https://localhost:8443/rpi/v1/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yoursitename.com
+```
+#### Create a Shortened URL
+```
+curl -k --request POST \
+  --data '{"urlfrom":"https://yoursitename.com/test","hostfrom":"yoursrcsitename.com","slugfrom":"/test","urlto":"https://yoursitename.com/pathtourl?gu=1&ptyp=ad&utm_source=fb&utm_medium=content&utm_campaign=test_campaign&utm_content=clicked_ad&etype=user_click&ref=b7c551b2-857a-11ea-8eb7-de2e3c44e03d","hostto":"yourdestsitename.com","pathto":"/pathtourl","searchto":"?gu=1&ptyp=ad&utm_source=fb&utm_medium=content&utm_campaign=test_campaign&utm_content=clicked_ad&etype=user_click&ref=b7c551b2-857a-11ea-8eb7-de2e3c44e03d"}' \
+  https://localhost:8443/rpi/v1/redirect/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yoursitename.com
+```
+
+
+### Testing
+
+Be extremely careful with schema. For performance, the _tracker_ takes client requests, and dumps the connection for speed. Any params (additional params stored in the record dictionary need to be a string (typeof s == 'string') in javascript/json. https://github.com/sfproductlabs/tracker/blob/0b205c5937ca6362ba7226b065e9750d79d107e0/.setup/schema.2.cql#L50
+
+### Debugging
+You can run a docker version of tracker using ```docker-compose up``` then ```./tracker``` after tracker is built. There is a setting in the ```config.json``` to enable debug tracing on the command line. It will print any errors to the console of the running service. These are not saved, or distributed to any log for performance reasons. So test test test.
+
 
 ### Deploy
 * Get a certificate:
