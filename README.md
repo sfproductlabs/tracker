@@ -55,7 +55,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 
 ## API
 ### Track Request
-Send the server something to track:
+Send the server something to track (replace tr with str if its from an internal service):
 
 #### REST Payload Example
 In the following example, we use tuplets to persist what's needed to track (Ex. {"tr":"v1"})
