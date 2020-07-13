@@ -534,7 +534,7 @@ func main() {
 	//////////////////////////////////////// CLEAR ROUTE
 	http.HandleFunc("/clear", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-		w.Header().Set("clear-site-data", "*")
+		w.Header().Set("clear-site-data", "\"*\"")
 		w.Write([]byte("OK"))
 	})
 
