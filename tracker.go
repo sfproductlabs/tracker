@@ -230,13 +230,19 @@ const (
 )
 
 const (
-	SVC_GET_REDIRECTS = 1 << iota
-	SVC_POST_REDIRECT = 1 << iota
-	SVC_GET_REDIRECT  = 1 << iota
+	SVC_GET_REDIRECTS     = 1 << iota
+	SVC_POST_REDIRECT     = 1 << iota
+	SVC_GET_REDIRECT      = 1 << iota
+	SVC_GET_AGREE         = 1 << iota
+	SVC_POST_AGREE        = 1 << iota
+	SVC_GET_JURISDICTIONS = 1 << iota
 
-	SVC_DESC_GET_REDIRECTS = "getRedirects"
-	SVC_DESC_POST_REDIRECT = "postRedirect"
-	SVC_DESC_GET_REDIRECT  = "getRedirect"
+	SVC_DESC_GET_REDIRECTS     = "getRedirects"
+	SVC_DESC_POST_REDIRECT     = "postRedirect"
+	SVC_DESC_GET_REDIRECT      = "getRedirect"
+	SVC_DESC_GET_AGREE         = "getAgreememts"
+	SVC_DESC_POST_AGREE        = "postAgreements"
+	SVC_DESC_GET_JURISDICTIONS = "getJurisdictions"
 )
 
 var (
@@ -525,6 +531,13 @@ func main() {
 		w.Write([]byte(PONG))
 	})
 
+	//////////////////////////////////////// CLEAR ROUTE
+	http.HandleFunc("/clear", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+		w.Header().Set("clear-site-data", "*")
+		w.Write([]byte("OK"))
+	})
+
 	//////////////////////////////////////// STATIC CONTENT ROUTE
 	fmt.Println("Serving static content in:", configuration.StaticDirectory)
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
@@ -617,7 +630,6 @@ func main() {
 				http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 			}
 		}
-
 	})
 
 	//////////////////////////////////////// Redirect Route
@@ -639,6 +651,51 @@ func main() {
 		}
 
 	})
+
+	//////////////////////////////////////// Cookie Routes
+	ctr := mux.NewRouter()
+	ctr.HandleFunc("/cpi/"+apiVersion+"/{action}", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			//Lets just allow requests to this endpoint
+			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+			w.Header().Set("access-control-allow-credentials", "true")
+			w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
+			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
+			w.Header().Set("access-control-max-age", "1728000")
+			w.WriteHeader(http.StatusOK)
+		} else {
+			select {
+			case <-connc:
+				params := mux.Vars(r)
+				sargs := ServiceArgs{}
+				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+				switch params["action"] {
+				case "agree": //agreements
+					if r.Method == http.MethodPost {
+						sargs.ServiceType = SVC_POST_AGREE
+					} else {
+						sargs.ServiceType = SVC_GET_AGREE
+					}
+				case "jd": //jurisdictions
+					sargs.ServiceType = SVC_GET_JURISDICTIONS
+				default:
+					w.WriteHeader(http.StatusBadRequest)
+					w.Write([]byte("Unknown action"))
+				}
+				if sargs.ServiceType != 0 {
+					if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
+						w.WriteHeader(http.StatusBadRequest)
+						w.Write([]byte(err.Error()))
+					}
+				}
+				connc <- struct{}{}
+			default:
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+			}
+		}
+	})
+	http.Handle("/cpi/"+apiVersion+"/", ctr)
 
 	//////////////////////////////////////// Redirect API Route & Functions
 	rtr := mux.NewRouter()
