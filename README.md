@@ -141,7 +141,7 @@ Since GDPR, honest reporting about user telemetry is required. The default track
 ## Credits
 * [DragonGate](https://github.com/dioptre/DragonGate)
 * [SF Product Labs](https://sfproductlabs.com)
-* This product includes GeoLite2 data created by MaxMind, available from https://www.maxmind.com.
+* This site or product includes IP2Location LITE data available from https://lite.ip2location.com.
 
 ## Notes
 * **This project is new** Please give me your feedback! We welcome PRs.

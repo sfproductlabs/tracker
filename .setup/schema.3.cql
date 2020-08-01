@@ -10,10 +10,36 @@ use sfpla;
 insert into sequences (name, seq) values('DB_VER',3);
 
 create type geo_pol (
+ continent text,
  country text, --iso2 ex. US, DE, AU
  region text, --State ex. CA, BW
  city text --Ex. Brisbane
 );
+
+create table countries (
+  country text,
+  name text,
+  PRIMARY KEY ((country))
+);
+
+--Note this is not a good use of cassandra, better to use rocks
+create table geo_ip (
+ ipc text, --ip class used to distribute pk (Starting with Ex: ip6, ip4 - could/should use a bitmap[best]/divider[ok] instead Ex. ip6_1_of_1000)
+ ips varint, --ip start
+ ipe varint, --ip end
+ ipis inet, --ip start address representation
+ ipie inet, --ip end address representation
+ country text, 
+ region text, 
+ city text,
+ lat double,
+ lon double,
+ tz text,
+ zip text,
+ PRIMARY KEY ((ipc),ips,ipe)
+);
+--CREATE INDEX ips_geo_ip_idx ON geo_ip ( ips );
+--CREATE INDEX ipe_geo_ip_idx ON geo_ip ( ipe );
 
 create table jurisdictions (
   regulation text, --Ex. gdpr
@@ -27,25 +53,43 @@ create table jurisdictions (
 WITH CLUSTERING ORDER BY (compliance ASC, seq DESC);
 
 create table agreements (
-  vid timeuuid, --visitor-id
+  vid timeuuid, 
   created timestamp,  
-  compliances  map<text,frozen<set<text>>>,
+  compliances map<text,frozen<set<text>>>,
   compliance_flags bigint, --compliances represented via N notation == 1001110101111
-  sid timeuuid, --session-id
-  uid timeuuid, --user-id
+  sid timeuuid, 
+  uid timeuuid, 
   avid timeuuid, --anonymized vid
-  hhash text, --host-hash
-  app text, --app
-  rel text, --app release/version
+  hhash text, 
+  app text, 
+  rel text, 
   url text, --this should always be url slug of **current** url
-  ip inet, --client ip
+  ip inet,
   iphash text, 
-  loc geo_pol,
+  gaid text,
+  idfa text,
+  country text, 
+  culture text, 
+  source text,
+  medium text,
+  campaign text,
+  term text, 
+  ref timeuuid, 
+  rcode text, 
+  aff text,
+  browser text,
+  bhash text,
+  device text, 
+  os text,  
+  tz text,
+  vp frozen<viewport>,
+  loc frozen<geo_pol>,
+  latlon frozen<geo_point>,
+  zip text,
   owner timeuuid,
   org timeuuid,
   PRIMARY KEY ((vid))
-)
-WITH CLUSTERING ORDER BY (created DESC);
+);
 
 
 create table agreed (
@@ -63,6 +107,8 @@ create table agreed (
   ip inet,
   iphash text, 
   loc geo_pol,
+  latlon geo_point,
+  zip text,
   owner timeuuid,
   org timeuuid,
   PRIMARY KEY ((vid), created)

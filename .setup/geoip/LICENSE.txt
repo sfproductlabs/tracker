@@ -1,0 +1,10 @@
+https://lite.ip2location.com/database/ip-country-region-city-latitude-longitude-zipcode-timezone
+
+IP2Location™ LITE IP-COUNTRY-REGION-CITY-LATITUDE-LONGITUDE-ZIPCODE-TIMEZONE Database
+
+IP2Location™ LITE IP-COUNTRY-REGION-CITY-LATITUDE-LONGITUDE-ZIPCODE-TIMEZONE Database provides a solution to determine the country, region or state, city, latitude, longitude, ZIP code and time zone of origin for any IP address in a few simple steps. First, retrieve the IP address from the networking protocol or server-side variable of the Web server. Next, translate the IP address to an IP number in decimal format to speed up the database query. Lastly, reverse lookup the IP number from the IP2Location™ database to pinpoint the exact geographical location.
+
+The LITE edition is a free version of database with limited accuracy & number of records compares to commercial release. It is free for personal or commercial use with attribution required by mentioning the use of this data as follows,
+This site or product includes IP2Location LITE data available from <a href="https://lite.ip2location.com">https://lite.ip2location.com</a>.
+
+Please get the commercial edition if you are looking for high data accuracy, more records & customer support. Please visit product comparison page for more information.

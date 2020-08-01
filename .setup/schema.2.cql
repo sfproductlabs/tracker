@@ -76,6 +76,8 @@ create table visitors (
   --Landing Fields
   gaid text, --google advertising id
   idfa text, --apple advertising id
+  msid text, --microsoft advertising id
+  fbid text, --facebook advertising id
   country text, --ISO-2
   culture text, --EN-US
   source text, --referring domain, user, service [sms] AKA utm_source
@@ -124,6 +126,8 @@ create table sessions (
   --Landing Fields
   gaid text,
   idfa text,
+  msid text,
+  fbid text,
   country text, 
   culture text, 
   source text,
