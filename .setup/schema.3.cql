@@ -30,6 +30,7 @@ create table agreements (
   vid timeuuid, --visitor-id
   created timestamp,  
   compliances  map<text,frozen<set<text>>>,
+  compliance_flags bigint, --compliances represented via N notation == 1001110101111
   sid timeuuid, --session-id
   uid timeuuid, --user-id
   avid timeuuid, --anonymized vid
@@ -38,6 +39,28 @@ create table agreements (
   rel text, --app release/version
   url text, --this should always be url slug of **current** url
   ip inet, --client ip
+  iphash text, 
+  loc geo_pol,
+  owner timeuuid,
+  org timeuuid,
+  PRIMARY KEY ((vid))
+)
+WITH CLUSTERING ORDER BY (created DESC);
+
+
+create table agreed (
+  vid timeuuid,
+  created timestamp,  
+  compliances  map<text,frozen<set<text>>>,
+  compliance_flags bigint,
+  sid timeuuid, 
+  uid timeuuid, 
+  avid timeuuid, 
+  hhash text, 
+  app text,
+  rel text, 
+  url text, 
+  ip inet,
   iphash text, 
   loc geo_pol,
   owner timeuuid,

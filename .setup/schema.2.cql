@@ -180,6 +180,44 @@ create table events (
   PRIMARY KEY (eid) --perhaps move sid from ck into pk
 );
 
+create table events_recent (
+  eid timeuuid, --event id, server generated, unique to every event
+  vid timeuuid, 
+  sid timeuuid, 
+  hhash text,
+  app text,
+  rel text, 
+  created timestamp, 
+  uid timeuuid, 
+  last text, 
+  url text, 
+  ip inet,
+  iphash text, 
+  latlon frozen<geo_point>, 
+  ptyp text, 
+  bhash text, 
+  auth timeuuid, 
+  duration bigint,  
+  --Experiment Fields
+  xid text, 
+  split text, 
+  ename text, 
+  source text, 
+  medium text, 
+  campaign text, 
+  term text,
+  etyp text, 
+  ver int,
+  sink text, 
+  score double, 
+  params   map<text,text>, 
+  --Additional Fields
+  targets  map<text,frozen<set<text>>>, --type, components viewed on page/server to see whats working. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}
+  relation text, --related object (period delimited) ex. xcs.thread
+  rid timeuuid, --relation id/cluster based event on original/related eid or internal id/reference (ex. newsletterid)
+  PRIMARY KEY (eid) --perhaps move sid from ck into pk
+) WITH default_time_to_live = 2678400; --31 days
+
 create table nodes (
   hhash text,
   vid timeuuid, 
