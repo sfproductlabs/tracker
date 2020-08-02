@@ -24,7 +24,7 @@ create table countries (
 
 --Note this is not a good use of cassandra, better to use rocks
 create table geo_ip (
- ipc text, --ip class used to distribute pk (Starting with Ex: ip6, ip4 - could/should use a bitmap[best]/divider[ok] instead Ex. ip6_1_of_1000)
+ ipc text, --ip class used to distribute pk (Starting with Ex: ip6, ip4 - could/should use a bracket/bitmap[best]/divider[ok] instead Ex. ip6_1_of_2048 OR [ips >> 116])
  ips varint, --ip start
  ipe varint, --ip end
  ipis inet, --ip start address representation
