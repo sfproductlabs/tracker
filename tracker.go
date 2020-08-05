@@ -171,6 +171,7 @@ type NatsService struct { //Implements 'session'
 type Configuration struct {
 	Domains                  []string //Domains in Trust, LetsEncrypt domains
 	StaticDirectory          string   //Static FS Directory (./public/)
+	UseGeoIP                 bool
 	UseLocalTLS              bool
 	IgnoreInsecureTLS        bool
 	TLSCert                  string
@@ -652,9 +653,12 @@ func main() {
 
 	})
 
-	//////////////////////////////////////// Cookie Routes
+	//////////////////////////////////////// Privacy Routes
+	if configuration.UseGeoIP {
+		NewKVStore(LogDBConfig{}, LogDBCallback{})
+	}
 	ctr := mux.NewRouter()
-	ctr.HandleFunc("/cpi/"+apiVersion+"/{action}", func(w http.ResponseWriter, r *http.Request) {
+	ctr.HandleFunc("/ppi/"+apiVersion+"/{action}", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -695,7 +699,7 @@ func main() {
 			}
 		}
 	})
-	http.Handle("/cpi/"+apiVersion+"/", ctr)
+	http.Handle("/ppi/"+apiVersion+"/", ctr)
 
 	//////////////////////////////////////// Redirect API Route & Functions
 	rtr := mux.NewRouter()

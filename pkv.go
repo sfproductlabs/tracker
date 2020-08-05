@@ -18,10 +18,10 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/lni/dragonboat/logger"
 )
 
 const (
@@ -61,9 +61,9 @@ type LogDBConfig struct {
 	KVBlockSize                        uint64
 }
 
-var (
-	plog = logger.GetLogger("pebblekv")
-)
+// var (
+// 	plog = capnslog.NewPackageLogger("github.com/sfproductlabs/tracker/v3", "pebblekv")
+// )
 
 const (
 	maxLogFileSize = 1024 * 1024 * 128
@@ -216,6 +216,7 @@ func openPebbleDB(config LogDBConfig, callback LogDBCallback,
 		L0CompactionThreshold:       l0FileNumCompactionTrigger,
 		L0StopWritesThreshold:       l0StopWritesTrigger,
 		Cache:                       cache,
+		//Default fs is Disk and that's fine for now
 		//FS:                          vfs.NewPebbleFS(fs),
 		Logger: PebbleLogger,
 	}
@@ -234,13 +235,14 @@ func openPebbleDB(config LogDBConfig, callback LogDBCallback,
 		WALCreated: el.onWALCreated,
 		FlushEnd:   el.onFlushEnd,
 	}
+
 	if len(walDir) > 0 {
-		if err := fileutil.MkdirAll(walDir, fs); err != nil {
+		if err := os.MkdirAll(walDir, os.ModePerm); err != nil {
 			return nil, err
 		}
 		opts.WALDir = walDir
 	}
-	if err := fileutil.MkdirAll(dir, fs); err != nil {
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		return nil, err
 	}
 	pdb, err := pebble.Open(dir, opts)
