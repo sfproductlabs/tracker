@@ -10,15 +10,16 @@ use sfpla;
 insert into sequences (name, seq) values('DB_VER',3);
 
 create type geo_pol (
- continent text,
  country text, --iso2 ex. US, DE, AU
  region text, --State ex. CA, BW
+ county text, --Ex city San Francisco, County San Francisco (legislative sub-region)
  city text --Ex. Brisbane
 );
 
 create table countries (
   country text,
   name text,
+  continent text,
   PRIMARY KEY ((country))
 );
 
@@ -59,7 +60,7 @@ create table agreements (
   compliance_flags bigint, --compliances represented via N notation == 1001110101111
   sid timeuuid, 
   uid timeuuid, 
-  avid timeuuid, --anonymized vid
+  avid timeuuid, --anonymized vid (this is what the vids are converted to)
   hhash text, 
   app text, 
   rel text, 
@@ -68,6 +69,8 @@ create table agreements (
   iphash text, 
   gaid text,
   idfa text,
+  msid text,
+  fbid text,
   country text, 
   culture text, 
   source text,
@@ -93,21 +96,40 @@ create table agreements (
 
 
 create table agreed (
-  vid timeuuid,
+  vid timeuuid, 
   created timestamp,  
-  compliances  map<text,frozen<set<text>>>,
+  compliances map<text,frozen<set<text>>>,
   compliance_flags bigint,
   sid timeuuid, 
   uid timeuuid, 
   avid timeuuid, 
   hhash text, 
-  app text,
+  app text, 
   rel text, 
   url text, 
   ip inet,
   iphash text, 
-  loc geo_pol,
-  latlon geo_point,
+  gaid text,
+  idfa text,
+  msid text,
+  fbid text,
+  country text, 
+  culture text, 
+  source text,
+  medium text,
+  campaign text,
+  term text, 
+  ref timeuuid, 
+  rcode text, 
+  aff text,
+  browser text,
+  bhash text,
+  device text, 
+  os text,  
+  tz text,
+  vp frozen<viewport>,
+  loc frozen<geo_pol>,
+  latlon frozen<geo_point>,
   zip text,
   owner timeuuid,
   org timeuuid,
