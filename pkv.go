@@ -22,6 +22,12 @@ import (
 	"sync"
 
 	"github.com/cockroachdb/pebble"
+	"github.com/coreos/pkg/capnslog"
+)
+
+const (
+	// MaxKeyLength is the max length of keys allowed
+	MaxKeyLength uint64 = 1024
 )
 
 const (
@@ -61,9 +67,9 @@ type LogDBConfig struct {
 	KVBlockSize                        uint64
 }
 
-// var (
-// 	plog = capnslog.NewPackageLogger("github.com/sfproductlabs/tracker/v3", "pebblekv")
-// )
+var (
+	plog = capnslog.NewPackageLogger("github.com/sfproductlabs/tracker/v3", "pebblekv")
+)
 
 const (
 	maxLogFileSize = 1024 * 1024 * 128
@@ -76,18 +82,20 @@ type eventListener struct {
 func (l *eventListener) close() {
 	// close(l.stopped)
 	// l.stopper.Stop()
+	plog.Infof("Close called")
 }
 
 func (l *eventListener) notify() {
-	// select {
-	// case <-l.kv.dbSet:
-	// 	if l.kv.callback != nil {
-	// 		m := l.kv.db.Metrics()
-	// 		busy := uint64(m.MemTable.Count) >= l.kv.config.KVMaxWriteBufferNumber
-	// 		l.kv.callback(busy)
-	// 	}
-	// default:
-	// }
+	select {
+	case <-l.kv.dbSet:
+		if l.kv.callback != nil {
+			m := l.kv.db.Metrics()
+			busy := uint64(m.MemTable.Count) >= l.kv.config.KVMaxWriteBufferNumber
+			l.kv.callback(busy)
+		}
+	default:
+	}
+	plog.Infof("Notify called")
 }
 
 func (l *eventListener) onFlushEnd(pebble.FlushInfo) {
@@ -99,6 +107,7 @@ func (l *eventListener) onFlushEnd(pebble.FlushInfo) {
 	// l.stopper.RunWorker(func() {
 	// 	l.notify()
 	// })
+	plog.Infof("Flush end called")
 }
 
 func (l *eventListener) onWALCreated(pebble.WALCreateInfo) {
@@ -110,6 +119,7 @@ func (l *eventListener) onWALCreated(pebble.WALCreateInfo) {
 	// l.stopper.RunWorker(func() {
 	// 	l.notify()
 	// })
+	plog.Infof("Wal Created called")
 }
 
 type pebbleWriteBatch struct {
@@ -369,12 +379,12 @@ func (r *KV) CompactEntries(fk []byte, lk []byte) error {
 }
 
 // FullCompaction ...
-// func (r *KV) FullCompaction() error {
-// 	fk := make([]byte, kv.MaxKeyLength)
-// 	lk := make([]byte, kv.MaxKeyLength)
-// 	for i := uint64(0); i < kv.MaxKeyLength; i++ {
-// 		fk[i] = 0
-// 		lk[i] = 0xFF
-// 	}
-// 	return r.db.Compact(fk, lk)
-// }
+func (r *KV) FullCompaction() error {
+	fk := make([]byte, MaxKeyLength)
+	lk := make([]byte, MaxKeyLength)
+	for i := uint64(0); i < MaxKeyLength; i++ {
+		fk[i] = 0
+		lk[i] = 0xFF
+	}
+	return r.db.Compact(fk, lk)
+}
