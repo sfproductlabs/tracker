@@ -49,6 +49,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -159,7 +160,6 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 			(*w).Write([]byte("not configured"))
 			return nil
 		}
-		(*w).Header().Set("Content-Type", "application/json")
 		ip := getIP(r)
 		if len(r.URL.Query()["ip"]) > 0 {
 			ip = r.URL.Query()["ip"][0]
@@ -174,6 +174,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				kv.GetValue([]byte(key), func(val []byte) error {
 					if len(val) > 0 {
 						(*w).WriteHeader(http.StatusOK)
+						(*w).Header().Set("Content-Type", "application/json")
 						(*w).Write(val)
 					} else {
 						func() {
@@ -188,8 +189,9 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 									(*w).WriteHeader(http.StatusInternalServerError)
 									fmt.Println("Error marshalling :", string(k), string(val))
 								} else {
-									if key > string(k) && geoip.IPEnd > ipp {
+									if key > string(k) && FixedLengthNumberString(10, geoip.IPEnd) > FixedLengthNumberString(10, ipp) {
 										(*w).WriteHeader(http.StatusOK)
+										(*w).Header().Set("Content-Type", "application/json")
 										(*w).Write(val)
 									} else {
 										(*w).WriteHeader(http.StatusNotFound)
@@ -204,14 +206,59 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				})
 				return nil
 			} else if pip.To16() != nil {
-				// var pi float64
-				// b := []byte{0x18, 0x2d, 0x44, 0x54, 0xfb, 0x21, 0x09, 0x40}
-				// buf := bytes.NewReader(b)
-				// err := binary.Read(buf, binary.LittleEndian, &pi)
-				// if err != nil {
-				// 	fmt.Println("binary.Read failed:", err)
-				// }
-				// fmt.Print(pi)
+				//Test, https://localhost:8443/ppi/v1/geoip?ip=0001:0000:0000:0000:0000:0000:0000:0001
+				fmt.Println("hi")
+				//var ip6 Uint128
+				// ip6.PutBytes(net.ParseIP(ip))
+				// fmt.Printf("%#v\n", net.ParseIP(ip))
+				// fmt.Println(ip, pip, pip.To16(), pip, ip6.String())
+				var hi uint64
+				var lo uint64
+				b := net.ParseIP(ip)
+				buf := bytes.NewReader(b)
+				binary.Read(buf, binary.BigEndian, &hi)
+				binary.Read(buf, binary.BigEndian, &lo)
+				ips := New(lo, hi).String()
+				ipp := FixedLengthNumberString(39, ips)
+				key = IDX_PREFIX_IPV6 + ipp
+				fmt.Println(key)
+				kv.GetValue([]byte(key), func(val []byte) error {
+					if len(val) > 0 {
+						(*w).WriteHeader(http.StatusOK)
+						(*w).Header().Set("Content-Type", "application/json")
+						(*w).Write(val)
+					} else {
+						func() {
+							iter := kv.db.NewIter(kv.ro)
+							defer iter.Close()
+							for iter.SeekLT([]byte(key)); iteratorIsValid(iter); iter.Next() {
+								k := iter.Key()
+								val := iter.Value()
+								var geoip GeoIP
+								err := json.Unmarshal(val, &geoip)
+								if err != nil {
+									(*w).WriteHeader(http.StatusInternalServerError)
+									fmt.Println("Error marshalling :", string(k), string(val))
+								} else {
+									if key > string(k) && FixedLengthNumberString(39, geoip.IPEnd) > FixedLengthNumberString(39, ipp) {
+										fmt.Println(key, string(k), geoip.IPEnd, ipp, geoip.IPEnd > ipp)
+										(*w).WriteHeader(http.StatusOK)
+										(*w).Header().Set("Content-Type", "application/json")
+										(*w).Write(val)
+									} else {
+										(*w).WriteHeader(http.StatusNotFound)
+										fmt.Println("Not found:", key, string(k), string(val))
+									}
+								}
+								break
+							}
+						}()
+					}
+					return nil
+				})
+				return nil
+			} else {
+				(*w).WriteHeader(http.StatusBadRequest)
 			}
 		}
 
