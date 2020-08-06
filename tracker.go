@@ -791,7 +791,7 @@ func main() {
 					} else {
 						sargs.ServiceType = SVC_GET_AGREE
 					}
-				case "jd": //jurisdictions
+				case "jds": //jurisdictions
 					sargs.ServiceType = SVC_GET_JURISDICTIONS
 				case "geoip": //geoip
 					sargs.ServiceType = SVC_GET_GEOIP

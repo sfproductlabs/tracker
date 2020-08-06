@@ -52,6 +52,8 @@ create table jurisdictions (
   PRIMARY KEY ((regulation), compliance, seq)
 )
 WITH CLUSTERING ORDER BY (compliance ASC, seq DESC);
+CREATE INDEX locs_jurisdictions_idx ON jurisdictions ( full(locs) );
+--select * from jurisdictions where locs = {{country : 'us'}} ;
 
 create table agreements (
   vid timeuuid, 

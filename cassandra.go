@@ -154,6 +154,240 @@ func (i *CassandraService) auth(s *ServiceArgs) error {
 
 func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error {
 	switch s.ServiceType {
+	case SVC_POST_AGREE:
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return fmt.Errorf("Bad JS (body)")
+		}
+		if len(body) > 0 {
+			b := make(map[string]interface{})
+			if err := json.Unmarshal(body, &b); err == nil {
+				created := time.Now().UTC()
+				//[hhash]
+				var hhash *string
+				addr := getHost(r)
+				if addr != "" {
+					temp := strconv.FormatInt(int64(hash(addr)), 36)
+					hhash = &temp
+				}
+				ip := getIP(r)
+				var iphash string
+				//128 bits = ipv6
+				iphash = strconv.FormatInt(int64(hash(ip)), 36)
+				iphash = iphash + strconv.FormatInt(int64(hash(ip+iphash)), 36)
+				iphash = iphash + strconv.FormatInt(int64(hash(ip+iphash)), 36)
+				iphash = iphash + strconv.FormatInt(int64(hash(ip+iphash)), 36)
+				browser := r.Header.Get("user-agent")
+				var bhash *string
+				if browser != "" {
+					temp := strconv.FormatInt(int64(hash(browser)), 36)
+					bhash = &temp
+				}
+				var flags *int64
+				if com, ok := b["compliance_flags"].(float64); ok {
+					temp := int64(com)
+					flags = &temp
+				}
+				if /* results, */ err := i.Session.Query(`INSERT into agreements (
+					vid, 
+					created,  
+					-- compliances,
+					compliance_flags,
+					sid, 
+					uid, 
+					avid,
+					hhash, 
+					app, 
+					rel, 
+
+					url, 
+					ip,
+					iphash, 
+					gaid,
+					idfa,
+					msid,
+					fbid,
+					country, 
+					culture, 
+					source,
+
+					medium,
+					campaign,
+					term, 
+					ref, 
+					rcode, 
+					aff,
+					browser,
+					bhash,
+					device, 
+					os, 
+
+					tz,
+					--vp,
+					--loc frozen<geo_pol>,
+					--latlon frozen<geo_point>,
+					zip,
+					owner,
+					org
+				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+					b["vid"],
+					created,
+					//compliances map<text,frozen<set<text>>>,
+					flags,
+					b["sid"],
+					b["uid"],
+					b["avid"],
+					hhash,
+					b["app"],
+					b["rel"],
+					b["url"],
+					ip,
+					iphash,
+					b["gaid"],
+					b["idfa"],
+					b["msid"],
+					b["fbid"],
+					b["country"],
+					b["culture"],
+					b["source"],
+					b["medium"],
+					b["campaign"],
+					b["term"],
+					b["ref"],
+					b["rcode"],
+					b["aff"],
+					browser,
+					bhash,
+					b["device"],
+					b["os"],
+					b["tz"],
+					//  vp frozen<viewport>,
+					//  loc frozen<geo_pol>,
+					//  latlon frozen<geo_point>,
+					b["zip"],
+					b["owner"],
+					b["org"],
+				).Exec(); err != nil {
+					return err
+				}
+				i.Session.Query(`INSERT into agreed (
+					vid, 
+					created,  
+					-- compliances,
+					compliance_flags,
+					sid, 
+					uid, 
+					avid,
+					hhash, 
+					app, 
+					rel, 
+
+					url, 
+					ip,
+					iphash, 
+					gaid,
+					idfa,
+					msid,
+					fbid,
+					country, 
+					culture, 
+					source,
+
+					medium,
+					campaign,
+					term, 
+					ref, 
+					rcode, 
+					aff,
+					browser,
+					bhash,
+					device, 
+					os, 
+
+					tz,
+					--vp,
+					--loc frozen<geo_pol>,
+					--latlon frozen<geo_point>,
+					zip,
+					owner,
+					org
+				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+					b["vid"],
+					created,
+					//compliances map<text,frozen<set<text>>>,
+					flags,
+					b["sid"],
+					b["uid"],
+					b["avid"],
+					hhash,
+					b["app"],
+					b["rel"],
+					b["url"],
+					ip,
+					iphash,
+					b["gaid"],
+					b["idfa"],
+					b["msid"],
+					b["fbid"],
+					b["country"],
+					b["culture"],
+					b["source"],
+					b["medium"],
+					b["campaign"],
+					b["term"],
+					b["ref"],
+					b["rcode"],
+					b["aff"],
+					browser,
+					bhash,
+					b["device"],
+					b["os"],
+					b["tz"],
+					//  vp frozen<viewport>,
+					//  loc frozen<geo_pol>,
+					//  latlon frozen<geo_point>,
+					b["zip"],
+					b["owner"],
+					b["org"],
+				).Exec()
+				(*w).WriteHeader(http.StatusOK)
+				return nil
+			} else {
+				return fmt.Errorf("Bad request (data)")
+			}
+		} else {
+			return fmt.Errorf("Bad request (body)")
+		}
+	case SVC_GET_AGREE:
+		var vid string
+		if len(r.URL.Query()["vid"]) > 0 {
+			vid = r.URL.Query()["vid"][0]
+			if rows, err := i.Session.Query(`SELECT * FROM agreements where vid=?`, vid).Iter().SliceMap(); err == nil {
+				js, err := json.Marshal(rows)
+				(*w).WriteHeader(http.StatusOK)
+				(*w).Header().Set("Content-Type", "application/json")
+				(*w).Write(js)
+				return err
+			} else {
+				return err
+			}
+		} else {
+			(*w).WriteHeader(http.StatusNotFound)
+			(*w).Header().Set("Content-Type", "application/json")
+			(*w).Write([]byte("[]"))
+		}
+		fmt.Println(vid)
+		return nil
+	case SVC_GET_JURISDICTIONS:
+		if jds, err := i.Session.Query(`SELECT * FROM jurisdictions`).Iter().SliceMap(); err == nil {
+			js, err := json.Marshal(jds)
+			(*w).WriteHeader(http.StatusOK)
+			(*w).Header().Set("Content-Type", "application/json")
+			(*w).Write(js)
+			return err
+		} else {
+			return err
+		}
 	case SVC_GET_GEOIP:
 		if kv == nil || kv.db == nil {
 			(*w).WriteHeader(http.StatusServiceUnavailable)
@@ -243,9 +477,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 								}
 							}
 							break
-
 						}
-
 						iter.Close()
 					}
 					return nil
