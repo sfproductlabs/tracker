@@ -169,7 +169,8 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 		if pip != nil {
 			if pip.To4() != nil {
 				ips := strconv.FormatInt(int64(binary.BigEndian.Uint32(pip.To4())), 10)
-				key = IDX_PREFIX_IPV4 + FixedLengthNumberString(10, ips)
+				ipp := FixedLengthNumberString(10, ips)
+				key = IDX_PREFIX_IPV4 + ipp
 				kv.GetValue([]byte(key), func(val []byte) error {
 					if len(val) > 0 {
 						(*w).WriteHeader(http.StatusOK)
@@ -181,12 +182,19 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 							for iter.SeekLT([]byte(key)); iteratorIsValid(iter); iter.Next() {
 								k := iter.Key()
 								val := iter.Value()
-								if key > string(k) && string(val) > key {
-									(*w).WriteHeader(http.StatusOK)
-									(*w).Write(val)
+								var geoip GeoIP
+								err := json.Unmarshal(val, &geoip)
+								if err != nil {
+									(*w).WriteHeader(http.StatusInternalServerError)
+									fmt.Println("Error marshalling :", string(k), string(val))
 								} else {
-									(*w).WriteHeader(http.StatusNotFound)
-									fmt.Println("Not found:", string(k), string(val))
+									if key > string(k) && geoip.IPEnd > ipp {
+										(*w).WriteHeader(http.StatusOK)
+										(*w).Write(val)
+									} else {
+										(*w).WriteHeader(http.StatusNotFound)
+										fmt.Println("Not found:", string(k), string(val))
+									}
 								}
 								break
 							}
