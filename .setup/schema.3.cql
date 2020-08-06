@@ -153,7 +153,7 @@ create type payment (
   starts date, --product date starts
   ends date, --product date ends
   price decimal, --original list price
-  discount decimal,
+  discount decimal, --actual (not %)
   revenue decimal, --what hits the bank
   margin decimal,  --what we made off it
   cost decimal, --est costs (can include intangible costs)
