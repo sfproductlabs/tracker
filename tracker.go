@@ -50,8 +50,10 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -168,9 +170,29 @@ type NatsService struct { //Implements 'session'
 	AppConfig     *Configuration
 }
 
+type GeoIP struct {
+	IPStart     string  `json:"ips"`
+	IPEnd       string  `json:"ipe"`
+	CountryISO2 string  `json:"iso2"`
+	Country     string  `json:"country"`
+	Region      string  `json:"region"`
+	City        string  `json:"city"`
+	Latitude    float64 `json:"lat"`
+	Longitude   float64 `json:"lon"`
+	Zip         string  `json:"zip"`
+	Timezone    string  `json:"tz"`
+}
+
 type Configuration struct {
 	Domains                  []string //Domains in Trust, LetsEncrypt domains
 	StaticDirectory          string   //Static FS Directory (./public/)
+	TempDirectory            string
+	UseGeoIP                 bool
+	GeoIPVersion             int
+	IPv4GeoIPZip             string
+	IPv6GeoIPZip             string
+	IPv4GeoIPCSVDest         string
+	IPv6GeoIPCSVDest         string
 	UseLocalTLS              bool
 	IgnoreInsecureTLS        bool
 	TLSCert                  string
@@ -216,6 +238,9 @@ const (
 	SERVICE_TYPE_NATS      string = "nats"
 
 	NATS_QUEUE_GROUP = "tracker"
+
+	IDX_PREFIX_IPV4 = "gip4::"
+	IDX_PREFIX_IPV6 = "gip6::"
 )
 const (
 	WRITE_LOG    = 1 << iota
@@ -236,6 +261,7 @@ const (
 	SVC_GET_AGREE         = 1 << iota
 	SVC_POST_AGREE        = 1 << iota
 	SVC_GET_JURISDICTIONS = 1 << iota
+	SVC_GET_GEOIP         = 1 << iota
 
 	SVC_DESC_GET_REDIRECTS     = "getRedirects"
 	SVC_DESC_POST_REDIRECT     = "postRedirect"
@@ -257,6 +283,8 @@ var (
 
 //////////////////////////////////////// Transparent GIF
 var TRACKING_GIF = []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x1, 0x0, 0x1, 0x0, 0x80, 0x0, 0x0, 0xff, 0xff, 0xff, 0x0, 0x0, 0x0, 0x2c, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x2, 0x2, 0x44, 0x1, 0x0, 0x3b}
+
+var kv = (*KV)(nil)
 
 ////////////////////////////////////////
 // Start here
@@ -652,9 +680,96 @@ func main() {
 
 	})
 
-	//////////////////////////////////////// Cookie Routes
+	//////////////////////////////////////// Privacy Routes
+	if configuration.UseGeoIP {
+		kv, _ = NewKVStore(LogDBConfig{
+			expert: ExpertConfig{
+				ExecShards:  defaultExecShards,
+				LogDBShards: defaultLogDBShards,
+			},
+			KVMaxBackgroundCompactions:         2,
+			KVMaxBackgroundFlushes:             2,
+			KVLRUCacheSize:                     0,
+			KVKeepLogFileNum:                   16,
+			KVWriteBufferSize:                  128 * 1024 * 1024,
+			KVMaxWriteBufferNumber:             4,
+			KVLevel0FileNumCompactionTrigger:   8,
+			KVLevel0SlowdownWritesTrigger:      17,
+			KVLevel0StopWritesTrigger:          24,
+			KVMaxBytesForLevelBase:             4 * 1024 * 1024 * 1024,
+			KVMaxBytesForLevelMultiplier:       2,
+			KVTargetFileSizeBase:               16 * 1024 * 1024,
+			KVTargetFileSizeMultiplier:         2,
+			KVLevelCompactionDynamicLevelBytes: 0,
+			KVRecycleLogFileNum:                0,
+			KVNumOfLevels:                      7,
+			KVBlockSize:                        32 * 1024,
+		}, func(busy bool) { fmt.Println("DB Busy", busy) }, "./pdb", "./pdbwal")
+
+		kv.GetValue([]byte("DB_VER"), func(val []byte) error {
+			if len(val) == 0 || val[0] != byte(configuration.GeoIPVersion) {
+				fmt.Println("Restoring Geoip Database...")
+				Unzip(configuration.IPv4GeoIPZip, configuration.TempDirectory)
+				Unzip(configuration.IPv6GeoIPZip, configuration.TempDirectory)
+				wb := kv.GetWriteBatch()
+				i := 0
+				load := func(src string, keyprefix string, pad int) {
+					file, _ := os.Open(src)
+					defer file.Close()
+					r := csv.NewReader(file)
+					for {
+						i++
+						rec, err := r.Read()
+						if err == io.EOF {
+							break
+						}
+						if err != nil {
+							log.Fatal(err)
+						}
+						if rec[0] == "" || rec[1] == "" || rec[0] == "-" || rec[1] == "-" {
+							continue
+						}
+						for g := 0; g < len(rec); g++ {
+							if rec[g] == "-" {
+								rec[g] = ""
+							}
+						}
+						//Ipv4 has 10 decimal places
+						//Ipv6 has 39 decimal places
+						lat, _ := strconv.ParseFloat(rec[6], 64)
+						lon, _ := strconv.ParseFloat(rec[7], 64)
+						geoip := GeoIP{
+							IPStart:     rec[0],
+							IPEnd:       rec[1],
+							CountryISO2: rec[2],
+							Country:     rec[3],
+							Region:      rec[4],
+							City:        rec[5],
+							Latitude:    lat,
+							Longitude:   lon,
+							Zip:         rec[8],
+							Timezone:    rec[9],
+						}
+						if i%100000 == 0 {
+							fmt.Print(".")
+							kv.CommitWriteBatch(wb)
+							wb.Clear()
+						}
+						js, err := json.Marshal(geoip)
+						wb.Put([]byte(keyprefix+FixedLengthNumberString(pad, rec[0])), js)
+					}
+					kv.CommitWriteBatch(wb)
+					wb.wb.Close()
+				}
+				load(configuration.TempDirectory+configuration.IPv4GeoIPCSVDest, IDX_PREFIX_IPV4, 10)
+				load(configuration.TempDirectory+configuration.IPv6GeoIPCSVDest, IDX_PREFIX_IPV6, 39)
+				kv.SaveValue([]byte("DB_VER"), []byte{byte(configuration.GeoIPVersion)})
+			}
+			return nil
+		})
+	}
 	ctr := mux.NewRouter()
-	ctr.HandleFunc("/cpi/"+apiVersion+"/{action}", func(w http.ResponseWriter, r *http.Request) {
+	ctr.HandleFunc("/ppi/"+apiVersion+"/{action}", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -676,8 +791,10 @@ func main() {
 					} else {
 						sargs.ServiceType = SVC_GET_AGREE
 					}
-				case "jd": //jurisdictions
+				case "jds": //jurisdictions
 					sargs.ServiceType = SVC_GET_JURISDICTIONS
+				case "geoip": //geoip
+					sargs.ServiceType = SVC_GET_GEOIP
 				default:
 					w.WriteHeader(http.StatusBadRequest)
 					w.Write([]byte("Unknown action"))
@@ -695,7 +812,7 @@ func main() {
 			}
 		}
 	})
-	http.Handle("/cpi/"+apiVersion+"/", ctr)
+	http.Handle("/ppi/"+apiVersion+"/", ctr)
 
 	//////////////////////////////////////// Redirect API Route & Functions
 	rtr := mux.NewRouter()

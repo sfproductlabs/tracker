@@ -49,10 +49,12 @@
 package main
 
 import (
+	"archive/zip"
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -142,6 +144,11 @@ func cleanString(s *string) error {
 	return nil
 }
 
+func FixedLengthNumberString(length int, str string) string {
+	verb := fmt.Sprintf("%%%d.%ds", length, length)
+	return strings.Replace(fmt.Sprintf(verb, str), " ", "0", -1)
+}
+
 ////////////////////////////////////////
 // cacheDir in /tmp for SSL
 ////////////////////////////////////////
@@ -185,4 +192,63 @@ func getHost(r *http.Request) string {
 	} else {
 		return addr
 	}
+}
+
+func Unzip(src, dest string) error {
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := r.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	os.MkdirAll(dest, 0755)
+
+	// Closure to address file descriptors issue with all the deferred .Close() methods
+	extractAndWriteFile := func(f *zip.File) error {
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := rc.Close(); err != nil {
+				panic(err)
+			}
+		}()
+
+		path := filepath.Join(dest, f.Name)
+
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(path, f.Mode())
+		} else {
+			os.MkdirAll(filepath.Dir(path), f.Mode())
+			f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if err := f.Close(); err != nil {
+					panic(err)
+				}
+			}()
+
+			_, err = io.Copy(f, rc)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	for _, f := range r.File {
+		err := extractAndWriteFile(f)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

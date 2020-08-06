@@ -49,10 +49,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -151,6 +154,341 @@ func (i *CassandraService) auth(s *ServiceArgs) error {
 
 func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error {
 	switch s.ServiceType {
+	case SVC_POST_AGREE:
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return fmt.Errorf("Bad JS (body)")
+		}
+		if len(body) > 0 {
+			b := make(map[string]interface{})
+			if err := json.Unmarshal(body, &b); err == nil {
+				created := time.Now().UTC()
+				//[hhash]
+				var hhash *string
+				addr := getHost(r)
+				if addr != "" {
+					temp := strconv.FormatInt(int64(hash(addr)), 36)
+					hhash = &temp
+				}
+				ip := getIP(r)
+				var iphash string
+				//128 bits = ipv6
+				iphash = strconv.FormatInt(int64(hash(ip)), 36)
+				iphash = iphash + strconv.FormatInt(int64(hash(ip+iphash)), 36)
+				iphash = iphash + strconv.FormatInt(int64(hash(ip+iphash)), 36)
+				iphash = iphash + strconv.FormatInt(int64(hash(ip+iphash)), 36)
+				browser := r.Header.Get("user-agent")
+				var bhash *string
+				if browser != "" {
+					temp := strconv.FormatInt(int64(hash(browser)), 36)
+					bhash = &temp
+				}
+				var flags *int64
+				if com, ok := b["compliance_flags"].(float64); ok {
+					temp := int64(com)
+					flags = &temp
+				}
+				if /* results, */ err := i.Session.Query(`INSERT into agreements (
+					vid, 
+					created,  
+					-- compliances,
+					compliance_flags,
+					sid, 
+					uid, 
+					avid,
+					hhash, 
+					app, 
+					rel, 
+
+					url, 
+					ip,
+					iphash, 
+					gaid,
+					idfa,
+					msid,
+					fbid,
+					country, 
+					culture, 
+					source,
+
+					medium,
+					campaign,
+					term, 
+					ref, 
+					rcode, 
+					aff,
+					browser,
+					bhash,
+					device, 
+					os, 
+
+					tz,
+					--vp,
+					--loc frozen<geo_pol>,
+					--latlon frozen<geo_point>,
+					zip,
+					owner,
+					org
+				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+					b["vid"],
+					created,
+					//compliances map<text,frozen<set<text>>>,
+					flags,
+					b["sid"],
+					b["uid"],
+					b["avid"],
+					hhash,
+					b["app"],
+					b["rel"],
+					b["url"],
+					ip,
+					iphash,
+					b["gaid"],
+					b["idfa"],
+					b["msid"],
+					b["fbid"],
+					b["country"],
+					b["culture"],
+					b["source"],
+					b["medium"],
+					b["campaign"],
+					b["term"],
+					b["ref"],
+					b["rcode"],
+					b["aff"],
+					browser,
+					bhash,
+					b["device"],
+					b["os"],
+					b["tz"],
+					//  vp frozen<viewport>,
+					//  loc frozen<geo_pol>,
+					//  latlon frozen<geo_point>,
+					b["zip"],
+					b["owner"],
+					b["org"],
+				).Exec(); err != nil {
+					return err
+				}
+				i.Session.Query(`INSERT into agreed (
+					vid, 
+					created,  
+					-- compliances,
+					compliance_flags,
+					sid, 
+					uid, 
+					avid,
+					hhash, 
+					app, 
+					rel, 
+
+					url, 
+					ip,
+					iphash, 
+					gaid,
+					idfa,
+					msid,
+					fbid,
+					country, 
+					culture, 
+					source,
+
+					medium,
+					campaign,
+					term, 
+					ref, 
+					rcode, 
+					aff,
+					browser,
+					bhash,
+					device, 
+					os, 
+
+					tz,
+					--vp,
+					--loc frozen<geo_pol>,
+					--latlon frozen<geo_point>,
+					zip,
+					owner,
+					org
+				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+					b["vid"],
+					created,
+					//compliances map<text,frozen<set<text>>>,
+					flags,
+					b["sid"],
+					b["uid"],
+					b["avid"],
+					hhash,
+					b["app"],
+					b["rel"],
+					b["url"],
+					ip,
+					iphash,
+					b["gaid"],
+					b["idfa"],
+					b["msid"],
+					b["fbid"],
+					b["country"],
+					b["culture"],
+					b["source"],
+					b["medium"],
+					b["campaign"],
+					b["term"],
+					b["ref"],
+					b["rcode"],
+					b["aff"],
+					browser,
+					bhash,
+					b["device"],
+					b["os"],
+					b["tz"],
+					//  vp frozen<viewport>,
+					//  loc frozen<geo_pol>,
+					//  latlon frozen<geo_point>,
+					b["zip"],
+					b["owner"],
+					b["org"],
+				).Exec()
+				(*w).WriteHeader(http.StatusOK)
+				return nil
+			} else {
+				return fmt.Errorf("Bad request (data)")
+			}
+		} else {
+			return fmt.Errorf("Bad request (body)")
+		}
+	case SVC_GET_AGREE:
+		var vid string
+		if len(r.URL.Query()["vid"]) > 0 {
+			vid = r.URL.Query()["vid"][0]
+			if rows, err := i.Session.Query(`SELECT * FROM agreements where vid=?`, vid).Iter().SliceMap(); err == nil {
+				js, err := json.Marshal(rows)
+				(*w).WriteHeader(http.StatusOK)
+				(*w).Header().Set("Content-Type", "application/json")
+				(*w).Write(js)
+				return err
+			} else {
+				return err
+			}
+		} else {
+			(*w).WriteHeader(http.StatusNotFound)
+			(*w).Header().Set("Content-Type", "application/json")
+			(*w).Write([]byte("[]"))
+		}
+		fmt.Println(vid)
+		return nil
+	case SVC_GET_JURISDICTIONS:
+		if jds, err := i.Session.Query(`SELECT * FROM jurisdictions`).Iter().SliceMap(); err == nil {
+			js, err := json.Marshal(jds)
+			(*w).WriteHeader(http.StatusOK)
+			(*w).Header().Set("Content-Type", "application/json")
+			(*w).Write(js)
+			return err
+		} else {
+			return err
+		}
+	case SVC_GET_GEOIP:
+		if kv == nil || kv.db == nil {
+			(*w).WriteHeader(http.StatusServiceUnavailable)
+			(*w).Write([]byte("not configured"))
+			return nil
+		}
+		ip := getIP(r)
+		if len(r.URL.Query()["ip"]) > 0 {
+			ip = r.URL.Query()["ip"][0]
+		}
+		pip := net.ParseIP(ip)
+		var key string
+		if pip != nil {
+			if pip.To4() != nil {
+				//Test, Google DNS - https://localhost:8443/ppi/v1/geoip?ip=8.8.8.8
+				ips := strconv.FormatInt(int64(binary.BigEndian.Uint32(pip.To4())), 10)
+				ipp := FixedLengthNumberString(10, ips)
+				key = IDX_PREFIX_IPV4 + ipp
+				kv.GetValue([]byte(key), func(val []byte) error {
+					if len(val) > 0 {
+						(*w).WriteHeader(http.StatusOK)
+						(*w).Header().Set("Content-Type", "application/json")
+						(*w).Write(val)
+					} else {
+						func() {
+							iter := kv.db.NewIter(kv.ro)
+							defer iter.Close()
+							for iter.SeekLT([]byte(key)); iteratorIsValid(iter); iter.Next() {
+								k := iter.Key()
+								val := iter.Value()
+								var geoip GeoIP
+								err := json.Unmarshal(val, &geoip)
+								if err != nil {
+									(*w).WriteHeader(http.StatusInternalServerError)
+									fmt.Println("Error marshalling :", string(k), string(val))
+								} else {
+									if key > string(k) && FixedLengthNumberString(10, geoip.IPEnd) > FixedLengthNumberString(10, ipp) {
+										(*w).WriteHeader(http.StatusOK)
+										(*w).Header().Set("Content-Type", "application/json")
+										(*w).Write(val)
+									} else {
+										(*w).WriteHeader(http.StatusNotFound)
+										fmt.Println("Not found:", key, string(k), string(val))
+									}
+								}
+								break
+							}
+						}()
+					}
+					return nil
+				})
+				return nil
+			} else if pip.To16() != nil {
+				//Test, Google DNS - https://localhost:8443/ppi/v1/geoip?ip=2001:4860:4860::8888
+				var hi uint64
+				var lo uint64
+				b := net.ParseIP(ip)
+				buf := bytes.NewReader(b)
+				binary.Read(buf, binary.BigEndian, &hi)
+				binary.Read(buf, binary.BigEndian, &lo)
+				ips := New(lo, hi).String()
+				ipp := FixedLengthNumberString(39, ips)
+				key = IDX_PREFIX_IPV6 + ipp
+				kv.GetValue([]byte(key), func(val []byte) error {
+					if len(val) > 0 {
+						(*w).WriteHeader(http.StatusOK)
+						(*w).Header().Set("Content-Type", "application/json")
+						(*w).Write(val)
+					} else {
+						iter := kv.db.NewIter(kv.ro)
+						for iter.SeekLT([]byte(key)); iteratorIsValid(iter); iter.Next() {
+							k := iter.Key()
+							val := iter.Value()
+							var geoip GeoIP
+							err := json.Unmarshal(val, &geoip)
+							if err != nil {
+								(*w).WriteHeader(http.StatusInternalServerError)
+								fmt.Println("Error marshalling :", string(k), string(val))
+							} else {
+								if key > string(k) && FixedLengthNumberString(39, geoip.IPEnd) > FixedLengthNumberString(39, ipp) {
+									(*w).WriteHeader(http.StatusOK)
+									(*w).Header().Set("Content-Type", "application/json")
+									(*w).Write(val)
+								} else {
+									(*w).WriteHeader(http.StatusNotFound)
+									fmt.Println("Not found:", key, string(k), string(val))
+								}
+							}
+							break
+						}
+						iter.Close()
+					}
+					return nil
+				})
+				return nil
+			} else {
+				(*w).WriteHeader(http.StatusBadRequest)
+			}
+		}
+
+		return nil
 	case SVC_GET_REDIRECTS:
 		if err := i.auth(s); err != nil {
 			return err
