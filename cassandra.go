@@ -49,8 +49,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -188,6 +186,35 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					temp := int64(com)
 					flags = &temp
 				}
+				//[latlon]
+				var latlon *geo_point
+				latf, oklatf := b["lat"].(float64)
+				lonf, oklonf := b["lon"].(float64)
+				if oklatf && oklonf {
+					//Float
+					latlon = &geo_point{}
+					latlon.Lat = latf
+					latlon.Lon = lonf
+				} else {
+					//String
+					lats, oklats := b["lat"].(string)
+					lons, oklons := b["lon"].(string)
+					if oklats && oklons {
+						latlon = &geo_point{}
+						latlon.Lat, _ = strconv.ParseFloat(lats, 64)
+						latlon.Lon, _ = strconv.ParseFloat(lons, 64)
+					}
+				}
+				if latlon == nil {
+					if gip, err := GetGeoIP(net.ParseIP(ip)); err == nil && gip != nil {
+						var geoip GeoIP
+						if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
+							latlon = &geo_point{}
+							latlon.Lat = geoip.Latitude
+							latlon.Lon = geoip.Longitude
+						}
+					}
+				}
 				if /* results, */ err := i.Session.Query(`INSERT into agreements (
 					vid, 
 					created,  
@@ -225,11 +252,11 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					tz,
 					--vp,
 					--loc frozen<geo_pol>,
-					--latlon frozen<geo_point>,
+					latlon,
 					zip,
 					owner,
 					org
-				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
 					b["vid"],
 					created,
 					//compliances map<text,frozen<set<text>>>,
@@ -240,6 +267,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					hhash,
 					b["app"],
 					b["rel"],
+
 					b["url"],
 					ip,
 					iphash,
@@ -250,6 +278,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					b["country"],
 					b["culture"],
 					b["source"],
+
 					b["medium"],
 					b["campaign"],
 					b["term"],
@@ -260,16 +289,18 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					bhash,
 					b["device"],
 					b["os"],
+
 					b["tz"],
 					//  vp frozen<viewport>,
 					//  loc frozen<geo_pol>,
-					//  latlon frozen<geo_point>,
+					latlon,
 					b["zip"],
 					b["owner"],
 					b["org"],
 				).Exec(); err != nil {
 					return err
 				}
+
 				i.Session.Query(`INSERT into agreed (
 					vid, 
 					created,  
@@ -307,11 +338,11 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					tz,
 					--vp,
 					--loc frozen<geo_pol>,
-					--latlon frozen<geo_point>,
+					latlon,
 					zip,
 					owner,
 					org
-				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
 					b["vid"],
 					created,
 					//compliances map<text,frozen<set<text>>>,
@@ -322,6 +353,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					hhash,
 					b["app"],
 					b["rel"],
+
 					b["url"],
 					ip,
 					iphash,
@@ -332,6 +364,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					b["country"],
 					b["culture"],
 					b["source"],
+
 					b["medium"],
 					b["campaign"],
 					b["term"],
@@ -342,14 +375,16 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					bhash,
 					b["device"],
 					b["os"],
+
 					b["tz"],
 					//  vp frozen<viewport>,
 					//  loc frozen<geo_pol>,
-					//  latlon frozen<geo_point>,
+					latlon,
 					b["zip"],
 					b["owner"],
 					b["org"],
 				).Exec()
+
 				(*w).WriteHeader(http.StatusOK)
 				return nil
 			} else {
@@ -389,106 +424,22 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 			return err
 		}
 	case SVC_GET_GEOIP:
-		if kv == nil || kv.db == nil {
-			(*w).WriteHeader(http.StatusServiceUnavailable)
-			(*w).Write([]byte("not configured"))
-			return nil
-		}
 		ip := getIP(r)
 		if len(r.URL.Query()["ip"]) > 0 {
 			ip = r.URL.Query()["ip"][0]
 		}
 		pip := net.ParseIP(ip)
-		var key string
-		if pip != nil {
-			if pip.To4() != nil {
-				//Test, Google DNS - https://localhost:8443/ppi/v1/geoip?ip=8.8.8.8
-				ips := strconv.FormatInt(int64(binary.BigEndian.Uint32(pip.To4())), 10)
-				ipp := FixedLengthNumberString(10, ips)
-				key = IDX_PREFIX_IPV4 + ipp
-				kv.GetValue([]byte(key), func(val []byte) error {
-					if len(val) > 0 {
-						(*w).WriteHeader(http.StatusOK)
-						(*w).Header().Set("Content-Type", "application/json")
-						(*w).Write(val)
-					} else {
-						func() {
-							iter := kv.db.NewIter(kv.ro)
-							defer iter.Close()
-							for iter.SeekLT([]byte(key)); iteratorIsValid(iter); iter.Next() {
-								k := iter.Key()
-								val := iter.Value()
-								var geoip GeoIP
-								err := json.Unmarshal(val, &geoip)
-								if err != nil {
-									(*w).WriteHeader(http.StatusInternalServerError)
-									fmt.Println("Error marshalling :", string(k), string(val))
-								} else {
-									if key > string(k) && FixedLengthNumberString(10, geoip.IPEnd) > FixedLengthNumberString(10, ipp) {
-										(*w).WriteHeader(http.StatusOK)
-										(*w).Header().Set("Content-Type", "application/json")
-										(*w).Write(val)
-									} else {
-										(*w).WriteHeader(http.StatusNotFound)
-										fmt.Println("Not found:", key, string(k), string(val))
-									}
-								}
-								break
-							}
-						}()
-					}
-					return nil
-				})
-				return nil
-			} else if pip.To16() != nil {
-				//Test, Google DNS - https://localhost:8443/ppi/v1/geoip?ip=2001:4860:4860::8888
-				var hi uint64
-				var lo uint64
-				b := net.ParseIP(ip)
-				buf := bytes.NewReader(b)
-				binary.Read(buf, binary.BigEndian, &hi)
-				binary.Read(buf, binary.BigEndian, &lo)
-				ips := New(lo, hi).String()
-				ipp := FixedLengthNumberString(39, ips)
-				key = IDX_PREFIX_IPV6 + ipp
-				kv.GetValue([]byte(key), func(val []byte) error {
-					if len(val) > 0 {
-						(*w).WriteHeader(http.StatusOK)
-						(*w).Header().Set("Content-Type", "application/json")
-						(*w).Write(val)
-					} else {
-						iter := kv.db.NewIter(kv.ro)
-						for iter.SeekLT([]byte(key)); iteratorIsValid(iter); iter.Next() {
-							k := iter.Key()
-							val := iter.Value()
-							var geoip GeoIP
-							err := json.Unmarshal(val, &geoip)
-							if err != nil {
-								(*w).WriteHeader(http.StatusInternalServerError)
-								fmt.Println("Error marshalling :", string(k), string(val))
-							} else {
-								if key > string(k) && FixedLengthNumberString(39, geoip.IPEnd) > FixedLengthNumberString(39, ipp) {
-									(*w).WriteHeader(http.StatusOK)
-									(*w).Header().Set("Content-Type", "application/json")
-									(*w).Write(val)
-								} else {
-									(*w).WriteHeader(http.StatusNotFound)
-									fmt.Println("Not found:", key, string(k), string(val))
-								}
-							}
-							break
-						}
-						iter.Close()
-					}
-					return nil
-				})
-				return nil
-			} else {
-				(*w).WriteHeader(http.StatusBadRequest)
+		if gip, err := GetGeoIP(pip); err == nil && gip != nil {
+			(*w).WriteHeader(http.StatusOK)
+			(*w).Header().Set("Content-Type", "application/json")
+			(*w).Write(gip)
+			return nil
+		} else {
+			if err == nil {
+				return fmt.Errorf("Not Found (IP)")
 			}
+			return err
 		}
-
-		return nil
 	case SVC_GET_REDIRECTS:
 		if err := i.auth(s); err != nil {
 			return err
@@ -824,6 +775,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				latlon = &geo_point{}
 				latlon.Lat, _ = strconv.ParseFloat(lats, 64)
 				latlon.Lon, _ = strconv.ParseFloat(lons, 64)
+			}
+		}
+		if latlon == nil {
+			if gip, err := GetGeoIP(net.ParseIP(w.IP)); err == nil && gip != nil {
+				var geoip GeoIP
+				if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
+					latlon = &geo_point{}
+					latlon.Lat = geoip.Latitude
+					latlon.Lon = geoip.Longitude
+				}
 			}
 		}
 		//[vp]
