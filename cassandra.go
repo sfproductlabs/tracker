@@ -195,7 +195,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 										(*w).Write(val)
 									} else {
 										(*w).WriteHeader(http.StatusNotFound)
-										fmt.Println("Not found:", string(k), string(val))
+										fmt.Println("Not found:", key, string(k), string(val))
 									}
 								}
 								break
@@ -206,12 +206,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				})
 				return nil
 			} else if pip.To16() != nil {
-				//Test, https://localhost:8443/ppi/v1/geoip?ip=0001:0000:0000:0000:0000:0000:0000:0001
-				fmt.Println("hi")
-				//var ip6 Uint128
-				// ip6.PutBytes(net.ParseIP(ip))
-				// fmt.Printf("%#v\n", net.ParseIP(ip))
-				// fmt.Println(ip, pip, pip.To16(), pip, ip6.String())
+				//Test, Google DNS - https://localhost:8443/ppi/v1/geoip?ip=2001:4860:4860::8888
 				var hi uint64
 				var lo uint64
 				b := net.ParseIP(ip)
@@ -228,31 +223,37 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 						(*w).Header().Set("Content-Type", "application/json")
 						(*w).Write(val)
 					} else {
-						func() {
-							iter := kv.db.NewIter(kv.ro)
-							defer iter.Close()
-							for iter.SeekLT([]byte(key)); iteratorIsValid(iter); iter.Next() {
-								k := iter.Key()
-								val := iter.Value()
-								var geoip GeoIP
-								err := json.Unmarshal(val, &geoip)
-								if err != nil {
-									(*w).WriteHeader(http.StatusInternalServerError)
-									fmt.Println("Error marshalling :", string(k), string(val))
+						iter := kv.db.NewIter(kv.ro)
+						// i := 0
+						for iter.SeekLT([]byte(key)); iteratorIsValid(iter); iter.Next() {
+							k := iter.Key()
+							val := iter.Value()
+							//i = i + 1
+							// fmt.Println(string(k), string(val))
+							// if i > 100 {
+							// 	break
+							// }
+							// continue
+							var geoip GeoIP
+							err := json.Unmarshal(val, &geoip)
+							if err != nil {
+								(*w).WriteHeader(http.StatusInternalServerError)
+								fmt.Println("Error marshalling :", string(k), string(val))
+							} else {
+								if key > string(k) && FixedLengthNumberString(39, geoip.IPEnd) > FixedLengthNumberString(39, ipp) {
+									(*w).WriteHeader(http.StatusOK)
+									(*w).Header().Set("Content-Type", "application/json")
+									(*w).Write(val)
 								} else {
-									if key > string(k) && FixedLengthNumberString(39, geoip.IPEnd) > FixedLengthNumberString(39, ipp) {
-										fmt.Println(key, string(k), geoip.IPEnd, ipp, geoip.IPEnd > ipp)
-										(*w).WriteHeader(http.StatusOK)
-										(*w).Header().Set("Content-Type", "application/json")
-										(*w).Write(val)
-									} else {
-										(*w).WriteHeader(http.StatusNotFound)
-										fmt.Println("Not found:", key, string(k), string(val))
-									}
+									(*w).WriteHeader(http.StatusNotFound)
+									fmt.Println("Not found:", key, string(k), string(val))
 								}
-								break
 							}
-						}()
+							break
+
+						}
+
+						iter.Close()
 					}
 					return nil
 				})

@@ -762,7 +762,7 @@ func main() {
 					wb.wb.Close()
 				}
 				load(configuration.TempDirectory+configuration.IPv4GeoIPCSVDest, IDX_PREFIX_IPV4, 10)
-				load(configuration.TempDirectory+configuration.IPv4GeoIPCSVDest, IDX_PREFIX_IPV6, 39)
+				load(configuration.TempDirectory+configuration.IPv6GeoIPCSVDest, IDX_PREFIX_IPV6, 39)
 				kv.SaveValue([]byte("DB_VER"), []byte{byte(configuration.GeoIPVersion)})
 			}
 			return nil
