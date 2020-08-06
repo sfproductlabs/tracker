@@ -168,6 +168,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 		var key string
 		if pip != nil {
 			if pip.To4() != nil {
+				//Test, Google DNS - https://localhost:8443/ppi/v1/geoip?ip=8.8.8.8
 				ips := strconv.FormatInt(int64(binary.BigEndian.Uint32(pip.To4())), 10)
 				ipp := FixedLengthNumberString(10, ips)
 				key = IDX_PREFIX_IPV4 + ipp
