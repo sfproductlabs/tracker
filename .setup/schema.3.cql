@@ -163,7 +163,7 @@ create type payment (
   tax_rate decimal,  
   fees decimal, --additional service fees
   subtotal decimal, --what should have been paid (ex-tax)
-  pmt decimal, --payment = price - discount (actual amount customer paid)
+  pmt decimal, --payment = actual amount customer paid
   paid timestamp,
 );
 
