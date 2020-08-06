@@ -1475,6 +1475,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 params,
 							 gaid,
 							 idfa,
+							 msid,
+							 fbid,
 							 country,
 							 culture,
 							 source,
@@ -1490,8 +1492,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //40
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?) 
+						 IF NOT EXISTS`, //42
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1518,6 +1520,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					params,
 					v["gaid"],
 					v["idfa"],
+					v["msid"],
+					v["fbid"],
 					country,
 					culture,
 					v["source"],
@@ -1565,6 +1569,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 params,
 							 gaid,
 							 idfa,
+							 msid,
+							 fbid,
 							 country,
 							 culture,
 							 source,
@@ -1580,8 +1586,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp                        
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?) 
-						 IF NOT EXISTS`, //41
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?) 
+						 IF NOT EXISTS`, //43
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1609,6 +1615,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					params,
 					v["gaid"],
 					v["idfa"],
+					v["msid"],
+					v["fbid"],
 					country,
 					culture,
 					v["source"],
