@@ -16,29 +16,6 @@ create type geo_pol (
  city text --Ex. Brisbane
 );
 
-create type payment (
-  invid timeuuid, --invoice id
-  invoiced timestamp,
-  product text,
-  pid timeuuid, --product id
-  pcat text, --product category (subscription/premium)
-  qty decimal,
-  duration text,
-  period_start date,
-  period_end date,
-  price decimal, --original list price
-  discount decimal,
-  revenue decimal, --what hits the bank
-  margin decimal,  --what we made off it
-  cost decimal, --est costs (can include intangible costs)
-  tax decimal, --vat, gst , etc.
-  tax_rate decimal,  
-  fees decimal, --additional service fees
-  subtotal decimal, --what should have been paid (ex-tax)
-  pmt decimal, --payment = price - discount (actual amount customer paid)
-  paid timestamp,
-);
-
 create table countries (
   country text,
   name text,
@@ -162,6 +139,29 @@ create table agreed (
 )
 WITH CLUSTERING ORDER BY (created DESC);
 
+
+create type payment (
+  invid timeuuid, --invoice id
+  invoiced timestamp,
+  product text,
+  pid timeuuid, --product id
+  pcat text, --product category (subscription/premium)
+  qty decimal,
+  duration text,
+  period_start date,
+  period_end date,
+  price decimal, --original list price
+  discount decimal,
+  revenue decimal, --what hits the bank
+  margin decimal,  --what we made off it
+  cost decimal, --est costs (can include intangible costs)
+  tax decimal, --vat, gst , etc.
+  tax_rate decimal,  
+  fees decimal, --additional service fees
+  subtotal decimal, --what should have been paid (ex-tax)
+  pmt decimal, --payment = price - discount (actual amount customer paid)
+  paid timestamp,
+);
 
 --total lifetime value, by user, order
 create table tlvu (
