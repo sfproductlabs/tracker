@@ -148,8 +148,8 @@ create type payment (
   pcat text, --product category (subscription/premium)
   qty decimal,
   duration text,
-  period_start date,
-  period_end date,
+  starts date, --product date starts
+  ends date, --product date ends
   price decimal, --original list price
   discount decimal,
   revenue decimal, --what hits the bank
