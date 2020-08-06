@@ -21,7 +21,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Replaces much of Traefik's functionality
 * Drop in replacement for InfluxData's Telegraf
 * Drop in NGINX replacement 
-* Geo IP
+* GeoIP
 
 ## Compatible out of the box with
 * Apache Spark
