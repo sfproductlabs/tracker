@@ -885,6 +885,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "params")
 			delete(*params, "gaid")
 			delete(*params, "idfa")
+			delete(*params, "msid")
+			delete(*params, "fbid")
 			delete(*params, "country")
 			delete(*params, "culture")
 			delete(*params, "ref")
