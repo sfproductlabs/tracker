@@ -1172,6 +1172,77 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			fmt.Println("C*[events]:", xerr)
 		}
 
+		if xerr := i.Session.Query(`INSERT into events_recent 
+			 (
+				 eid,
+				 vid, 
+				 sid,
+				 hhash, 
+				 app,
+				 rel,
+				 created,
+				 uid,
+				 last,
+				 url,
+				 ip,
+				 iphash,
+				 latlon,
+				 ptyp,
+				 bhash,
+				 auth,
+				 duration,
+				 xid,
+				 split,
+				 ename,
+				 source,
+				 medium,
+				 campaign,
+				 term,
+				 etyp,
+				 ver,
+				 sink,
+				 score,							
+				 params,
+				 targets,
+				 rid,
+				 relation
+			 ) 
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?)`, //32
+			w.EventID,
+			v["vid"],
+			v["sid"],
+			hhash,
+			v["app"],
+			v["rel"],
+			updated,
+			v["uid"],
+			v["last"],
+			v["url"],
+			w.IP,
+			iphash,
+			latlon,
+			v["ptyp"],
+			bhash,
+			auth,
+			duration,
+			v["xid"],
+			v["split"],
+			v["ename"],
+			v["source"],
+			v["medium"],
+			v["campaign"],
+			v["term"],
+			v["etyp"],
+			version,
+			v["sink"],
+			score,
+			params,
+			v["targets"],
+			rid,
+			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[events_recent]:", xerr)
+		}
+
 		//Exclude from params in sessions and visitors. Note: more above.
 		if params != nil {
 			delete(*params, "campaign")
