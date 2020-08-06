@@ -16,6 +16,29 @@ create type geo_pol (
  city text --Ex. Brisbane
 );
 
+create type payment (
+  invid timeuuid, --invoice id
+  invoiced timestamp,
+  product text,
+  pid timeuuid, --product id
+  pcat text, --product category (subscription/premium)
+  qty decimal,
+  duration text,
+  period_start date,
+  period_end date,
+  price decimal, --original list price
+  discount decimal,
+  revenue decimal, --what hits the bank
+  margin decimal,  --what we made off it
+  cost decimal, --est costs (can include intangible costs)
+  tax decimal, --vat, gst , etc.
+  tax_rate decimal,  
+  fees decimal, --additional service fees
+  subtotal decimal, --what should have been paid (ex-tax)
+  pmt decimal, --payment = price - discount (actual amount customer paid)
+  paid timestamp,
+);
+
 create table countries (
   country text,
   name text,
@@ -93,7 +116,7 @@ create table agreements (
   zip text,
   owner timeuuid,
   org timeuuid,
-  PRIMARY KEY ((vid))
+  PRIMARY KEY ((vid)) --note all queries should filter hhash
 );
 
 
@@ -135,6 +158,45 @@ create table agreed (
   zip text,
   owner timeuuid,
   org timeuuid,
-  PRIMARY KEY ((vid), created)
+  PRIMARY KEY ((vid), created) --note all queries should filter hhash
 )
 WITH CLUSTERING ORDER BY (created DESC);
+
+
+--total lifetime value, by user, order
+create table tlvu (
+  hhash text,
+  uid timeuuid,
+  vid timeuuid,   
+  sid timeuuid, 
+  orid timeuuid, --order id
+  payments set<frozen<payment>>,
+  paid decimal,
+  org timeuuid,
+  updated timestamp,
+  updater timeuuid,
+  created timestamp,  
+  owner timeuuid,
+  PRIMARY KEY ((hhash, uid), orid)
+);
+
+--total lifetime value, by vid, order
+create table tlvv (
+  hhash text,
+  uid timeuuid,
+  vid timeuuid,   
+  sid timeuuid, 
+  orid timeuuid, 
+  payments set<frozen<payment>>,
+  paid decimal,
+  org timeuuid,
+  updated timestamp,
+  updater timeuuid,
+  created timestamp,  
+  owner timeuuid,
+  PRIMARY KEY ((hhash, vid), orid)
+);
+
+alter table events add payment frozen<payment>;
+alter table events_recent add payment frozen<payment>;
+
