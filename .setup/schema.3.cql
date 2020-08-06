@@ -145,9 +145,11 @@ WITH CLUSTERING ORDER BY (created DESC);
 create type payment (
   invid timeuuid, --invoice id
   invoiced timestamp,
-  product text,
+  product text, --our product name
   pid timeuuid, --product id
   pcat text, --product category (subscription/premium)
+  man text, --outside manufacturer
+  model text, --outside manufacturer's model code
   qty decimal,
   duration text,
   starts date, --product date starts
