@@ -145,6 +145,6 @@ Since GDPR, honest reporting about user telemetry is required. The default track
 * This site or product includes IP2Location LITE data available from https://lite.ip2location.com.
 
 ## Notes
-* **This project is new** Please give me your feedback! We welcome PRs.
+* **This project is in production** and has seen significant improvements in revenue for its users.
 * This project is sort of the opposite to my horizontal web scraper in go https://github.com/dioptre/scrp
 
