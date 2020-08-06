@@ -217,7 +217,6 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				ips := New(lo, hi).String()
 				ipp := FixedLengthNumberString(39, ips)
 				key = IDX_PREFIX_IPV6 + ipp
-				fmt.Println(key)
 				kv.GetValue([]byte(key), func(val []byte) error {
 					if len(val) > 0 {
 						(*w).WriteHeader(http.StatusOK)
@@ -225,16 +224,9 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 						(*w).Write(val)
 					} else {
 						iter := kv.db.NewIter(kv.ro)
-						// i := 0
 						for iter.SeekLT([]byte(key)); iteratorIsValid(iter); iter.Next() {
 							k := iter.Key()
 							val := iter.Value()
-							//i = i + 1
-							// fmt.Println(string(k), string(val))
-							// if i > 100 {
-							// 	break
-							// }
-							// continue
 							var geoip GeoIP
 							err := json.Unmarshal(val, &geoip)
 							if err != nil {
