@@ -144,6 +144,11 @@ func cleanString(s *string) error {
 	return nil
 }
 
+func FixedLengthNumberString(length int, str string) string {
+	verb := fmt.Sprintf("%%%d.%ds", length, length)
+	return strings.Replace(fmt.Sprintf(verb, str), " ", "0", -1)
+}
+
 ////////////////////////////////////////
 // cacheDir in /tmp for SSL
 ////////////////////////////////////////

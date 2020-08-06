@@ -49,10 +49,12 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -151,6 +153,61 @@ func (i *CassandraService) auth(s *ServiceArgs) error {
 
 func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error {
 	switch s.ServiceType {
+	case SVC_GET_GEOIP:
+		if kv == nil || kv.db == nil {
+			(*w).WriteHeader(http.StatusServiceUnavailable)
+			(*w).Write([]byte("not configured"))
+			return nil
+		}
+		(*w).Header().Set("Content-Type", "application/json")
+		ip := getIP(r)
+		if len(r.URL.Query()["ip"]) > 0 {
+			ip = r.URL.Query()["ip"][0]
+		}
+		pip := net.ParseIP(ip)
+		var key string
+		if pip != nil {
+			if pip.To4() != nil {
+				ips := strconv.FormatInt(int64(binary.BigEndian.Uint32(pip.To4())), 10)
+				key = IDX_PREFIX_IPV4 + FixedLengthNumberString(10, ips)
+				kv.GetValue([]byte(key), func(val []byte) error {
+					if len(val) > 0 {
+						(*w).WriteHeader(http.StatusOK)
+						(*w).Write(val)
+					} else {
+						func() {
+							iter := kv.db.NewIter(kv.ro)
+							defer iter.Close()
+							for iter.SeekLT([]byte(key)); iteratorIsValid(iter); iter.Next() {
+								k := iter.Key()
+								val := iter.Value()
+								if key > string(k) && string(val) > key {
+									(*w).WriteHeader(http.StatusOK)
+									(*w).Write(val)
+								} else {
+									(*w).WriteHeader(http.StatusNotFound)
+									fmt.Println("Not found:", string(k), string(val))
+								}
+								break
+							}
+						}()
+					}
+					return nil
+				})
+				return nil
+			} else if pip.To16() != nil {
+				// var pi float64
+				// b := []byte{0x18, 0x2d, 0x44, 0x54, 0xfb, 0x21, 0x09, 0x40}
+				// buf := bytes.NewReader(b)
+				// err := binary.Read(buf, binary.LittleEndian, &pi)
+				// if err != nil {
+				// 	fmt.Println("binary.Read failed:", err)
+				// }
+				// fmt.Print(pi)
+			}
+		}
+
+		return nil
 	case SVC_GET_REDIRECTS:
 		if err := i.auth(s); err != nil {
 			return err

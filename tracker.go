@@ -186,6 +186,7 @@ type GeoIP struct {
 type Configuration struct {
 	Domains                  []string //Domains in Trust, LetsEncrypt domains
 	StaticDirectory          string   //Static FS Directory (./public/)
+	TempDirectory            string
 	UseGeoIP                 bool
 	GeoIPVersion             int
 	IPv4GeoIPZip             string
@@ -237,6 +238,9 @@ const (
 	SERVICE_TYPE_NATS      string = "nats"
 
 	NATS_QUEUE_GROUP = "tracker"
+
+	IDX_PREFIX_IPV4 = "gip4::"
+	IDX_PREFIX_IPV6 = "gip6::"
 )
 const (
 	WRITE_LOG    = 1 << iota
@@ -705,11 +709,11 @@ func main() {
 		kv.GetValue([]byte("DB_VER"), func(val []byte) error {
 			if len(val) == 0 || val[0] != byte(configuration.GeoIPVersion) {
 				fmt.Println("Restoring Geoip Database...")
-				Unzip(configuration.IPv4GeoIPZip, "./tmp/")
-				Unzip(configuration.IPv6GeoIPZip, "./tmp/")
+				Unzip(configuration.IPv4GeoIPZip, configuration.TempDirectory)
+				Unzip(configuration.IPv6GeoIPZip, configuration.TempDirectory)
 				wb := kv.GetWriteBatch()
 				i := 0
-				load := func(src string, keyprefix string) {
+				load := func(src string, keyprefix string, pad int) {
 					file, _ := os.Open(src)
 					defer file.Close()
 					r := csv.NewReader(file)
@@ -722,8 +726,13 @@ func main() {
 						if err != nil {
 							log.Fatal(err)
 						}
-						if rec[0] == "" || rec[1] == "" {
+						if rec[0] == "" || rec[1] == "" || rec[0] == "-" || rec[1] == "-" {
 							continue
+						}
+						for g := 0; g < len(rec); g++ {
+							if rec[g] == "-" {
+								rec[g] = ""
+							}
 						}
 						//Ipv4 has 10 decimal places
 						//Ipv6 has 39 decimal places
@@ -747,32 +756,17 @@ func main() {
 							wb.Clear()
 						}
 						js, err := json.Marshal(geoip)
-						wb.Put([]byte(keyprefix+rec[0]), js)
+						wb.Put([]byte(keyprefix+FixedLengthNumberString(pad, rec[0])), js)
 					}
 					kv.CommitWriteBatch(wb)
 					wb.wb.Close()
 				}
-				load("./tmp/"+configuration.IPv4GeoIPCSVDest, "ip4::")
-				load("./tmp/"+configuration.IPv4GeoIPCSVDest, "ip6::")
+				load(configuration.TempDirectory+configuration.IPv4GeoIPCSVDest, IDX_PREFIX_IPV4, 10)
+				load(configuration.TempDirectory+configuration.IPv4GeoIPCSVDest, IDX_PREFIX_IPV6, 39)
 				kv.SaveValue([]byte("DB_VER"), []byte{byte(configuration.GeoIPVersion)})
 			}
 			return nil
 		})
-		// kv.SaveValue([]byte("1"), []byte("val"))
-		// kv.SaveValue([]byte("5"), []byte("val"))
-		// func() {
-		// 	iter := kv.db.NewIter(kv.ro)
-		// 	defer iter.Close()
-		// 	for iter.SeekGE([]byte("2")); iteratorIsValid(iter); iter.Next() {
-		// 		key := iter.Key()
-		// 		val := iter.Value()
-		// 		fmt.Println(string(key), string(val))
-		// 		break
-		// 	}
-		// }()
-		// kv.GetValue([]byte("key"), func(val []byte) error { fmt.Println(string(val)); return nil })
-		// fmt.Println(kv.Name())
-		// kv.Close()
 	}
 	ctr := mux.NewRouter()
 	ctr.HandleFunc("/ppi/"+apiVersion+"/{action}", func(w http.ResponseWriter, r *http.Request) {
@@ -799,6 +793,8 @@ func main() {
 					}
 				case "jd": //jurisdictions
 					sargs.ServiceType = SVC_GET_JURISDICTIONS
+				case "geoip": //geoip
+					sargs.ServiceType = SVC_GET_GEOIP
 				default:
 					w.WriteHeader(http.StatusBadRequest)
 					w.Write([]byte("Unknown action"))
