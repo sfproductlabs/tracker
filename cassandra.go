@@ -186,6 +186,15 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					temp := int64(com)
 					flags = &temp
 				}
+				//[country]
+				var country *string
+				var region *string
+				if tz, ok := b["tz"].(string); ok {
+					cleanString(&tz)
+					if ct, oktz := countries[tz]; oktz {
+						country = &ct
+					}
+				}
 				//[latlon]
 				var latlon *geo_point
 				latf, oklatf := b["lat"].(float64)
@@ -212,8 +221,21 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 							latlon = &geo_point{}
 							latlon.Lat = geoip.Latitude
 							latlon.Lon = geoip.Longitude
+							if geoip.CountryISO2 != "" {
+								country = &geoip.CountryISO2
+							}
+							if geoip.Region != "" {
+								region = &geoip.Region
+							}
 						}
 					}
+				}
+				//Self identification of geo_pol overrules geoip
+				if ct, ok := b["country"].(string); ok {
+					country = &ct
+				}
+				if r, ok := b["region"].(string); ok {
+					region = &r
 				}
 				if /* results, */ err := i.Session.Query(`INSERT into agreements (
 					vid, 
@@ -235,9 +257,10 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					msid,
 					fbid,
 					country, 
+					region,
 					culture, 
+					
 					source,
-
 					medium,
 					campaign,
 					term, 
@@ -247,8 +270,8 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					browser,
 					bhash,
 					device, 
+					
 					os, 
-
 					tz,
 					--vp,
 					--loc frozen<geo_pol>,
@@ -256,7 +279,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					zip,
 					owner,
 					org
-				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
 					b["vid"],
 					created,
 					//compliances map<text,frozen<set<text>>>,
@@ -275,10 +298,11 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					b["idfa"],
 					b["msid"],
 					b["fbid"],
-					b["country"],
+					country,
+					region,
 					b["culture"],
-					b["source"],
 
+					b["source"],
 					b["medium"],
 					b["campaign"],
 					b["term"],
@@ -288,8 +312,8 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					browser,
 					bhash,
 					b["device"],
-					b["os"],
 
+					b["os"],
 					b["tz"],
 					//  vp frozen<viewport>,
 					//  loc frozen<geo_pol>,
@@ -321,9 +345,10 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					msid,
 					fbid,
 					country, 
+					region,
 					culture, 
+					
 					source,
-
 					medium,
 					campaign,
 					term, 
@@ -333,8 +358,8 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					browser,
 					bhash,
 					device, 
+					
 					os, 
-
 					tz,
 					--vp,
 					--loc frozen<geo_pol>,
@@ -342,7 +367,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					zip,
 					owner,
 					org
-				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
 					b["vid"],
 					created,
 					//compliances map<text,frozen<set<text>>>,
@@ -361,10 +386,11 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					b["idfa"],
 					b["msid"],
 					b["fbid"],
-					b["country"],
+					country,
+					region,
 					b["culture"],
-					b["source"],
 
+					b["source"],
 					b["medium"],
 					b["campaign"],
 					b["term"],
@@ -374,8 +400,8 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					browser,
 					bhash,
 					b["device"],
-					b["os"],
 
+					b["os"],
 					b["tz"],
 					//  vp frozen<viewport>,
 					//  loc frozen<geo_pol>,
@@ -758,6 +784,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				auth = &temp2
 			}
 		}
+		//[country]
+		var country *string
+		if tz, ok := v["tz"].(string); ok {
+			if ct, oktz := countries[tz]; oktz {
+				country = &ct
+			}
+		}
 		//[latlon]
 		var latlon *geo_point
 		latf, oklatf := v["lat"].(float64)
@@ -784,6 +817,9 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					latlon = &geo_point{}
 					latlon.Lat = geoip.Latitude
 					latlon.Lon = geoip.Longitude
+					if geoip.CountryISO2 != "" {
+						country = &geoip.CountryISO2
+					}
 				}
 			}
 		}
@@ -919,14 +955,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if len(c) > 0 {
 			culture = &c[0]
 			cleanString(culture)
-		}
-		//[country]
-		//TODO: Use GeoIP too
-		var country *string
-		if tz, ok := v["tz"].(string); ok {
-			if ct, oktz := countries[tz]; oktz {
-				country = &ct
-			}
 		}
 
 		//WARNING: w.URI has destructive changes here
