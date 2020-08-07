@@ -167,6 +167,22 @@ create type payment (
   paid timestamp,
 );
 
+--total lifetime value, by user
+create table tlv (
+  hhash text,
+  uid timeuuid,
+  vid timeuuid,   
+  sid timeuuid, 
+  payments set<frozen<payment>>,
+  paid decimal,
+  org timeuuid,
+  updated timestamp,
+  updater timeuuid,
+  created timestamp,  
+  owner timeuuid,
+  PRIMARY KEY ((hhash, uid))
+);
+
 --total lifetime value, by user, order
 create table tlvu (
   hhash text,
