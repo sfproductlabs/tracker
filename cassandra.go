@@ -181,10 +181,10 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					temp := strconv.FormatInt(int64(hash(browser)), 36)
 					bhash = &temp
 				}
-				var flags *int64
-				if com, ok := b["compliance_flags"].(float64); ok {
+				var cflags *int64
+				if com, ok := b["cflags"].(float64); ok {
 					temp := int64(com)
-					flags = &temp
+					cflags = &temp
 				}
 				//[country]
 				var country *string
@@ -241,7 +241,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					vid, 
 					created,  
 					-- compliances,
-					compliance_flags,
+					cflags,
 					sid, 
 					uid, 
 					avid,
@@ -283,7 +283,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					b["vid"],
 					created,
 					//compliances map<text,frozen<set<text>>>,
-					flags,
+					cflags,
 					b["sid"],
 					b["uid"],
 					b["avid"],
@@ -329,7 +329,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					vid, 
 					created,  
 					-- compliances,
-					compliance_flags,
+					cflags,
 					sid, 
 					uid, 
 					avid,
@@ -371,7 +371,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					b["vid"],
 					created,
 					//compliances map<text,frozen<set<text>>>,
-					flags,
+					cflags,
 					b["sid"],
 					b["uid"],
 					b["avid"],

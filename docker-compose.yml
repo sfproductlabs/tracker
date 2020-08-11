@@ -16,7 +16,7 @@ services:
      volumes: 
        - ./.setup:/tmp/.csetup
      command: >
-              bash -c "((sleep 60s && cqlsh --ssl < /tmp/.csetup/schema.2.cql && cqlsh --ssl < /tmp/.csetup/schema.3.cql &) && (/docker-entrypoint.sh cassandra -f))"
+              bash -c "((sleep 60s && cqlsh --ssl < /tmp/.csetup/schema.3.cql && cqlsh --ssl < /tmp/.csetup/schema.4.cql &) && (/docker-entrypoint.sh cassandra -f))"
   nats:
     image: sfproductlabs/nats:latest
     ports:
