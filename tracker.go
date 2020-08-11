@@ -954,6 +954,18 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	if cerr == nil && cookie != nil {
 		j["vid"] = cookie.Value
 	}
+	//Try to get CookieConsent from cookie (cflags)
+	cookie, cerr = r.Cookie("CookieConsent")
+	if cerr == nil && cookie != nil {
+		if cflags, err := strconv.ParseInt(cookie.Value, 10, 64); err == nil {
+			j["cflags"] = cflags
+		}
+	}
+	//Try to get sid from cookie
+	cookie, cerr = r.Cookie("sid")
+	if cerr == nil && cookie != nil {
+		j["sid"] = cookie.Value
+	}
 	//Path
 	p := strings.Split(r.URL.Path, "/")
 	pmax := (len(p) - 2)

@@ -523,7 +523,7 @@ WITH default_time_to_live = 1209600; --2 weeks
 --should never be updated
 create table cohorts (
   name text,
-  uids_url text,
+  uids_url text, --uids_url
   imported int, --successful imports (count)
   started timestamp,
   completed timestamp,

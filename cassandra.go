@@ -853,6 +853,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			temp := int64(ver)
 			version = &temp
 		}
+		//[cflags] - compliance flags
+		var cflags *int64
+		if com, ok := v["cflags"].(int64); ok {
+			cflags = &com
+		} else if com, ok := v["cflags"].(float64); ok {
+			temp := int64(com)
+			cflags = &temp
+		}
 		//[bhash]
 		var bhash *string
 		if w.Browser != "" {
@@ -902,6 +910,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "sid")
 			delete(*params, "app")
 			delete(*params, "rel")
+			delete(*params, "cflags")
 			delete(*params, "created")
 			delete(*params, "uid")
 			delete(*params, "last")
@@ -1100,6 +1109,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 hhash, 
 				 app,
 				 rel,
+				 cflags,
 				 created,
 				 uid,
 				 last,
@@ -1127,13 +1137,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 rid,
 				 relation
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?)`, //32
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?)`, //33
 			w.EventID,
 			v["vid"],
 			v["sid"],
 			hhash,
 			v["app"],
 			v["rel"],
+			cflags,
 			updated,
 			v["uid"],
 			v["last"],
@@ -1171,6 +1182,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 hhash, 
 				 app,
 				 rel,
+				 cflags,
 				 created,
 				 uid,
 				 last,
@@ -1198,13 +1210,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 rid,
 				 relation
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?)`, //32
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?)`, //33
 			w.EventID,
 			v["vid"],
 			v["sid"],
 			hhash,
 			v["app"],
 			v["rel"],
+			cflags,
 			updated,
 			v["uid"],
 			v["last"],
@@ -1485,6 +1498,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 hhash,
 							 app,
 							 rel,
+							 cflags,
 							 created,
 							 uid,
 							 last,
@@ -1522,7 +1536,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?) 
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?) 
 						 IF NOT EXISTS`, //42
 					v["vid"],
 					v["did"],
@@ -1530,6 +1544,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					hhash,
 					v["app"],
 					v["rel"],
+					cflags,
 					updated,
 					v["uid"],
 					v["last"],
@@ -1578,6 +1593,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 hhash,
 							 app,
 							 rel,
+							 cflags,
 							 created,
 							 uid,
 							 last,
@@ -1616,14 +1632,15 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp                        
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?) 
-						 IF NOT EXISTS`, //43
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) 
+						 IF NOT EXISTS`, //44
 					v["vid"],
 					v["did"],
 					v["sid"],
 					hhash,
 					v["app"],
 					v["rel"],
+					cflags,
 					updated,
 					v["uid"],
 					v["last"],
