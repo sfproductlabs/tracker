@@ -38,20 +38,23 @@ create type payment (
   pcat text, --product category (subscription/premium)
   man text, --outside manufacturer
   model text, --outside manufacturer's model code
-  qty decimal,
-  duration text,
+  qty double,
+  duration text, --aka subscription_type
   starts date, --product date starts
   ends date, --product date ends
-  price decimal, --original list price
-  discount decimal, --actual (not %)
-  revenue decimal, --what hits the bank
-  margin decimal,  --what we made off it
-  cost decimal, --est costs (can include intangible costs)
-  tax decimal, --vat, gst , etc.
-  tax_rate decimal,  
-  fees decimal, --additional service fees
-  subtotal decimal, --what should have been paid (ex-tax)
-  pmt decimal, --payment = actual amount customer paid
+  price double, --original list price
+  discount double, --actual (not %)
+  revenue double, --what hits the bank
+  margin double,  --what we made off it
+  cost double, --est costs (can include intangible costs)
+  tax double, --vat, gst , etc.
+  tax_rate double,  
+  commission double, --fees for app store, play store etc
+  referral double, --user/entity fee for referral
+  fees double, --additional service fees
+  subtotal double, --what should have been paid (inc-tax)
+  total double, --what should have been paid for the whole invoice (inc-tax)
+  payment double, --payment = actual amount customer paid
   paid timestamp,
 );
 
@@ -139,6 +142,7 @@ create table visitors (
   msid text, --microsoft advertising id
   fbid text, --facebook advertising id
   country text, --ISO-2
+  region text, --state/region name
   culture text, --EN-US
   source text, --referring domain, user, service [sms] AKA utm_source
   medium text, --email,sms,ad,etc [invite] AKA utm_medium
@@ -190,6 +194,7 @@ create table sessions (
   msid text,
   fbid text,
   country text, 
+  region text,
   culture text, 
   source text,
   medium text,
@@ -233,6 +238,8 @@ create table events (
   source text, 
   medium text, 
   campaign text, 
+  country text,
+  region text,
   term text,
   etyp text, 
   ver int,
@@ -273,6 +280,8 @@ create table events_recent (
   source text, 
   medium text, 
   campaign text, 
+  country text,
+  region text,
   term text,
   etyp text, 
   ver int,
@@ -548,7 +557,8 @@ create table messages (
   cohorts set<text>,
   ehashes set<text>, 
   chashes set<text>,
-  split decimal, --% random 1=1%
+  split double, --% random 1=1%
+  splitn text, --split name
   source text,
   medium text,
   campaign text,
@@ -723,7 +733,7 @@ create table tlv (
   vid timeuuid,   
   sid timeuuid, 
   payments set<frozen<payment>>,
-  paid decimal,
+  paid double,
   org timeuuid,
   updated timestamp,
   updater timeuuid,
@@ -740,7 +750,7 @@ create table tlvu (
   sid timeuuid, 
   orid timeuuid, --order id
   payments set<frozen<payment>>,
-  paid decimal,
+  paid double,
   org timeuuid,
   updated timestamp,
   updater timeuuid,
@@ -757,7 +767,7 @@ create table tlvv (
   sid timeuuid, 
   orid timeuuid, 
   payments set<frozen<payment>>,
-  paid decimal,
+  paid double,
   org timeuuid,
   updated timestamp,
   updater timeuuid,

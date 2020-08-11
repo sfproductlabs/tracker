@@ -144,6 +144,13 @@ func cleanString(s *string) error {
 	return nil
 }
 
+func upperString(s *string) error {
+	if s != nil && *s != "" {
+		*s = strings.ToUpper(strings.TrimSpace(*s))
+	}
+	return nil
+}
+
 func FixedLengthNumberString(length int, str string) string {
 	verb := fmt.Sprintf("%%%d.%ds", length, length)
 	return strings.Replace(fmt.Sprintf(verb, str), " ", "0", -1)

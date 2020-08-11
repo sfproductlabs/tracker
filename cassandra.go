@@ -237,6 +237,8 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				if r, ok := b["region"].(string); ok {
 					region = &r
 				}
+				upperString(country)
+				cleanString(region)
 				if /* results, */ err := i.Session.Query(`INSERT into agreements (
 					vid, 
 					created,  
@@ -786,6 +788,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 		//[country]
 		var country *string
+		var region *string
 		if tz, ok := v["tz"].(string); ok {
 			if ct, oktz := countries[tz]; oktz {
 				country = &ct
@@ -820,9 +823,21 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					if geoip.CountryISO2 != "" {
 						country = &geoip.CountryISO2
 					}
+					if geoip.Region != "" {
+						region = &geoip.Region
+					}
 				}
 			}
 		}
+		//Self identification of geo_pol overrules geoip
+		if ct, ok := v["country"].(string); ok {
+			country = &ct
+		}
+		if r, ok := v["region"].(string); ok {
+			region = &r
+		}
+		upperString(country)
+		cleanString(region)
 		//[vp]
 		var vp *viewport
 		width, okwf := v["w"].(float64)
@@ -933,6 +948,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "msid")
 			delete(*params, "fbid")
 			delete(*params, "country")
+			delete(*params, "region")
 			delete(*params, "culture")
 			delete(*params, "ref")
 			delete(*params, "aff")
@@ -1127,6 +1143,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 source,
 				 medium,
 				 campaign,
+				 country,
+				 region,
 				 term,
 				 etyp,
 				 ver,
@@ -1137,7 +1155,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 rid,
 				 relation
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?)`, //33
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //35
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -1162,6 +1180,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["source"],
 			v["medium"],
 			v["campaign"],
+			country,
+			region,
 			v["term"],
 			v["etyp"],
 			version,
@@ -1200,6 +1220,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 source,
 				 medium,
 				 campaign,
+				 country,
+				 region,
 				 term,
 				 etyp,
 				 ver,
@@ -1210,7 +1232,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 rid,
 				 relation
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?)`, //33
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //35
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -1235,6 +1257,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["source"],
 			v["medium"],
 			v["campaign"],
+			country,
+			region,
 			v["term"],
 			v["etyp"],
 			version,
@@ -1522,6 +1546,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 msid,
 							 fbid,
 							 country,
+							 region,
 							 culture,
 							 source,
 							 medium,
@@ -1536,8 +1561,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?) 
-						 IF NOT EXISTS`, //42
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) 
+						 IF NOT EXISTS`, //44
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1568,6 +1593,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["msid"],
 					v["fbid"],
 					country,
+					region,
 					culture,
 					v["source"],
 					v["medium"],
@@ -1618,6 +1644,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 msid,
 							 fbid,
 							 country,
+							 region,
 							 culture,
 							 source,
 							 medium,
@@ -1632,8 +1659,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp                        
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) 
-						 IF NOT EXISTS`, //44
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) 
+						 IF NOT EXISTS`, //45
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1665,6 +1692,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["msid"],
 					v["fbid"],
 					country,
+					region,
 					culture,
 					v["source"],
 					v["medium"],
