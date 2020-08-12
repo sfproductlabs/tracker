@@ -294,8 +294,8 @@ func main() {
 	fmt.Println("\n\n//////////////////////////////////////////////////////////////")
 	fmt.Println("Tracker.")
 	fmt.Println("Software to track growth and visitor usage")
-	fmt.Println("https://github.com/dioptre/tracker")
-	fmt.Println("(c) Copyright 2018 SF Product Labs LLC.")
+	fmt.Println("https://github.com/sfproductlabs/tracker")
+	fmt.Println("(c) Copyright 2018-2020 SF Product Labs LLC.")
 	fmt.Println("Use of this software is subject to the LICENSE agreement.")
 	fmt.Println("//////////////////////////////////////////////////////////////\n\n")
 
