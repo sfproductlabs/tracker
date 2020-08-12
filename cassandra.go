@@ -789,6 +789,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//[country]
 		var country *string
 		var region *string
+		var city *string
 		if tz, ok := v["tz"].(string); ok {
 			if ct, oktz := countries[tz]; oktz {
 				country = &ct
@@ -826,8 +827,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					if geoip.Region != "" {
 						region = &geoip.Region
 					}
+					if geoip.City != "" {
+						city = &geoip.City
+					}
 				}
 			}
+		}
+		if !i.AppConfig.UseRegionDescriptions {
+			//country = nil
+			region = nil
+			city = nil
 		}
 		//Self identification of geo_pol overrules geoip
 		if ct, ok := v["country"].(string); ok {
@@ -836,8 +845,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if r, ok := v["region"].(string); ok {
 			region = &r
 		}
+		if r, ok := v["city"].(string); ok {
+			city = &r
+		}
 		upperString(country)
 		cleanString(region)
+		cleanString(city)
 		//[vp]
 		var vp *viewport
 		width, okwf := v["w"].(float64)
@@ -971,6 +984,49 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			if len(*params) == 0 {
 				params = nil
+			}
+		}
+
+		var nparams *map[string]float64
+		if params != nil {
+			tparams := make(map[string]float64)
+			for npk, npv := range *params {
+				if d, ok := npv.(float64); ok {
+					tparams[npk] = d
+					(*params)[npk] = fmt.Sprintf("%f", d) //let's keep both string and numerical
+					//delete(*params, npk) //we delete the old copy
+					continue
+				}
+				if npb, ok := npv.(bool); ok {
+					if npb {
+						tparams[npk] = 1
+					} else {
+						tparams[npk] = 0
+					}
+					(*params)[npk] = fmt.Sprintf("%v", npb)
+					continue
+				}
+				if nps, ok := npv.(string); !ok {
+					//UNKNOWN TYPE
+					(*params)[npk] = fmt.Sprintf("%+v", npv) //clean up instead
+					//delete(*params, npk) //remove if not a string
+				} else {
+					if strings.TrimSpace(strings.ToLower(nps)) == "true" {
+						tparams[npk] = 1
+						continue
+					}
+					if strings.TrimSpace(strings.ToLower(nps)) == "false" {
+						tparams[npk] = 0
+						continue
+					}
+					if npf, err := strconv.ParseFloat(nps, 64); err == nil && len(nps) > 0 {
+						tparams[npk] = npf
+					}
+
+				}
+			}
+			if len(tparams) > 0 {
+				nparams = &tparams
 			}
 		}
 
@@ -1145,17 +1201,19 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 campaign,
 				 country,
 				 region,
+				 city,
 				 term,
 				 etyp,
 				 ver,
 				 sink,
 				 score,							
 				 params,
+				 nparams,
 				 targets,
 				 rid,
 				 relation
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //35
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?)`, //37
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -1182,12 +1240,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["campaign"],
 			country,
 			region,
+			city,
 			v["term"],
 			v["etyp"],
 			version,
 			v["sink"],
 			score,
 			params,
+			nparams,
 			v["targets"],
 			rid,
 			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
@@ -1222,17 +1282,19 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 campaign,
 				 country,
 				 region,
+				 city,
 				 term,
 				 etyp,
 				 ver,
 				 sink,
 				 score,							
 				 params,
+				 nparams,
 				 targets,
 				 rid,
 				 relation
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?)`, //35
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?)`, //37
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -1259,12 +1321,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["campaign"],
 			country,
 			region,
+			city,
 			v["term"],
 			v["etyp"],
 			version,
 			v["sink"],
 			score,
 			params,
+			nparams,
 			v["targets"],
 			rid,
 			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
@@ -1541,12 +1605,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 sink,
 							 score,							
 							 params,
+							 nparams,
 							 gaid,
 							 idfa,
 							 msid,
 							 fbid,
 							 country,
 							 region,
+							 city,
 							 culture,
 							 source,
 							 medium,
@@ -1561,8 +1627,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?) 
-						 IF NOT EXISTS`, //44
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?) 
+						 IF NOT EXISTS`, //46
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1588,12 +1654,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["sink"],
 					score,
 					params,
+					nparams,
 					v["gaid"],
 					v["idfa"],
 					v["msid"],
 					v["fbid"],
 					country,
 					region,
+					city,
 					culture,
 					v["source"],
 					v["medium"],
@@ -1639,12 +1707,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 sink,
 							 score,							
 							 params,
+							 nparams,
 							 gaid,
 							 idfa,
 							 msid,
 							 fbid,
 							 country,
 							 region,
+							 city,
 							 culture,
 							 source,
 							 medium,
@@ -1659,8 +1729,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp                        
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?) 
-						 IF NOT EXISTS`, //45
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?) 
+						 IF NOT EXISTS`, //47
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1687,12 +1757,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["sink"],
 					score,
 					params,
+					nparams,
 					v["gaid"],
 					v["idfa"],
 					v["msid"],
 					v["fbid"],
 					country,
 					region,
+					city,
 					culture,
 					v["source"],
 					v["medium"],

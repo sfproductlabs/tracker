@@ -136,6 +136,7 @@ create table visitors (
   sink text, --local-optimum/intention, Ex. want user to sign up for offer X
   score double, --score (where user is in sink/intention)
   params map<text,text>, --all additional experiment params,passive multivariate experiments (xid,split), (include global-optimum-experimentid[outcome], a/b[type], etc)
+  nparams map<text,double>, --numerical version of params
   --Landing Fields
   gaid text, --google advertising id
   idfa text, --apple advertising id
@@ -143,6 +144,7 @@ create table visitors (
   fbid text, --facebook advertising id
   country text, --ISO-2
   region text, --state/region name
+  city text, --city
   culture text, --EN-US
   source text, --referring domain, user, service [sms] AKA utm_source
   medium text, --email,sms,ad,etc [invite] AKA utm_medium
@@ -188,6 +190,7 @@ create table sessions (
   sink text, 
   score double, 
   params map<text,text>, 
+  nparams map<text,double>,
   --Landing Fields
   gaid text,
   idfa text,
@@ -195,6 +198,7 @@ create table sessions (
   fbid text,
   country text, 
   region text,
+  city text,
   culture text, 
   source text,
   medium text,
@@ -240,12 +244,14 @@ create table events (
   campaign text, 
   country text,
   region text,
+  city text,
   term text,
   etyp text, 
   ver int,
   sink text, 
   score double, 
   params   map<text,text>, 
+  nparams map<text,double>,
   --Additional Fields
   payment frozen<payment>,
   targets  map<text,frozen<set<text>>>, --type, components viewed on page/server to see whats working. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}
@@ -282,12 +288,14 @@ create table events_recent (
   campaign text, 
   country text,
   region text,
+  city text,
   term text,
   etyp text, 
   ver int,
   sink text, 
   score double, 
   params   map<text,text>, 
+  nparams map<text,double>,
   --Additional Fields
   payment frozen<payment>,
   targets  map<text,frozen<set<text>>>, --type, components viewed on page/server to see whats working. Ex. {{videos : {"1.mov"}}, {ads: {"intro1", "book", "test"}}

@@ -188,6 +188,7 @@ type Configuration struct {
 	StaticDirectory          string   //Static FS Directory (./public/)
 	TempDirectory            string
 	UseGeoIP                 bool
+	UseRegionDescriptions    bool
 	GeoIPVersion             int
 	IPv4GeoIPZip             string
 	IPv6GeoIPZip             string
