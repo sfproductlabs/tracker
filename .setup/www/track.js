@@ -83,7 +83,7 @@ export default function track(params, force) {
     json.aff = path(["params","aff"], json);
     json.ref = path(["params","ref"], json);
     json.app = process.env.APP_NAME;
-    json.ver = process.env.VERSION;
+    json.rel = process.env.RELEASE;
     delete json.params.ename;
     delete json.params.sink;
     delete json.params.score;

@@ -60,7 +60,7 @@
             "Cert": "./.setup/keys/cassandra-client.crt",
             "Key": "./.setup/keys/cassandra-client.key",
             "Secure": false,
-            "Retry": false,
+            "Retries": 3,
             "Critical" :true,
             "Filter": [
                 {

@@ -1,14 +1,14 @@
 export const URL_API = process.env.URL_API;
 export const URL_TRACK = process.env.URL_TRACK;
-export const COOKIE_JWT = 'jwt'
+export const COOKIE_JWT = 'ajwt'
 export const COOKIE_USER = 'user'
 export const COOKIE_LAST_ACTIVE = 'la'
 export const COOKIE_VID = 'vid'
 export const COOKIE_QPS = 'qps'
-export const COOKIE_SESS = 'sess'
+export const COOKIE_SESS = 'sid'
 export const COOKIE_TRACK = 'trc'
 export const COOKIE_REFERRAL = 'ref'
-export const COOKIE_REFERRAL_USER_UUID = 'ruuuid'
+export const COOKIE_REFERRAL_USER_UUID = 'ruid'
 export const COOKIE_DURATION = 'dur'
 export const COOKIE_EXPERIMENT = 'ex'
 export const COOKIE_EXP_PARAMS = 'exp'

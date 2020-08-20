@@ -74,6 +74,9 @@ func (i *CassandraService) connect() error {
 	cluster := gocql.NewCluster(i.Configuration.Hosts...)
 	cluster.Keyspace = i.Configuration.Context
 	cluster.Consistency = gocql.LocalOne
+	if i.Configuration.Retries > 0 {
+		cluster.RetryPolicy = &gocql.SimpleRetryPolicy{NumRetries: i.Configuration.Retries}
+	}
 	cluster.Timeout = i.Configuration.Timeout * time.Millisecond
 	cluster.NumConns = i.Configuration.Connections
 	if i.Configuration.CACert != "" {

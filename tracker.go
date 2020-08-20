@@ -143,12 +143,12 @@ type Service struct {
 
 	Context      string
 	Filter       []Filter
-	Retry        bool
 	Format       string
 	MessageLimit int
 	ByteLimit    int
 	Timeout      time.Duration
 	Connections  int
+	Retries      int
 
 	Consumer  bool
 	Ephemeral bool
