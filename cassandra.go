@@ -79,6 +79,9 @@ func (i *CassandraService) connect() error {
 	}
 	cluster.Timeout = i.Configuration.Timeout * time.Millisecond
 	cluster.NumConns = i.Configuration.Connections
+	cluster.ReconnectInterval = time.Second
+	cluster.SocketKeepalive = time.Millisecond * 500
+	cluster.MaxPreparedStmts = 10000
 	if i.Configuration.CACert != "" {
 		sslOpts := &gocql.SslOptions{
 			CaPath:                 i.Configuration.CACert,
