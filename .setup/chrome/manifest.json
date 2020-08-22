@@ -1,0 +1,22 @@
+{
+    "name": "SFPL Visitor Tracker",
+    "short_name": "tracker",
+    "version": "1.1",
+    "description": "Tracker is software to track known and unknown vistors to your site. Go to https://github.com/dioptre/tracker for more info.",
+    "manifest_version": 2,
+    "minimum_chrome_version": "38",
+    "permissions": [
+        "contextMenus", 
+        "tabs",
+        "storage",
+        "declarativeContent",
+        "cookies"
+    ],
+    "icons": {
+        "16": "img/tracker16.png",
+        "48": "img/tracker48.png"
+    },
+    "background": { 
+        "scripts": ["background.js"]
+      }
+  }
