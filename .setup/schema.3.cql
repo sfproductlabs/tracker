@@ -688,7 +688,7 @@ create table agreements (
   PRIMARY KEY ((vid)) --note all queries should filter hhash
 );
 
-
+--history of all agreements
 create table agreed (
   vid timeuuid, 
   created timestamp,  
