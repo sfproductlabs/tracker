@@ -60,15 +60,16 @@ create type payment (
 
 create type geo_pol (
  country text, --iso2 ex. US, DE, AU
- region text, --State ex. CA, BW
+ rcode text, --State ex. CA, BW
+ region text, --State ex. California
  county text, --Ex city San Francisco, County San Francisco (legislative sub-region)
  city text --Ex. Brisbane
 );
 
 create table countries (
-  country text,
-  name text,
-  continent text,
+  country text, --iso2 ex US
+  name text, --ex United States of America
+  continent text, -- North America
   PRIMARY KEY ((country))
 );
 
@@ -80,7 +81,7 @@ create table geo_ip (
  ipis inet, --ip start address representation
  ipie inet, --ip end address representation
  country text, 
- region text, 
+ region text, --could be california or CA
  city text,
  lat double,
  lon double,
@@ -303,6 +304,7 @@ create table events_recent (
   rid timeuuid, --relation id/cluster based event on original/related eid or internal id/reference (ex. newsletterid)
   PRIMARY KEY (eid) --perhaps move sid from ck into pk
 ) WITH default_time_to_live = 2678400; --31 days
+ALTER TABLE events_recent WITH gc_grace_seconds = 14400;
 
 create table nodes (
   hhash text,
@@ -631,6 +633,55 @@ create table updates (
 );
 
 
+create table zips (
+  country text, 
+  zip text, --needs to be normalized
+  region text, 
+  rcode text,
+  county text,
+  city text,
+  culture text, 
+  population int,
+  men int,
+  women int,
+  hispanic double,
+  white double,
+  black double,
+  native double,
+  asian double,
+  pacific double,
+  voters int,
+  income double,
+  incomeerr double,
+  incomepercap double,
+  incomepercaperr double,
+  poverty double,
+  childpoverty double,
+  professional double,
+  service double,
+  office double,
+  construction double,
+  production double,
+  drive double,
+  carpool double,
+  transit double,
+  walk double,
+  othertransport double,
+  workathome double,
+  meancommute double,
+  employed int,
+  privatework double,
+  publicwork double,
+  selfemployed double,
+  familywork double,
+  unemployment double,
+  latlon frozen<geo_point>,  
+  loc frozen<geo_pol>, --not used rn
+  created timestamp, 
+  primary key((country,zip))
+);
+#COPY sfpla.zips (zip,country,region,county,population,men,women,hispanic,white,black,native,asian,pacific,voters,income, incomeerr, incomepercap, incomepercaperr, poverty, childpoverty, professional,service,  office,  construction,  production, drive, carpool, transit, walk , othertransport, workathome ,  meancommute, employed , privatework, publicwork , selfemployed, familywork , unemployment, city, rcode, created, latlon) FROM 'zipdata.csv' WITH HEADER = TRUE;
+ALTER TABLE zips WITH gc_grace_seconds = 60;
 
 --- PRIVACY ---
 create table jurisdictions (
@@ -783,3 +834,5 @@ create table tlvv (
   owner timeuuid,
   PRIMARY KEY ((hhash, vid), orid)
 );
+
+
