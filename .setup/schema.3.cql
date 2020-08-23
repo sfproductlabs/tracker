@@ -680,7 +680,7 @@ create table zips (
   created timestamp, 
   primary key((country,zip))
 );
-#COPY sfpla.zips (zip,country,region,county,population,men,women,hispanic,white,black,native,asian,pacific,voters,income, incomeerr, incomepercap, incomepercaperr, poverty, childpoverty, professional,service,  office,  construction,  production, drive, carpool, transit, walk , othertransport, workathome ,  meancommute, employed , privatework, publicwork , selfemployed, familywork , unemployment, city, rcode, created, latlon) FROM 'zipdata.csv' WITH HEADER = TRUE;
+--COPY sfpla.zips (zip,country,region,county,population,men,women,hispanic,white,black,native,asian,pacific,voters,income, incomeerr, incomepercap, incomepercaperr, poverty, childpoverty, professional,service,  office,  construction,  production, drive, carpool, transit, walk , othertransport, workathome ,  meancommute, employed , privatework, publicwork , selfemployed, familywork , unemployment, city, rcode, created, latlon) FROM 'zipdata.csv' WITH HEADER = TRUE;
 ALTER TABLE zips WITH gc_grace_seconds = 60;
 
 --- PRIVACY ---
