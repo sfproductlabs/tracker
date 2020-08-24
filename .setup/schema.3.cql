@@ -63,7 +63,8 @@ create type geo_pol (
  rcode text, --State ex. CA, BW
  region text, --State ex. California
  county text, --Ex city San Francisco, County San Francisco (legislative sub-region)
- city text --Ex. Brisbane
+ city text, --Ex. Brisbane
+ zip text
 );
 
 create table countries (
@@ -146,6 +147,7 @@ create table visitors (
   country text, --ISO-2
   region text, --state/region name
   city text, --city
+  zip text, --zip/postal code
   culture text, --EN-US
   source text, --referring domain, user, service [sms] AKA utm_source
   medium text, --email,sms,ad,etc [invite] AKA utm_medium
@@ -200,6 +202,7 @@ create table sessions (
   country text, 
   region text,
   city text,
+  zip text,
   culture text, 
   source text,
   medium text,
@@ -246,6 +249,7 @@ create table events (
   country text,
   region text,
   city text,
+  zip text,
   term text,
   etyp text, 
   ver int,
@@ -290,6 +294,7 @@ create table events_recent (
   country text,
   region text,
   city text,
+  zip text,
   term text,
   etyp text, 
   ver int,

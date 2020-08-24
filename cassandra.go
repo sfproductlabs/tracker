@@ -796,6 +796,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		var country *string
 		var region *string
 		var city *string
+		zip := v["zip"]
+		ensureInterfaceString(zip)
 		if tz, ok := v["tz"].(string); ok {
 			if ct, oktz := countries[tz]; oktz {
 				country = &ct
@@ -836,6 +838,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					if geoip.City != "" {
 						city = &geoip.City
 					}
+					if zip == nil && geoip.Zip != "" {
+						zip = &geoip.Zip
+					}
+
 				}
 			}
 		}
@@ -968,6 +974,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "fbid")
 			delete(*params, "country")
 			delete(*params, "region")
+			delete(*params, "city")
+			delete(*params, "zip")
 			delete(*params, "culture")
 			delete(*params, "ref")
 			delete(*params, "aff")
@@ -1208,6 +1216,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 country,
 				 region,
 				 city,
+				 zip,
 				 term,
 				 etyp,
 				 ver,
@@ -1219,7 +1228,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 rid,
 				 relation
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?)`, //37
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -1247,6 +1256,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			country,
 			region,
 			city,
+			zip,
 			v["term"],
 			v["etyp"],
 			version,
@@ -1289,6 +1299,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 country,
 				 region,
 				 city,
+				 zip,
 				 term,
 				 etyp,
 				 ver,
@@ -1300,7 +1311,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 rid,
 				 relation
 			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?)`, //37
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
 			w.EventID,
 			v["vid"],
 			v["sid"],
@@ -1328,6 +1339,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			country,
 			region,
 			city,
+			zip,
 			v["term"],
 			v["etyp"],
 			version,
@@ -1619,6 +1631,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 country,
 							 region,
 							 city,
+							 zip,
 							 culture,
 							 source,
 							 medium,
@@ -1633,8 +1646,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //46
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?) 
+						 IF NOT EXISTS`, //47
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1668,6 +1681,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					country,
 					region,
 					city,
+					zip,
 					culture,
 					v["source"],
 					v["medium"],
@@ -1721,6 +1735,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 country,
 							 region,
 							 city,
+							 zip,
 							 culture,
 							 source,
 							 medium,
@@ -1735,8 +1750,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 							 tz,
 							 vp                        
 						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //47
+						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?) 
+						 IF NOT EXISTS`, //48
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1771,6 +1786,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					country,
 					region,
 					city,
+					zip,
 					culture,
 					v["source"],
 					v["medium"],

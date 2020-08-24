@@ -137,6 +137,16 @@ func cleanInterfaceString(i interface{}) error {
 	return nil
 }
 
+func ensureInterfaceString(i interface{}) error {
+	s := &i
+	if _, ok := (*s).(string); !ok {
+		if s != nil {
+			*s = fmt.Sprintf("%v", *s)
+		}
+	}
+	return nil
+}
+
 func cleanString(s *string) error {
 	if s != nil && *s != "" {
 		*s = strings.ToLower(strings.TrimSpace(*s))
