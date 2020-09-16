@@ -70,3 +70,8 @@ curl -XGET -H -k http://$CASSANDRA_HOST:9200/events_recent/_search?pretty=true&q
 curl -XGET -H -k http://$CASSANDRA_HOST:9200/sfplax/_search?pretty=true&q=*:*
 
 curl -XGET http://$CASSANDRA_HOST:9200/_cluster/state?pretty
+
+
+curl -w "\n" -k -H 'Content-Type: application/json'  -XPOST  "http://$CASSANDRA_HOST:9200/_opendistro/_sql/?format=csv" -d '{
+  "query": "SELECT * from events_recent limit 1"
+}'
