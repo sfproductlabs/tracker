@@ -150,3 +150,15 @@ Since GDPR, honest reporting about user telemetry is required. The default track
 * **This project is in production** and has seen significant improvements in revenue for its users.
 * This project is sort of the opposite to my horizontal web scraper in go https://github.com/dioptre/scrp
 
+## Testing
+
+### Testing within ECS docker container
+
+* Make sure Debug in config.json is set to **true**
+* Try running:
+```bash
+apt install curl
+#Kill the old tracker process with kill
+#Run . /tracker/tracker config.json
+curl -w "\n" -k -H 'Content-Type: application/json'  -XPOST  "https://localhost:8443/tr/v1/" -d '{"hideFreePlan":"false","name":"Bewusstsein in Aufruhr","newsletter":"bewusstsein-in-aufruhr","static":"%2Fkurs%2Fbewusstsein-in-aufruhr","umleitung":"%2Fkurs%2Fbewusstsein-in-aufruhr","ename":"visited_site","etyp":"session","last":"/einloggen","url":"/registrieren","ptyp":"logged_out_ancillary","sid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","first":"true","tz":"America/Los_Angeles","device":"Mac","os":"macOS","w":1331,"h":459,"vid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","rel":"1.0.179","app":"hd","params":{"hideFreePlan":"false","name":"Bewusstsein in Aufruhr","newsletter":"bewusstsein-in-aufruhr","static":"%2Fkurs%2Fbewusstsein-in-aufruhr","umleitung":"%2Fkurs%2Fbewusstsein-in-aufruhr","ename":"viewed_page","etyp":"view","last":"/einloggen","url":"/registrieren","ptyp":"logged_out_ancillary","sid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","first":"true","tz":"America/Los_Angeles","device":"Mac","os":"macOS","w":1331,"h":459,"vid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","rel":"1.0.179","app":"hd","homepageSlogan":"B","homepagePricePlans":"A"}}'
+```
