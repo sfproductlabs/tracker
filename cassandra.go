@@ -726,6 +726,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//////////////////////////////////////////////
 		//FIX CASE
 		//////////////////////////////////////////////
+		delete(v, "cleanIP")
 		cleanString(&(w.Browser))
 		cleanString(&(w.Host))
 		cleanInterfaceString(v["app"])
@@ -1186,90 +1187,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			fmt.Println("C*[routed]:", xerr)
 		}
 
-		//events
-		if xerr := i.Session.Query(`INSERT into events 
-			 (
-				 eid,
-				 vid, 
-				 sid,
-				 hhash, 
-				 app,
-				 rel,
-				 cflags,
-				 created,
-				 uid,
-				 last,
-				 url,
-				 ip,
-				 iphash,
-				 latlon,
-				 ptyp,
-				 bhash,
-				 auth,
-				 duration,
-				 xid,
-				 split,
-				 ename,
-				 source,
-				 medium,
-				 campaign,
-				 country,
-				 region,
-				 city,
-				 zip,
-				 term,
-				 etyp,
-				 ver,
-				 sink,
-				 score,							
-				 params,
-				 nparams,
-				 targets,
-				 rid,
-				 relation
-			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
-			w.EventID,
-			v["vid"],
-			v["sid"],
-			hhash,
-			v["app"],
-			v["rel"],
-			cflags,
-			updated,
-			v["uid"],
-			v["last"],
-			v["url"],
-			w.IP,
-			iphash,
-			latlon,
-			v["ptyp"],
-			bhash,
-			auth,
-			duration,
-			v["xid"],
-			v["split"],
-			v["ename"],
-			v["source"],
-			v["medium"],
-			v["campaign"],
-			country,
-			region,
-			city,
-			zip,
-			v["term"],
-			v["etyp"],
-			version,
-			v["sink"],
-			score,
-			params,
-			nparams,
-			v["targets"],
-			rid,
-			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[events]:", xerr)
-		}
-
 		if xerr := i.Session.Query(`INSERT into events_recent 
 			 (
 				 eid,
@@ -1351,6 +1268,94 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			rid,
 			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[events_recent]:", xerr)
+		}
+
+		if !i.AppConfig.UseRemoveIP {
+			v["cleanIP"] = w.IP
+		}
+
+		//events
+		if xerr := i.Session.Query(`INSERT into events 
+			 (
+				 eid,
+				 vid, 
+				 sid,
+				 hhash, 
+				 app,
+				 rel,
+				 cflags,
+				 created,
+				 uid,
+				 last,
+				 url,
+				 ip,
+				 iphash,
+				 latlon,
+				 ptyp,
+				 bhash,
+				 auth,
+				 duration,
+				 xid,
+				 split,
+				 ename,
+				 source,
+				 medium,
+				 campaign,
+				 country,
+				 region,
+				 city,
+				 zip,
+				 term,
+				 etyp,
+				 ver,
+				 sink,
+				 score,							
+				 params,
+				 nparams,
+				 targets,
+				 rid,
+				 relation
+			 ) 
+			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
+			w.EventID,
+			v["vid"],
+			v["sid"],
+			hhash,
+			v["app"],
+			v["rel"],
+			cflags,
+			updated,
+			v["uid"],
+			v["last"],
+			v["url"],
+			v["cleanIP"],
+			iphash,
+			latlon,
+			v["ptyp"],
+			bhash,
+			auth,
+			duration,
+			v["xid"],
+			v["split"],
+			v["ename"],
+			v["source"],
+			v["medium"],
+			v["campaign"],
+			country,
+			region,
+			city,
+			zip,
+			v["term"],
+			v["etyp"],
+			version,
+			v["sink"],
+			score,
+			params,
+			nparams,
+			v["targets"],
+			rid,
+			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[events]:", xerr)
 		}
 
 		//Exclude from params in sessions and visitors. Note: more above.
@@ -1659,7 +1664,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["uid"],
 					v["last"],
 					v["url"],
-					w.IP,
+					v["cleanIP"],
 					iphash,
 					latlon,
 					v["ptyp"],
@@ -1763,7 +1768,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["uid"],
 					v["last"],
 					v["url"],
-					w.IP,
+					v["cleanIP"],
 					iphash,
 					latlon,
 					v["ptyp"],

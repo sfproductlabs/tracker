@@ -189,6 +189,7 @@ type Configuration struct {
 	TempDirectory            string
 	UseGeoIP                 bool
 	UseRegionDescriptions    bool
+	UseRemoveIP              bool
 	GeoIPVersion             int
 	IPv4GeoIPZip             string
 	IPv6GeoIPZip             string

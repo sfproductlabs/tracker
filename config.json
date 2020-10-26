@@ -14,6 +14,7 @@
     "TempDirectory": "./tmp/",
     "UseGeoIP": true,
     "UseRegionDescriptions": true,
+    "UseRemoveIP": true,
     "GeoIPVersion": 1,
     "IPv4GeoIPZip": "./.setup/geoip/IP2LOCATION-LITE-DB11.CSV.ZIP",
     "IPv6GeoIPZip": "./.setup/geoip/IP2LOCATION-LITE-DB11.IPV6.CSV.ZIP",
