@@ -90,31 +90,31 @@ func (p *geo_point) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) 
 }
 
 type payment struct {
-	InvoiceID       gocql.UUID `cql:"invid"`
-	Invoiced        time.Time  `cql:"invoiced"`
-	Product         string     `cql:"product"`
-	ProductID       gocql.UUID `cql:"pid"`
-	ProductCategory string     `cql:"pcat"`
-	Manufacturer    string     `cql:"man"`
-	Model           string     `cql:"model"`
-	Quantity        float64    `cql:"qty"`
-	Duration        string     `cql:"duration"`
-	Starts          time.Time  `cql:"starts"`
-	Ends            time.Time  `cql:"ends"`
-	Price           float64    `cql:"price"`
-	Discount        float64    `cql:"discount"`
-	Revenue         float64    `cql:"revenue"`
-	Margin          float64    `cql:"margin"`
-	Cost            float64    `cql:"cost"`
-	Tax             float64    `cql:"tax"`
-	TaxRate         float64    `cql:"tax_rate"`
-	Commission      float64    `cql:"commission"`
-	Referral        float64    `cql:"referral"`
-	Fees            float64    `cql:"fees"`
-	Subtotal        float64    `cql:"subtotal"`
-	Total           float64    `cql:"total"`
-	Payment         float64    `cql:"payment"`
-	Paid            time.Time  `cql:"paid"`
+	InvoiceID       *gocql.UUID `cql:"invid"`
+	Invoiced        *time.Time  `cql:"invoiced"`
+	Product         *string     `cql:"product"`
+	ProductID       *gocql.UUID `cql:"pid"`
+	ProductCategory *string     `cql:"pcat"`
+	Manufacturer    *string     `cql:"man"`
+	Model           *string     `cql:"model"`
+	Quantity        *float64    `cql:"qty"`
+	Duration        *string     `cql:"duration"`
+	Starts          *time.Time  `cql:"starts"`
+	Ends            *time.Time  `cql:"ends"`
+	Price           *float64    `cql:"price"`
+	Discount        *float64    `cql:"discount"`
+	Revenue         *float64    `cql:"revenue"`
+	Margin          *float64    `cql:"margin"`
+	Cost            *float64    `cql:"cost"`
+	Tax             *float64    `cql:"tax"`
+	TaxRate         *float64    `cql:"tax_rate"`
+	Commission      *float64    `cql:"commission"`
+	Referral        *float64    `cql:"referral"`
+	Fees            *float64    `cql:"fees"`
+	Subtotal        *float64    `cql:"subtotal"`
+	Total           *float64    `cql:"total"`
+	Payment         *float64    `cql:"payment"`
+	Paid            *time.Time  `cql:"paid"`
 }
 
 // NOTE: due to current implementation details it is not currently possible to use
