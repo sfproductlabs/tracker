@@ -249,6 +249,7 @@ const (
 	WRITE_UPDATE = 1 << iota
 	WRITE_COUNT  = 1 << iota
 	WRITE_EVENT  = 1 << iota
+	WRITE_TLV    = 1 << iota
 
 	WRITE_DESC_LOG    = "log"
 	WRITE_DESC_UPDATE = "update"
@@ -627,6 +628,31 @@ func main() {
 
 	})
 
+	//////////////////////////////////////// Track Lifetime Value
+	http.HandleFunc("/tlv/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			//Lets just allow requests to this endpoint
+			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+			w.Header().Set("access-control-allow-credentials", "true")
+			w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
+			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
+			w.Header().Set("access-control-max-age", "1728000")
+			w.WriteHeader(http.StatusOK)
+		} else {
+			select {
+			case <-connc:
+				tlv(&configuration, &w, r)
+				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+				w.WriteHeader(http.StatusOK)
+				connc <- struct{}{}
+			default:
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+			}
+		}
+
+	})
+
 	//////////////////////////////////////// Server Tracking Route
 	http.HandleFunc("/str/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
@@ -917,7 +943,24 @@ func check(c *Configuration, r *http.Request) error {
 }
 
 ////////////////////////////////////////
-// Trace
+// Total Lifetime Value
+////////////////////////////////////////
+func tlv(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
+	//Setup
+	wargs := WriteArgs{
+		WriteType: WRITE_TLV,
+		IP:        getIP(r),
+		Browser:   r.Header.Get("user-agent"),
+		Language:  r.Header.Get("accept-language"),
+		URI:       r.RequestURI,
+		Host:      getHost(r),
+		EventID:   gocql.TimeUUID(),
+	}
+	return trackWithArgs(c, w, r, &wargs)
+}
+
+////////////////////////////////////////
+// Telemetry
 ////////////////////////////////////////
 func track(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 	//Setup

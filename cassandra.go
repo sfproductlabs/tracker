@@ -715,7 +715,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			level,
 			v["msg"],
 			v["params"]).Exec()
-
 	case WRITE_EVENT:
 		if i.AppConfig.Debug {
 			fmt.Printf("EVENT %s\n", w)
@@ -1809,6 +1808,157 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 
 			}
+		}
+
+		return nil
+	case WRITE_TLV:
+		cleanString(&(w.Host))
+
+		//////////////////////////////////////////////
+		//FIX VARS
+		//////////////////////////////////////////////
+		//[updated]
+		updated := time.Now().UTC()
+		created := updated
+		//[paid]
+		var paid *float64
+		if s, ok := v["paid"].(string); ok {
+			temp, _ := strconv.ParseFloat(s, 64)
+			paid = &temp
+
+		} else if s, ok := v["paid"].(float64); ok {
+			paid = &s
+		}
+		//[hhash]
+		var hhash *string
+		if w.Host != "" {
+			temp := strconv.FormatInt(int64(hash(w.Host)), 36)
+			hhash = &temp
+		}
+		//[payment]
+		var pmt *payment
+		pmt = &payment{}
+
+		pmt.InvoiceID = gocql.TimeUUID()
+		pmt.ProductID = gocql.TimeUUID()
+		pmt.Starts = time.Now().Truncate(time.Millisecond).UTC()
+		pmt.Ends = time.Now().Truncate(time.Millisecond).UTC()
+		var pmts []payment
+
+		var prevpaid *float64
+		//[TLV]
+		if xerr := i.Session.Query("SELECT payments,created,paid FROM tlv WHERE hhash=? AND uid=?", hhash, v["uid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[tlv]:", xerr)
+		}
+		if prevpaid != nil && paid != nil {
+			*prevpaid = *prevpaid + *paid
+		} else {
+			prevpaid = paid
+		}
+		pmts = append(pmts, *pmt)
+		if xerr := i.Session.Query(`UPDATE tlv SET
+			vid = ?, 
+			sid = ?,
+			payments = ?, 
+			paid = ?,
+			org = ?,
+			updated = ?,
+			updater = ?,
+			created = ?,
+			owner = ?
+			WHERE hhash=? AND uid=?`, //11
+			v["vid"],
+			v["sid"],
+			pmts,
+			prevpaid,
+			v["org"],
+			updated,
+			v["uid"],
+			created,
+			v["uid"],
+
+			hhash,
+			v["uid"],
+		).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[tlv]:", xerr)
+		}
+
+		//[TLVU]
+		pmts = pmts[:0]
+		if xerr := i.Session.Query("SELECT payments,created,paid FROM tlvu WHERE hhash=? AND uid=? AND orid=?", hhash, v["uid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[tlvu]:", xerr)
+		}
+		if prevpaid != nil && paid != nil {
+			*prevpaid = *prevpaid + *paid
+		} else {
+			prevpaid = paid
+		}
+		pmts = append(pmts, *pmt)
+		if xerr := i.Session.Query(`UPDATE tlvu SET
+			vid = ?, 
+			sid = ?,
+			payments = ?, 
+			paid = ?,
+			org = ?,
+			updated = ?,
+			updater = ?,
+			created = ?,
+			owner = ?
+			WHERE hhash=? AND uid=? AND orid = ?`, //11
+			v["vid"],
+			v["sid"],
+			pmts,
+			prevpaid,
+			v["org"],
+			updated,
+			v["uid"],
+			created,
+			v["uid"],
+
+			hhash,
+			v["uid"],
+			v["orid"],
+		).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[tlvu]:", xerr)
+		}
+
+		//[TLVV]
+		pmts = pmts[:0]
+		if xerr := i.Session.Query("SELECT payments,created,paid FROM tlvv WHERE hhash=? AND vid=? AND orid=?", hhash, v["vid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[tlvv]:", xerr)
+		}
+		if prevpaid != nil && paid != nil {
+			*prevpaid = *prevpaid + *paid
+		} else {
+			prevpaid = paid
+		}
+		pmts = append(pmts, *pmt)
+		if xerr := i.Session.Query(`UPDATE tlvv SET
+			uid = ?, 
+			sid = ?,
+			payments = ?, 
+			paid = ?,
+			org = ?,
+			updated = ?,
+			updater = ?,
+			created = ?,
+			owner = ?
+			WHERE hhash=? AND vid=? AND orid = ?`, //11
+			v["uid"],
+			v["sid"],
+			pmts,
+			prevpaid,
+			v["org"],
+			updated,
+			v["uid"],
+			created,
+			v["uid"],
+
+			hhash,
+			v["vid"],
+			v["orid"],
+		).Exec(); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[tlvv]:", xerr)
 		}
 
 		return nil
