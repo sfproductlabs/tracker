@@ -1813,7 +1813,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		return nil
 	case WRITE_TLV:
 		cleanString(&(w.Host))
-
+		//TODO: Add array of payments
 		//////////////////////////////////////////////
 		//FIX VARS
 		//////////////////////////////////////////////
