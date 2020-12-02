@@ -1854,10 +1854,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			temp := time.Unix(0, int64(s)*int64(time.Millisecond)).Truncate(time.Millisecond)
 			pmt.Invoiced = &temp
 		}
-		if pmt.Invoiced == nil {
-			//!Force an update on row
-			pmt.Invoiced = &updated
-		}
 		if starts, ok := v["starts"].(string); ok {
 			millis, err := strconv.ParseInt(starts, 10, 64)
 			if err == nil {
@@ -1887,6 +1883,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		} else if s, ok := v["paid"].(float64); ok {
 			temp := time.Unix(0, int64(s)*int64(time.Millisecond)).Truncate(time.Millisecond)
 			pmt.Paid = &temp
+		}
+		if pmt.Paid == nil {
+			//!Force an update on row
+			pmt.Paid = &updated
 		}
 
 		//Strings
