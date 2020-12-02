@@ -1822,11 +1822,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		created := updated
 		//[paid]
 		var paid *float64
-		if s, ok := v["paid"].(string); ok {
+		if s, ok := v["amt"].(string); ok {
 			temp, _ := strconv.ParseFloat(s, 64)
 			paid = &temp
 
-		} else if s, ok := v["paid"].(float64); ok {
+		} else if s, ok := v["amt"].(float64); ok {
 			paid = &s
 		}
 		//[hhash]
@@ -1838,13 +1838,119 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//[payment]
 		var pmt *payment
 		pmt = &payment{}
-
-		pmt.InvoiceID = gocql.TimeUUID()
-		pmt.ProductID = gocql.TimeUUID()
 		pmt.Starts = time.Now().Truncate(time.Millisecond).UTC()
 		pmt.Ends = time.Now().Truncate(time.Millisecond).UTC()
-		var pmts []payment
+		//UUIDs
+		if iid, ok := v["invid"].(string); ok {
+			pmt.InvoiceID, _ = gocql.ParseUUID(iid)
+		}
+		if pid, ok := v["pid"].(string); ok {
+			pmt.ProductID, _ = gocql.ParseUUID(pid)
+		}
+		//Timestamps
+		if invoiced, ok := v["invoiced"].(string); ok {
+			millis, err := strconv.ParseInt(invoiced, 10, 64)
+			if err == nil {
+				pmt.Invoiced = time.Unix(0, millis*int64(time.Millisecond))
+			}
+		}
+		if starts, ok := v["starts"].(string); ok {
+			millis, err := strconv.ParseInt(starts, 10, 64)
+			if err == nil {
+				pmt.Starts = time.Unix(0, millis*int64(time.Millisecond))
+			}
+		}
+		if ends, ok := v["ends"].(string); ok {
+			millis, err := strconv.ParseInt(ends, 10, 64)
+			if err == nil {
+				pmt.Ends = time.Unix(0, millis*int64(time.Millisecond))
+			}
+		}
+		if paid, ok := v["paid"].(string); ok {
+			millis, err := strconv.ParseInt(paid, 10, 64)
+			if err == nil {
+				pmt.Paid = time.Unix(0, millis*int64(time.Millisecond))
+			}
+		}
+		//Strings
+		pmt.Product, _ = v["product"].(string)
+		pmt.ProductCategory, _ = v["pcat"].(string)
+		pmt.Manufacturer, _ = v["man"].(string)
+		pmt.Model, _ = v["model"].(string)
+		pmt.Duration, _ = v["duration"].(string)
+		//Other Floats
+		if qty, ok := v["qty"].(string); ok {
+			pmt.Quantity, _ = strconv.ParseFloat(qty, 64)
+		} else if s, ok := v["qty"].(float64); ok {
+			pmt.Quantity = s
+		}
+		if price, ok := v["price"].(string); ok {
+			pmt.Price, _ = strconv.ParseFloat(price, 64)
+		} else if s, ok := v["price"].(float64); ok {
+			pmt.Price = s
+		}
+		if discount, ok := v["discount"].(string); ok {
+			pmt.Discount, _ = strconv.ParseFloat(discount, 64)
+		} else if s, ok := v["discount"].(float64); ok {
+			pmt.Discount = s
+		}
+		if revenue, ok := v["revenue"].(string); ok {
+			pmt.Revenue, _ = strconv.ParseFloat(revenue, 64)
+		} else if s, ok := v["revenue"].(float64); ok {
+			pmt.Revenue = s
+		}
+		if margin, ok := v["margin"].(string); ok {
+			pmt.Margin, _ = strconv.ParseFloat(margin, 64)
+		} else if s, ok := v["margin"].(float64); ok {
+			pmt.Margin = s
+		}
+		if cost, ok := v["cost"].(string); ok {
+			pmt.Cost, _ = strconv.ParseFloat(cost, 64)
+		} else if s, ok := v["cost"].(float64); ok {
+			pmt.Cost = s
+		}
+		if tax, ok := v["tax"].(string); ok {
+			pmt.Tax, _ = strconv.ParseFloat(tax, 64)
+		} else if s, ok := v["tax"].(float64); ok {
+			pmt.Tax = s
+		}
+		if taxrate, ok := v["tax_rate"].(string); ok {
+			pmt.TaxRate, _ = strconv.ParseFloat(taxrate, 64)
+		} else if s, ok := v["tax_rate"].(float64); ok {
+			pmt.TaxRate = s
+		}
+		if commission, ok := v["commission"].(string); ok {
+			pmt.Commission, _ = strconv.ParseFloat(commission, 64)
+		} else if s, ok := v["commission"].(float64); ok {
+			pmt.Commission = s
+		}
+		if referral, ok := v["referral"].(string); ok {
+			pmt.Referral, _ = strconv.ParseFloat(referral, 64)
+		} else if s, ok := v["referral"].(float64); ok {
+			pmt.Referral = s
+		}
+		if fees, ok := v["fees"].(string); ok {
+			pmt.Fees, _ = strconv.ParseFloat(fees, 64)
+		} else if s, ok := v["fees"].(float64); ok {
+			pmt.Fees = s
+		}
+		if subtotal, ok := v["subtotal"].(string); ok {
+			pmt.Subtotal, _ = strconv.ParseFloat(subtotal, 64)
+		} else if s, ok := v["subtotal"].(float64); ok {
+			pmt.Subtotal = s
+		}
+		if total, ok := v["total"].(string); ok {
+			pmt.Total, _ = strconv.ParseFloat(total, 64)
+		} else if s, ok := v["total"].(float64); ok {
+			pmt.Total = s
+		}
+		if payment, ok := v["payment"].(string); ok {
+			pmt.Payment, _ = strconv.ParseFloat(payment, 64)
+		} else if s, ok := v["payment"].(float64); ok {
+			pmt.Payment = s
+		}
 
+		var pmts []payment
 		var prevpaid *float64
 		//[TLV]
 		if xerr := i.Session.Query("SELECT payments,created,paid FROM tlv WHERE hhash=? AND uid=?", hhash, v["uid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
