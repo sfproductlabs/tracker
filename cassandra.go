@@ -1819,7 +1819,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//////////////////////////////////////////////
 		//[updated]
 		updated := time.Now().UTC()
-		created := updated
+		created := &updated
 
 		//[hhash]
 		var hhash *string
@@ -1830,9 +1830,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//[payment]
 		var pmt *payment
 		pmt = &payment{}
-
-		starts := time.Now().Truncate(time.Millisecond).UTC()
-		pmt.Starts = &starts
 
 		//UUIDs
 		if iid, ok := v["invid"].(string); ok {
@@ -1850,32 +1847,46 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if invoiced, ok := v["invoiced"].(string); ok {
 			millis, err := strconv.ParseInt(invoiced, 10, 64)
 			if err == nil {
-				temp := time.Unix(0, millis*int64(time.Millisecond))
+				temp := time.Unix(0, millis*int64(time.Millisecond)).Truncate(time.Millisecond)
 				pmt.Invoiced = &temp
 			}
+		} else if s, ok := v["invoiced"].(float64); ok {
+			temp := time.Unix(0, int64(s)*int64(time.Millisecond)).Truncate(time.Millisecond)
+			pmt.Invoiced = &temp
+		}
+		if pmt.Invoiced == nil {
+			//!Force an update on row
+			pmt.Invoiced = &updated
 		}
 		if starts, ok := v["starts"].(string); ok {
 			millis, err := strconv.ParseInt(starts, 10, 64)
 			if err == nil {
-				temp := time.Unix(0, millis*int64(time.Millisecond))
+				temp := time.Unix(0, millis*int64(time.Millisecond)).Truncate(time.Millisecond)
 				pmt.Starts = &temp
 			}
+		} else if s, ok := v["starts"].(float64); ok {
+			temp := time.Unix(0, int64(s)*int64(time.Millisecond)).Truncate(time.Millisecond)
+			pmt.Starts = &temp
 		}
 		if ends, ok := v["ends"].(string); ok {
 			millis, err := strconv.ParseInt(ends, 10, 64)
 			if err == nil {
-				temp := time.Unix(0, millis*int64(time.Millisecond))
+				temp := time.Unix(0, millis*int64(time.Millisecond)).Truncate(time.Millisecond)
 				pmt.Ends = &temp
 			}
-		} else {
-			pmt.Ends = nil
+		} else if s, ok := v["ends"].(float64); ok {
+			temp := time.Unix(0, int64(s)*int64(time.Millisecond)).Truncate(time.Millisecond)
+			pmt.Ends = &temp
 		}
 		if paid, ok := v["paid"].(string); ok {
 			millis, err := strconv.ParseInt(paid, 10, 64)
 			if err == nil {
-				temp := time.Unix(0, millis*int64(time.Millisecond))
+				temp := time.Unix(0, millis*int64(time.Millisecond)).Truncate(time.Millisecond)
 				pmt.Paid = &temp
 			}
+		} else if s, ok := v["paid"].(float64); ok {
+			temp := time.Unix(0, int64(s)*int64(time.Millisecond)).Truncate(time.Millisecond)
+			pmt.Paid = &temp
 		}
 
 		//Strings
@@ -2017,6 +2028,10 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		} else if s, ok := v["payment"].(float64); ok {
 			pmt.Payment = &s
 		}
+		//!Force an amount in the payment
+		if pmt.Payment == nil {
+			pmt.Payment = paid
+		}
 
 		var pmts []payment
 		var prevpaid *float64
@@ -2061,6 +2076,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		//[TLVU]
 		pmts = pmts[:0]
+		created = &updated
+		prevpaid = nil
 		if xerr := i.Session.Query("SELECT payments,created,paid FROM tlvu WHERE hhash=? AND uid=? AND orid=?", hhash, v["uid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[tlvu]:", xerr)
 		}
@@ -2102,6 +2119,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		//[TLVV]
 		pmts = pmts[:0]
+		created = &updated
+		prevpaid = nil
 		if xerr := i.Session.Query("SELECT payments,created,paid FROM tlvv WHERE hhash=? AND vid=? AND orid=?", hhash, v["vid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[tlvv]:", xerr)
 		}
