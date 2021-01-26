@@ -7,6 +7,7 @@
 
 use sfpla;
 
+alter type payment add currency text;
 
 
 
