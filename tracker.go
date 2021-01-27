@@ -796,6 +796,8 @@ func main() {
 			return nil
 		})
 	}
+
+	/// Privacy program interface (cookies)
 	ctr := mux.NewRouter()
 	ctr.HandleFunc("/ppi/"+apiVersion+"/{action}", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
