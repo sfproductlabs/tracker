@@ -101,6 +101,7 @@ type payment struct {
 	Duration        *string     `cql:"duration"`
 	Starts          *time.Time  `cql:"starts"`
 	Ends            *time.Time  `cql:"ends"`
+	Currency        *string     `cql:"currency"`
 	Price           *float64    `cql:"price"`
 	Discount        *float64    `cql:"discount"`
 	Revenue         *float64    `cql:"revenue"`
@@ -144,6 +145,8 @@ func (p payment) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) {
 		return gocql.Marshal(info, p.Starts)
 	case "ends":
 		return gocql.Marshal(info, p.Ends)
+	case "currency":
+		return gocql.Marshal(info, p.Currency)
 	case "price":
 		return gocql.Marshal(info, p.Price)
 	case "discount":
@@ -201,6 +204,8 @@ func (p *payment) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) er
 		return gocql.Unmarshal(info, data, &p.Starts)
 	case "ends":
 		return gocql.Unmarshal(info, data, &p.Ends)
+	case "currency":
+		return gocql.Unmarshal(info, data, &p.Currency)
 	case "price":
 		return gocql.Unmarshal(info, data, &p.Price)
 	case "discount":
