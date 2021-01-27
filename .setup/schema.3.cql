@@ -56,6 +56,7 @@ create type payment (
   subtotal double, --what should have been paid (inc-tax)
   total double, --what should have been paid for the whole invoice (inc-tax)
   payment double, --payment = actual amount customer paid
+  currency text,
   paid timestamp,
 );
 

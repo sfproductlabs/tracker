@@ -172,4 +172,7 @@ curl -w "\n" -k -H 'Content-Type: application/json'  -XPOST  "https://localhost:
 
 #or check tlv
 curl -w "\n" -k -H 'Content-Type: application/json'  -XPOST  "https://localhost:8443/tlv/v1/" -d '{"vid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","uid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","sid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c", "orid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c", "amt" : 35}'
+
+#or privacy
+curl -w "\n" -k -H 'Content-Type: application/json' -XPOST  "https://localhost:8443/ppi/v1/agree" -d '{"vid": "5ae3c890-5e55-11ea-9283-4fa18a847130", "cflags": 1024}'
 ```
