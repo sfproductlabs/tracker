@@ -52,6 +52,7 @@ import (
 	"crypto/tls"
 	"encoding/csv"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -318,8 +319,10 @@ func main() {
 	//////////////////////////////////////// LOAD CONFIG
 	fmt.Println("Starting services...")
 	configFile := "config.json"
-	if len(os.Args) > 1 {
-		configFile = os.Args[1]
+	var prune = flag.Bool("prune", false, "prune items")
+	flag.Parse()
+	if len(flag.Args()) > 0 {
+		configFile = flag.Args()[0]
 	}
 	fmt.Println("Configuration file: ", configFile)
 	file, _ := os.Open(configFile)
@@ -438,6 +441,17 @@ func main() {
 			fmt.Printf("[ERROR] %s #%d Consumer not implemented\n", s.Service, idx)
 		}
 
+	}
+
+	//////////////////////////////////////// LETS JUST PRUNE AND QUIT?
+	if *prune {
+		for idx := range configuration.Notify {
+			s := &configuration.Notify[idx]
+			if s.Session != nil {
+				s.Session.prune()
+			}
+		}
+		os.Exit(0)
 	}
 
 	//////////////////////////////////////// SSL CERT MANAGER
