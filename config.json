@@ -68,7 +68,7 @@
                     "Table": "events",
                     "TTL": 3600,
                     "PageSize": 10000,
-                    "CFlags": [],
+                    "IgnoreCFlags": [],
                     "ClearAll": false,
                     "ClearParams" : true,
                     "ClearNumericParams": true,

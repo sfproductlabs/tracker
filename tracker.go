@@ -113,9 +113,9 @@ type Filter struct {
 
 type Prune struct {
 	Table              string
-	TTL                int
+	TTL                int64
 	PageSize           int
-	CFlags             []int
+	IgnoreCFlags       []int64
 	ClearAll           bool
 	ClearParams        bool
 	ClearNumericParams bool

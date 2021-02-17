@@ -606,19 +606,28 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 
 //////////////////////////////////////// C*
 func (i *CassandraService) prune() error {
-	fmt.Println("Pruning Cassandra...")
 	err := fmt.Errorf("Could not prune any cassandra server in cluster")
 	var pageState []byte
+	var iter *gocql.Iter
 	// var row map[string]interface{}
 	for _, p := range i.Configuration.Prune {
 		var pageSize = 5000
-		if p.PageSize != 0 {
+		if p.PageSize > 1 {
 			pageSize = p.PageSize
 		}
 		for {
-			iter := i.Session.Query(`SELECT * FROM ?`, p.Table).PageSize(pageSize).PageState(pageState).Iter()
+			fmt.Printf("Pruning Cassandra: %v\n", p.Table)
+			switch p.Table {
+			case "events":
+				iter = i.Session.Query(`SELECT * FROM events`).PageSize(pageSize).PageState(pageState).Iter()
+				err = nil
+			default:
+				err = fmt.Errorf("Table %s not supported for pruning", p.Table)
+				break
+			}
 			nextPageState := iter.PageState()
 			for {
+				//TODO: Could optimize with static pointers later
 				// row := map[string]interface{}{
 				// 	"eid": &eid,
 				// 	"ip":  &ip,
@@ -627,18 +636,34 @@ func (i *CassandraService) prune() error {
 				if !iter.MapScan(row) {
 					break
 				}
-				if ip, ok := row["ip"]; ok {
-					fmt.Printf("Address: %q\n", ip)
+				//PROCESS THE ROW
+				expired := checkRowExpired(row, p.TTL, p.IgnoreCFlags)
+				switch p.Table {
+				case "events":
+
+					if expired {
+						if p.ClearAll {
+							err = i.Session.Query(`DELETE from events where eid=?`, row["eid"]).Exec()
+							if i.AppConfig.Debug && err != nil {
+								fmt.Printf("COULD NOT DELETE RECORD %s (events)\n", row["eid"])
+							}
+						} else {
+
+						}
+					}
+					err = nil
 				}
+
 			}
+			//TODO: Optimize Paging
 			//fmt.Printf("next page state: %+v\n", nextPageState)
 			if len(nextPageState) == 0 {
 				break
 			}
 			pageState = nextPageState
 		}
+
 	}
-	err = nil
 	return err
 }
 

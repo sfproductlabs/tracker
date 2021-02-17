@@ -61,6 +61,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 ////////////////////////////////////////
@@ -268,4 +269,35 @@ func Unzip(src, dest string) error {
 	}
 
 	return nil
+}
+
+func checkRowExpired(row map[string]interface{}, TTL int64, IgnoreCFlags []int64) bool {
+	var created *time.Time
+	expired := false
+	if ctemp1, ok := row["created"]; ok {
+		if ctemp2, okp := ctemp1.(time.Time); okp {
+			created = &ctemp2
+		}
+	}
+	if created != nil {
+		expired = (*created).Add(time.Second * time.Duration(TTL)).Before(time.Now())
+	} else {
+		expired = true
+	}
+	// if fmt.Sprintf("%T", row["cflags"]) != "int64" {
+	// 	err = fmt.Errorf("Table %s not supported for pruning (bad cflags type)", p.Table)
+	// 	goto tablefailed
+	// }
+	var ignore int64
+	for _, icflag := range IgnoreCFlags {
+		ignore += icflag
+	}
+	if cftemp1, ok := row["cflags"]; ok {
+		if cftemp2, okp := cftemp1.(int64); okp {
+			if cftemp2&ignore > 0 {
+				expired = false
+			}
+		}
+	}
+	return expired
 }
