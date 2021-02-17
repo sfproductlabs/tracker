@@ -611,12 +611,12 @@ func (i *CassandraService) prune() error {
 	var iter *gocql.Iter
 	// var row map[string]interface{}
 	for _, p := range i.Configuration.Prune {
+		var pruned = 0
 		var pageSize = 5000
 		if p.PageSize > 1 {
 			pageSize = p.PageSize
 		}
 		for {
-			fmt.Printf("Pruning Cassandra: %v\n", p.Table)
 			switch p.Table {
 			case "events":
 				iter = i.Session.Query(`SELECT * FROM events`).PageSize(pageSize).PageState(pageState).Iter()
@@ -642,7 +642,9 @@ func (i *CassandraService) prune() error {
 				case "events":
 
 					if expired {
+						pruned += 1
 						if p.ClearAll {
+
 							err = i.Session.Query(`DELETE from events where eid=?`, row["eid"]).Exec()
 							if i.AppConfig.Debug && err != nil {
 								fmt.Printf("COULD NOT DELETE RECORD %s (events)\n", row["eid"])
@@ -662,6 +664,7 @@ func (i *CassandraService) prune() error {
 			}
 			pageState = nextPageState
 		}
+		fmt.Printf("Pruned [Cassandra].[%s].[%v]: %d rows\n", i.Configuration.Context, p.Table, pruned)
 
 	}
 	return err
