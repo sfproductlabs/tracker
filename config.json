@@ -69,6 +69,7 @@
                     "TTL": 1,
                     "PageSize": 10000,
                     "IgnoreCFlags": [],
+                    "SkipToTimestamp": 0,
                     "ClearAll": false,
                     "ClearParams" : true,
                     "ClearNumericParams": true,

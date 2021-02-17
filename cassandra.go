@@ -638,7 +638,7 @@ func (i *CassandraService) prune() error {
 					break
 				}
 				//PROCESS THE ROW
-				expired := checkRowExpired(row, p.TTL, p.IgnoreCFlags)
+				expired := checkRowExpired(row, p)
 				switch p.Table {
 				case "events":
 					total += 1
@@ -650,7 +650,10 @@ func (i *CassandraService) prune() error {
 								fmt.Printf("COULD NOT DELETE RECORD %s (events)\n", row["eid"])
 							}
 						} else {
-
+							err = i.Session.Query(`UPDATE events set ip=null where eid=?`, row["eid"]).Exec()
+							if i.AppConfig.Debug && err != nil {
+								fmt.Printf("COULD NOT DELETE RECORD %s (events)\n", row["eid"])
+							}
 						}
 					}
 					err = nil

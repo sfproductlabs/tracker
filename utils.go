@@ -271,7 +271,7 @@ func Unzip(src, dest string) error {
 	return nil
 }
 
-func checkRowExpired(row map[string]interface{}, TTL int64, IgnoreCFlags []int64) bool {
+func checkRowExpired(row map[string]interface{}, p Prune) bool {
 	var created *time.Time
 	expired := false
 	if ctemp1, ok := row["created"]; ok {
@@ -280,7 +280,10 @@ func checkRowExpired(row map[string]interface{}, TTL int64, IgnoreCFlags []int64
 		}
 	}
 	if created != nil {
-		expired = (*created).Add(time.Second * time.Duration(TTL)).Before(time.Now())
+		if p.SkipToTimestamp > 0 && created.Before(time.Unix(p.SkipToTimestamp, 0)) {
+			return false
+		}
+		expired = (*created).Add(time.Second * time.Duration(p.TTL)).Before(time.Now())
 	} else {
 		expired = true
 	}
@@ -289,7 +292,7 @@ func checkRowExpired(row map[string]interface{}, TTL int64, IgnoreCFlags []int64
 	// 	goto tablefailed
 	// }
 	var ignore int64
-	for _, icflag := range IgnoreCFlags {
+	for _, icflag := range p.IgnoreCFlags {
 		ignore += icflag
 	}
 	if cftemp1, ok := row["cflags"]; ok {

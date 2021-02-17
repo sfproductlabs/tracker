@@ -116,6 +116,7 @@ type Prune struct {
 	TTL                int64
 	PageSize           int
 	IgnoreCFlags       []int64
+	SkipToTimestamp    int64
 	ClearAll           bool
 	ClearParams        bool
 	ClearNumericParams bool
