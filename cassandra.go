@@ -605,6 +605,43 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 }
 
 //////////////////////////////////////// C*
+func (i *CassandraService) prune() error {
+	err := fmt.Errorf("Could not prune any cassandra server in cluster")
+	var pageState []byte
+	var row map[string]interface{}
+	for _, p := range i.Configuration.Prune {
+		var pageSize = 5000
+		if p.PageSize != 0 {
+			pageSize = p.PageSize
+		}
+		for {
+			iter := i.Session.Query(`SELECT * FROM ?`, p.Table).PageSize(pageSize).PageState(pageState).Iter()
+			nextPageState := iter.PageState()
+			for {
+				// row := map[string]interface{}{
+				// 	"eid": &eid,
+				// 	"ip":  &ip,
+				// }
+				row = make(map[string]interface{})
+				if !iter.MapScan(row) {
+					break
+				}
+				if ip, ok := row["ip"]; ok {
+					fmt.Printf("Address: %q\n", ip)
+				}
+			}
+			fmt.Printf("next page state: %+v\n", nextPageState)
+			if len(nextPageState) == 0 {
+				break
+			}
+			pageState = nextPageState
+		}
+	}
+	err = nil
+	return err
+}
+
+//////////////////////////////////////// C*
 func (i *CassandraService) write(w *WriteArgs) error {
 	err := fmt.Errorf("Could not write to any cassandra server in cluster")
 	v := *w.Values

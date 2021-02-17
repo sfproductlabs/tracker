@@ -79,6 +79,7 @@ import (
 type session interface {
 	connect() error
 	close() error
+	prune() error
 	write(w *WriteArgs) error
 	listen() error
 	serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error
@@ -90,9 +91,10 @@ type KeyValue struct {
 }
 
 type Field struct {
-	Type    string
-	Id      string
-	Default string
+	Type          string
+	Id            string
+	Default       string
+	DestParamHash string
 }
 
 type Query struct {
@@ -106,6 +108,17 @@ type Filter struct {
 	Alias   string
 	Id      string
 	Queries []Query
+}
+
+type Prune struct {
+	Table              string
+	TTL                int
+	PageSize           int
+	CFlags             []int
+	ClearAll           bool
+	ClearParams        bool
+	ClearNumericParams bool
+	Fields             []Field
 }
 
 type WriteArgs struct {
@@ -143,6 +156,7 @@ type Service struct {
 
 	Context      string
 	Filter       []Filter
+	Prune        []Prune
 	Format       string
 	MessageLimit int
 	ByteLimit    int

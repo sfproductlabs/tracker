@@ -126,6 +126,11 @@ func (i *NatsService) write(w *WriteArgs) error {
 	return i.ec.Publish(i.Configuration.Context, w.Values)
 }
 
+func (i *NatsService) prune() error {
+	//TODO: Nats pruning
+	return fmt.Errorf("[ERROR] Nats prune not implemented")
+}
+
 func (i *NatsService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error {
 	//TODO: Nats services
 	return fmt.Errorf("[ERROR] Nats service not implemented")
