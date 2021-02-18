@@ -650,9 +650,20 @@ func (i *CassandraService) prune() error {
 								fmt.Printf("COULD NOT DELETE RECORD %s (events)\n", row["eid"])
 							}
 						} else {
-							err = i.Session.Query(`UPDATE events set ip=null where eid=?`, row["eid"]).Exec()
-							if i.AppConfig.Debug && err != nil {
-								fmt.Printf("COULD NOT DELETE RECORD %s (events)\n", row["eid"])
+							if len(p.Fields) > 0 {
+								var update string
+								for i, f := range p.Fields {
+									if len(p.Fields)-1 == i {
+										update += fmt.Sprintf("%s=null", f.Id)
+									} else {
+										update += fmt.Sprintf("%s=null, ", f.Id)
+									}
+
+								}
+								err = i.Session.Query(fmt.Sprintf(`UPDATE events set %s where eid=?`, update), row["eid"]).Exec()
+								if i.AppConfig.Debug && err != nil {
+									fmt.Printf("COULD NOT DELETE RECORD %s (events)\n", row["eid"])
+								}
 							}
 						}
 					}
