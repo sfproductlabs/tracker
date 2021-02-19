@@ -283,7 +283,7 @@ func checkRowExpired(row map[string]interface{}, p Prune) bool {
 		if p.SkipToTimestamp > 0 && created.Before(time.Unix(p.SkipToTimestamp, 0)) {
 			return false
 		}
-		expired = (*created).Add(time.Second * time.Duration(p.TTL)).Before(time.Now())
+		expired = (*created).Add(time.Second * time.Duration(p.TTL)).Before(time.Now().UTC())
 	} else {
 		expired = true
 	}

@@ -449,7 +449,11 @@ func main() {
 		for idx := range configuration.Notify {
 			s := &configuration.Notify[idx]
 			if s.Session != nil {
-				s.Session.prune()
+				err := s.Session.prune()
+				if err != nil {
+					fmt.Println("\nLast prune error...\n", err)
+				}
+
 			}
 		}
 		os.Exit(0)
@@ -1153,11 +1157,11 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 			}
 		}
 		if vid, ok := j["vid"].(string); ok {
-			expiration := time.Now().Add(99999 * 24 * time.Hour)
+			expiration := time.Now().UTC().Add(99999 * 24 * time.Hour)
 			cookie := http.Cookie{Name: "vid", Value: vid, Expires: expiration, Path: "/", Domain: dom}
 			http.SetCookie(*w, &cookie)
 		} else if vid, ok := j["vid"].(gocql.UUID); ok {
-			expiration := time.Now().Add(99999 * 24 * time.Hour)
+			expiration := time.Now().UTC().Add(99999 * 24 * time.Hour)
 			cookie := http.Cookie{Name: "vid", Value: vid.String(), Expires: expiration, Path: "/", Domain: dom}
 			http.SetCookie(*w, &cookie)
 		}

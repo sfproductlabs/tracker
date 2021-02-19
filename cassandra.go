@@ -107,7 +107,7 @@ func (i *CassandraService) connect() error {
 	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CASSANDRA {
 		i.AppConfig.ProxyDailyLimitCheck = func(ip string) uint64 {
 			var total uint64
-			if i.Session.Query(`SELECT total FROM dailies where ip=? AND day=?`, ip, time.Now()).Scan(&total); err != nil {
+			if i.Session.Query(`SELECT total FROM dailies where ip=? AND day=?`, ip, time.Now().UTC()).Scan(&total); err != nil {
 				return 0xFFFFFFFFFFFFFFFF
 			}
 			return total
@@ -606,7 +606,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 
 //////////////////////////////////////// C*
 func (i *CassandraService) prune() error {
-	err := fmt.Errorf("Could not prune any cassandra server in cluster")
+	var err error
 	var pageState []byte
 	var iter *gocql.Iter
 	// var row map[string]interface{}
@@ -619,9 +619,8 @@ func (i *CassandraService) prune() error {
 		}
 		for {
 			switch p.Table {
-			case "events":
-				iter = i.Session.Query(`SELECT * FROM events`).PageSize(pageSize).PageState(pageState).Iter()
-				err = nil
+			case "visitors", "sessions", "events", "events_recent":
+				iter = i.Session.Query(fmt.Sprintf(`SELECT * FROM %s`, p.Table)).PageSize(pageSize).PageState(pageState).Iter()
 			default:
 				err = fmt.Errorf("Table %s not supported for pruning", p.Table)
 				break
@@ -637,37 +636,77 @@ func (i *CassandraService) prune() error {
 				if !iter.MapScan(row) {
 					break
 				}
+				total += 1
+				//CHECK IF ALREADY CLEANED
+				if u, ok := row["updated"].(time.Time); ok {
+					if !u.IsZero() {
+						continue
+					}
+				}
 				//PROCESS THE ROW
 				expired := checkRowExpired(row, p)
 				switch p.Table {
-				case "events":
-					total += 1
+				case "visitors", "sessions", "events", "events_recent":
 					if expired {
 						pruned += 1
+						var terr error
 						if p.ClearAll {
-							err = i.Session.Query(`DELETE from events where eid=?`, row["eid"]).Exec()
-							if i.AppConfig.Debug && err != nil {
-								fmt.Printf("COULD NOT DELETE RECORD %s (events)\n", row["eid"])
+							switch p.Table {
+							case "visitors":
+								terr = i.Session.Query(`DELETE from visitors where vid=?`, row["vid"]).Exec()
+							case "sessions":
+								terr = i.Session.Query(`DELETE from sessions where vid=? and sid=?`, row["vid"], row["sid"]).Exec()
+							case "events", "events_recent":
+								terr = i.Session.Query(fmt.Sprintf(`DELETE from %s where eid=?`, p.Table), row["eid"]).Exec()
 							}
+							if i.AppConfig.Debug && terr != nil {
+								fmt.Printf("COULD NOT DELETE RECORD %s %s %s (%s) %v\n", row["vid"], row["sid"], row["eid"], p.Table, terr)
+							}
+							err = terr
 						} else {
-							if len(p.Fields) > 0 {
-								var update string
-								for i, f := range p.Fields {
-									if len(p.Fields)-1 == i {
-										update += fmt.Sprintf("%s=null", f.Id)
-									} else {
-										update += fmt.Sprintf("%s=null, ", f.Id)
-									}
-
-								}
-								err = i.Session.Query(fmt.Sprintf(`UPDATE events set %s where eid=?`, update), row["eid"]).Exec()
-								if i.AppConfig.Debug && err != nil {
-									fmt.Printf("COULD NOT DELETE RECORD %s (events)\n", row["eid"])
+							update := make([]string, 0)
+							desthash := make([]string, 0)
+							var nparams string
+							var params string
+							var dhashes string
+							var fields string
+							for _, f := range p.Fields {
+								update = append(update, fmt.Sprintf("%s=null", f.Id))
+								if v, ok := row[f.Id].(string); ok && (len(f.DestParamHash) > 0) {
+									desthash = append(desthash, fmt.Sprintf(`'%s':'%s'`, f.DestParamHash, sha(v)))
 								}
 							}
+							if len(update) > 0 {
+								fields = ", " + strings.Join(update, ",")
+							}
+							if p.ClearNumericParams {
+								nparams = ", nparams=null "
+							}
+							if len(desthash) > 0 {
+								dhashes = "{" + strings.Join(desthash, ",") + "}"
+								if p.ClearParams {
+									params = ", params=" + dhashes
+								} else {
+									params = ", params=params+" + dhashes
+								}
+							} else if p.ClearParams {
+								params = ", params=null "
+							}
+							switch p.Table {
+							case "visitors":
+								terr = i.Session.Query(fmt.Sprintf(`UPDATE visitors set updated=? %s %s %s where vid=?`, fields, params, nparams), time.Now().UTC(), row["vid"]).Exec()
+							case "sessions":
+								terr = i.Session.Query(fmt.Sprintf(`UPDATE sessions set updated=? %s %s %s where vid=? and sid=?`, fields, params, nparams), time.Now().UTC(), row["vid"], row["sid"]).Exec()
+							case "events", "events_recent":
+								terr = i.Session.Query(fmt.Sprintf(`UPDATE %s set updated=? %s %s %s where eid=?`, p.Table, fields, params, nparams), time.Now().UTC(), row["eid"]).Exec()
+							}
+							if i.AppConfig.Debug && terr != nil {
+								fmt.Printf("COULD NOT CLEAN RECORD %s %s %s (%s) %v\n", row["vid"], row["sid"], row["eid"], p.Table, terr)
+							}
+							err = terr
+
 						}
 					}
-					err = nil
 				}
 
 			}
