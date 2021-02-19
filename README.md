@@ -140,6 +140,7 @@ Since GDPR, honest reporting about user telemetry is required. The default track
 * COOKIE_SESS (sess,sid): The session id. Each time you visit/use the site its approximately broken into session ids.
 * COOKIE_JWT (jwt): The encrypted token of your user. This may optionally include your user id (uid) if logged in.
 
+### Pruning Records
 * Run  ```./tracker --prune config.json``` to run privacy pruning.
 ## Credits
 * [DragonGate](https://github.com/dioptre/DragonGate)
