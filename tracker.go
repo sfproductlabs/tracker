@@ -52,6 +52,7 @@ import (
 	"crypto/tls"
 	"encoding/csv"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -79,6 +80,7 @@ import (
 type session interface {
 	connect() error
 	close() error
+	prune() error
 	write(w *WriteArgs) error
 	listen() error
 	serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error
@@ -90,9 +92,10 @@ type KeyValue struct {
 }
 
 type Field struct {
-	Type    string
-	Id      string
-	Default string
+	Type          string
+	Id            string
+	Default       string
+	DestParamHash string
 }
 
 type Query struct {
@@ -106,6 +109,18 @@ type Filter struct {
 	Alias   string
 	Id      string
 	Queries []Query
+}
+
+type Prune struct {
+	Table              string
+	TTL                int64
+	PageSize           int
+	IgnoreCFlags       []int64
+	SkipToTimestamp    int64
+	ClearAll           bool
+	ClearParams        bool
+	ClearNumericParams bool
+	Fields             []Field
 }
 
 type WriteArgs struct {
@@ -143,6 +158,7 @@ type Service struct {
 
 	Context      string
 	Filter       []Filter
+	Prune        []Prune
 	Format       string
 	MessageLimit int
 	ByteLimit    int
@@ -304,8 +320,10 @@ func main() {
 	//////////////////////////////////////// LOAD CONFIG
 	fmt.Println("Starting services...")
 	configFile := "config.json"
-	if len(os.Args) > 1 {
-		configFile = os.Args[1]
+	var prune = flag.Bool("prune", false, "prune items")
+	flag.Parse()
+	if len(flag.Args()) > 0 {
+		configFile = flag.Args()[0]
 	}
 	fmt.Println("Configuration file: ", configFile)
 	file, _ := os.Open(configFile)
@@ -424,6 +442,21 @@ func main() {
 			fmt.Printf("[ERROR] %s #%d Consumer not implemented\n", s.Service, idx)
 		}
 
+	}
+
+	//////////////////////////////////////// LETS JUST PRUNE AND QUIT?
+	if *prune {
+		for idx := range configuration.Notify {
+			s := &configuration.Notify[idx]
+			if s.Session != nil {
+				err := s.Session.prune()
+				if err != nil {
+					fmt.Println("\nLast prune error...\n", err)
+				}
+
+			}
+		}
+		os.Exit(0)
 	}
 
 	//////////////////////////////////////// SSL CERT MANAGER
@@ -1124,11 +1157,11 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 			}
 		}
 		if vid, ok := j["vid"].(string); ok {
-			expiration := time.Now().Add(99999 * 24 * time.Hour)
+			expiration := time.Now().UTC().Add(99999 * 24 * time.Hour)
 			cookie := http.Cookie{Name: "vid", Value: vid, Expires: expiration, Path: "/", Domain: dom}
 			http.SetCookie(*w, &cookie)
 		} else if vid, ok := j["vid"].(gocql.UUID); ok {
-			expiration := time.Now().Add(99999 * 24 * time.Hour)
+			expiration := time.Now().UTC().Add(99999 * 24 * time.Hour)
 			cookie := http.Cookie{Name: "vid", Value: vid.String(), Expires: expiration, Path: "/", Domain: dom}
 			http.SetCookie(*w, &cookie)
 		}

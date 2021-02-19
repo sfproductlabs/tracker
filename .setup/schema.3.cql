@@ -125,6 +125,7 @@ create table visitors (
   rel text, --app release/version
   cflags bigint, --compliances represented via N notation == 1001110101111
   created timestamp, --time.Now().UTC() on server
+  updated timestamp, --time.Now().UTC() on server 
   uid timeuuid, --user-id
   last text, --last action/slug/url/referrer_url (what i just clicked on)
   url text, --this should always be url slug of **current** url
@@ -179,6 +180,7 @@ create table sessions (
   rel text, 
   cflags bigint,
   created timestamp, 
+  updated timestamp,
   uid timeuuid, 
   last text, 
   url text, 
@@ -234,6 +236,7 @@ create table events (
   rel text, 
   cflags bigint,
   created timestamp, 
+  updated timestamp,
   uid timeuuid, 
   last text, 
   url text, 
@@ -279,6 +282,7 @@ create table events_recent (
   rel text, 
   cflags bigint,
   created timestamp, 
+  updated timestamp,
   uid timeuuid, 
   last text, 
   url text, 
