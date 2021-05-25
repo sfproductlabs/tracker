@@ -51,6 +51,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Install Schema to Cassandra https://github.com/dioptre/tracker/blob/master/.setup/schema.3.cql
 * Insall Go > 1.9.3 (if you want to build from source)
 * Get the tracker (if you want to build from source) ```go get github.com/dioptre/tracker && go build github.com/dioptre/tracker```
+* You may need to update pebble to an older commit (b64dcf2173d7fa03f54db3df14b89876fa807e42) works.
 * Install Nats ```go get github.com/nats-io/gnatsd && go build github.com/nats-io/gnatsd```
 * Go through the config.json file and change what you want.
 * Deploy using Docker or ```go build```
