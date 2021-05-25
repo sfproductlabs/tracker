@@ -245,6 +245,7 @@ type Configuration struct {
 	DefaultRedirect          string
 	IgnoreQueryParamsKey     string
 	AccountHashMixer         string
+	LogsTTL                  int
 }
 
 //////////////////////////////////////// Constants

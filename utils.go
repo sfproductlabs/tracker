@@ -62,6 +62,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gocql/gocql"
 )
 
 ////////////////////////////////////////
@@ -303,4 +305,17 @@ func checkRowExpired(row map[string]interface{}, p Prune) bool {
 		}
 	}
 	return expired
+}
+
+func checkIdExpired(uuid *gocql.UUID, ttl int) bool {
+
+	//If the id is incorrectly formatted expire it
+	if uuid == nil || uuid.Version() != 1 {
+		return true
+	}
+
+	created := uuid.Time()
+
+	return created.Add(time.Second * time.Duration(ttl)).Before(time.Now().UTC())
+
 }

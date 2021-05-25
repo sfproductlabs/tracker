@@ -49,6 +49,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -609,6 +610,10 @@ func (i *CassandraService) prune() error {
 	var err error
 	var pageState []byte
 	var iter *gocql.Iter
+	defer i.Session.Close()
+	ctx := context.Background()
+
+	b := i.Session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
 	// var row map[string]interface{}
 	for _, p := range i.Configuration.Prune {
 		var pruned = 0
@@ -649,20 +654,28 @@ func (i *CassandraService) prune() error {
 				case "visitors", "sessions", "events", "events_recent":
 					if expired {
 						pruned += 1
-						var terr error
+
 						if p.ClearAll {
 							switch p.Table {
 							case "visitors":
-								terr = i.Session.Query(`DELETE from visitors where vid=?`, row["vid"]).Exec()
+								b.Entries = append(b.Entries, gocql.BatchEntry{
+									Stmt:       `DELETE from visitors where vid=?`,
+									Args:       []interface{}{row["vid"]},
+									Idempotent: true,
+								})
 							case "sessions":
-								terr = i.Session.Query(`DELETE from sessions where vid=? and sid=?`, row["vid"], row["sid"]).Exec()
+								b.Entries = append(b.Entries, gocql.BatchEntry{
+									Stmt:       `DELETE from sessions where vid=? and sid=?`,
+									Args:       []interface{}{row["vid"], row["sid"]},
+									Idempotent: true,
+								})
 							case "events", "events_recent":
-								terr = i.Session.Query(fmt.Sprintf(`DELETE from %s where eid=?`, p.Table), row["eid"]).Exec()
+								b.Entries = append(b.Entries, gocql.BatchEntry{
+									Stmt:       fmt.Sprintf(`DELETE from %s where eid=?`, p.Table),
+									Args:       []interface{}{row["eid"]},
+									Idempotent: true,
+								})
 							}
-							if i.AppConfig.Debug && terr != nil {
-								fmt.Printf("COULD NOT DELETE RECORD %s %s %s (%s) %v\n", row["vid"], row["sid"], row["eid"], p.Table, terr)
-							}
-							err = terr
 						} else {
 							update := make([]string, 0)
 							desthash := make([]string, 0)
@@ -694,21 +707,36 @@ func (i *CassandraService) prune() error {
 							}
 							switch p.Table {
 							case "visitors":
-								terr = i.Session.Query(fmt.Sprintf(`UPDATE visitors set updated=? %s %s %s where vid=?`, fields, params, nparams), time.Now().UTC(), row["vid"]).Exec()
+								b.Entries = append(b.Entries, gocql.BatchEntry{
+									Stmt:       fmt.Sprintf(`UPDATE visitors set updated=? %s %s %s where vid=?`, fields, params, nparams),
+									Args:       []interface{}{time.Now().UTC(), row["vid"]},
+									Idempotent: true,
+								})
 							case "sessions":
-								terr = i.Session.Query(fmt.Sprintf(`UPDATE sessions set updated=? %s %s %s where vid=? and sid=?`, fields, params, nparams), time.Now().UTC(), row["vid"], row["sid"]).Exec()
+								b.Entries = append(b.Entries, gocql.BatchEntry{
+									Stmt:       fmt.Sprintf(`UPDATE sessions set updated=? %s %s %s where vid=? and sid=?`, fields, params, nparams),
+									Args:       []interface{}{time.Now().UTC(), row["vid"], row["sid"]},
+									Idempotent: true,
+								})
 							case "events", "events_recent":
-								terr = i.Session.Query(fmt.Sprintf(`UPDATE %s set updated=? %s %s %s where eid=?`, p.Table, fields, params, nparams), time.Now().UTC(), row["eid"]).Exec()
+								b.Entries = append(b.Entries, gocql.BatchEntry{
+									Stmt:       fmt.Sprintf(`UPDATE %s set updated=? %s %s %s where eid=?`, p.Table, fields, params, nparams),
+									Args:       []interface{}{time.Now().UTC(), row["eid"]},
+									Idempotent: true,
+								})
 							}
-							if i.AppConfig.Debug && terr != nil {
-								fmt.Printf("COULD NOT CLEAN RECORD %s %s %s (%s) %v\n", row["vid"], row["sid"], row["eid"], p.Table, terr)
-							}
-							err = terr
-
 						}
 					}
 				}
 
+			}
+			fmt.Printf("Processed %d rows\n", total)
+			terr := i.Session.ExecuteBatch(b)
+			if terr != nil && err == nil {
+				err = terr
+			}
+			if i.AppConfig.Debug && terr != nil {
+				fmt.Printf("[[WARNING]] COULD NOT CLEAN ALL RECORDS FOR [%s] %v\n", p.Table, terr)
 			}
 			//TODO: Optimize Paging
 			//fmt.Printf("next page state: %+v\n", nextPageState)
@@ -720,6 +748,53 @@ func (i *CassandraService) prune() error {
 		fmt.Printf("Pruned [Cassandra].[%s].[%v]: %d/%d rows\n", i.Configuration.Context, p.Table, pruned, total)
 
 	}
+
+	//Now Prune the LOGS table
+	var pruned = 0
+	var total = 0
+	var pageSize = 10000
+	ttl := 2592000
+	if i.AppConfig.LogsTTL > 0 {
+		ttl = i.AppConfig.LogsTTL
+	}
+	for {
+		iter = i.Session.Query(`SELECT id FROM logs`).PageSize(pageSize).PageState(pageState).Iter()
+		nextPageState := iter.PageState()
+		for {
+			var (
+				id gocql.UUID
+			)
+			if !iter.Scan(&id) {
+				break
+			}
+			total += 1
+
+			//PROCESS THE ROW
+			expired := checkIdExpired(&id, ttl)
+			if expired {
+				pruned += 1
+				b.Entries = append(b.Entries, gocql.BatchEntry{
+					Stmt:       `DELETE from logs where id=?`,
+					Args:       []interface{}{id},
+					Idempotent: true,
+				})
+			}
+		}
+		fmt.Printf("Processed %d rows\n", total)
+		terr := i.Session.ExecuteBatch(b)
+		if terr != nil && err == nil {
+			err = terr
+		}
+		if i.AppConfig.Debug && terr != nil {
+			fmt.Printf("[[WARNING]] COULD NOT CLEAN ALL RECORDS FOR [LOGS] %v\n", terr)
+		}
+		if len(nextPageState) == 0 {
+			break
+		}
+		pageState = nextPageState
+	}
+	fmt.Printf("Pruned [Cassandra].[%s].[logs]: %d/%d rows\n", i.Configuration.Context, pruned, total)
+
 	return err
 }
 

@@ -48,6 +48,7 @@
     "UrlFilterMatchGroup" : 6,
     "IgnoreQueryParamsKey" : "igqp",
     "AccountHashMixer" : "",    
+    "LogsTTL": 2592000,
     "Notify": [
         {
             "Service": "cassandra",
@@ -66,7 +67,7 @@
             "Prune": [
                 {
                     "Table": "events",
-                    "TTL": 1,
+                    "TTL": 2592000,
                     "PageSize": 10000,
                     "IgnoreCFlags": [],
                     "SkipToTimestamp": 0,
