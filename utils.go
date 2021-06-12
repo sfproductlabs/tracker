@@ -273,7 +273,7 @@ func Unzip(src, dest string) error {
 	return nil
 }
 
-func checkRowExpired(row map[string]interface{}, p Prune) bool {
+func checkRowExpired(row map[string]interface{}, meta *gocql.TableMetadata, p Prune) bool {
 	var created *time.Time
 	expired := false
 	if ctemp1, ok := row["created"]; ok {
@@ -281,6 +281,19 @@ func checkRowExpired(row map[string]interface{}, p Prune) bool {
 			created = &ctemp2
 		}
 	}
+	if meta != nil && len(meta.PartitionKey) == 1 {
+		if tuuid, tok := row[meta.PartitionKey[0].Name]; tok {
+			if uuid, ok := tuuid.(gocql.UUID); ok {
+				if uuid.Version() == 1 {
+					c := uuid.Time()
+					if c.Before(*created) {
+						created = &c
+					}
+				}
+			}
+		}
+	}
+
 	if created != nil {
 		if p.SkipToTimestamp > 0 && created.Before(time.Unix(p.SkipToTimestamp, 0)) {
 			return false
@@ -318,4 +331,37 @@ func checkIdExpired(uuid *gocql.UUID, ttl int) bool {
 
 	return created.Add(time.Second * time.Duration(ttl)).Before(time.Now().UTC())
 
+}
+
+func SetValueInJSON(iface interface{}, path string, value interface{}) interface{} {
+	m := iface.(map[string]interface{})
+	split := strings.Split(path, ".")
+	for k, v := range m {
+		if strings.EqualFold(k, split[0]) {
+			if len(split) == 1 {
+				m[k] = value
+				return m
+			}
+			switch v.(type) {
+			case map[string]interface{}:
+				return SetValueInJSON(v, strings.Join(split[1:], "."), value)
+			default:
+				return m
+			}
+		}
+	}
+	// path not found -> create
+	if len(split) == 1 {
+		m[split[0]] = value
+	} else {
+		newMap := make(map[string]interface{})
+		newMap[split[len(split)-1]] = value
+		for i := len(split) - 2; i > 0; i-- {
+			mTmp := make(map[string]interface{})
+			mTmp[split[i]] = newMap
+			newMap = mTmp
+		}
+		m[split[0]] = newMap
+	}
+	return m
 }

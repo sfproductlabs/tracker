@@ -49,6 +49,9 @@
     "IgnoreQueryParamsKey" : "igqp",
     "AccountHashMixer" : "",    
     "LogsTTL": 2592000,
+    "LogsOnly": false,
+    "UpdateConfigAfterPrune": false,
+    "PruneLimit": 100000,
     "Notify": [
         {
             "Service": "cassandra",

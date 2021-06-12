@@ -246,6 +246,9 @@ type Configuration struct {
 	IgnoreQueryParamsKey     string
 	AccountHashMixer         string
 	LogsTTL                  int
+	LogsOnly                 bool
+	UpdateConfigAfterPrune   bool
+	PruneLimit               int
 }
 
 //////////////////////////////////////// Constants
@@ -322,6 +325,7 @@ func main() {
 	fmt.Println("Starting services...")
 	configFile := "config.json"
 	var prune = flag.Bool("prune", false, "prune items")
+	var logsOnly = flag.Bool("logs-only", false, "clear out log only")
 	flag.Parse()
 	if len(flag.Args()) > 0 {
 		configFile = flag.Args()[0]
@@ -450,6 +454,7 @@ func main() {
 		for idx := range configuration.Notify {
 			s := &configuration.Notify[idx]
 			if s.Session != nil {
+				configuration.LogsOnly = *logsOnly || configuration.LogsOnly
 				err := s.Session.prune()
 				if err != nil {
 					fmt.Println("\nLast prune error...\n", err)
