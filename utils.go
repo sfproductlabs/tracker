@@ -295,7 +295,7 @@ func checkRowExpired(row map[string]interface{}, meta *gocql.TableMetadata, p Pr
 	}
 
 	if created != nil {
-		if pruneSkipToTimestamp > 0 && created.Before(time.Unix(pruneSkipToTimestamp, 0)) {
+		if created.Before(time.Unix(pruneSkipToTimestamp, 0)) {
 			return false, created
 		}
 		expired = (*created).Add(time.Second * time.Duration(p.TTL)).Before(time.Now().UTC())

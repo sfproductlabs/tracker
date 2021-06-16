@@ -759,7 +759,7 @@ func (i *CassandraService) prune() error {
 		}
 	}
 
-	if i.AppConfig.UpdateConfigAfterPrune && lastCreated.Unix() > i.AppConfig.PruneSkipToTimestamp {
+	if i.AppConfig.PruneUpdateConfig && lastCreated.Unix() > i.AppConfig.PruneSkipToTimestamp {
 		s, error := ioutil.ReadFile(i.AppConfig.ConfigFile)
 		var j interface{}
 		json.Unmarshal(s, &j)
