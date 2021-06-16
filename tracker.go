@@ -116,7 +116,6 @@ type Prune struct {
 	TTL                int64
 	PageSize           int
 	IgnoreCFlags       []int64
-	SkipToTimestamp    int64
 	ClearAll           bool
 	ClearParams        bool
 	ClearNumericParams bool
@@ -200,6 +199,7 @@ type GeoIP struct {
 }
 
 type Configuration struct {
+	ConfigFile               string
 	Domains                  []string //Domains in Trust, LetsEncrypt domains
 	StaticDirectory          string   //Static FS Directory (./public/)
 	TempDirectory            string
@@ -245,10 +245,11 @@ type Configuration struct {
 	DefaultRedirect          string
 	IgnoreQueryParamsKey     string
 	AccountHashMixer         string
-	LogsTTL                  int
-	LogsOnly                 bool
+	PruneLogsTTL             int
+	PruneLogsOnly            bool
 	UpdateConfigAfterPrune   bool
 	PruneLimit               int
+	PruneSkipToTimestamp     int64
 }
 
 //////////////////////////////////////// Constants
@@ -339,6 +340,7 @@ func main() {
 	if err != nil {
 		fmt.Println("error:", err)
 	}
+	configuration.ConfigFile = configFile
 
 	//////////////////////////////////////// SETUP CACHE
 	cache := cacheDir()
@@ -454,7 +456,7 @@ func main() {
 		for idx := range configuration.Notify {
 			s := &configuration.Notify[idx]
 			if s.Session != nil {
-				configuration.LogsOnly = *logsOnly || configuration.LogsOnly
+				configuration.PruneLogsOnly = *logsOnly || configuration.PruneLogsOnly
 				err := s.Session.prune()
 				if err != nil {
 					fmt.Println("\nLast prune error...\n", err)

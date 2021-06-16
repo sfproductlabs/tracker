@@ -273,7 +273,7 @@ func Unzip(src, dest string) error {
 	return nil
 }
 
-func checkRowExpired(row map[string]interface{}, meta *gocql.TableMetadata, p Prune) bool {
+func checkRowExpired(row map[string]interface{}, meta *gocql.TableMetadata, p Prune, pruneSkipToTimestamp int64) (bool, *time.Time) {
 	var created *time.Time
 	expired := false
 	if ctemp1, ok := row["created"]; ok {
@@ -295,8 +295,8 @@ func checkRowExpired(row map[string]interface{}, meta *gocql.TableMetadata, p Pr
 	}
 
 	if created != nil {
-		if p.SkipToTimestamp > 0 && created.Before(time.Unix(p.SkipToTimestamp, 0)) {
-			return false
+		if pruneSkipToTimestamp > 0 && created.Before(time.Unix(pruneSkipToTimestamp, 0)) {
+			return false, created
 		}
 		expired = (*created).Add(time.Second * time.Duration(p.TTL)).Before(time.Now().UTC())
 	} else {
@@ -317,7 +317,7 @@ func checkRowExpired(row map[string]interface{}, meta *gocql.TableMetadata, p Pr
 			}
 		}
 	}
-	return expired
+	return expired, created
 }
 
 func checkIdExpired(uuid *gocql.UUID, ttl int) bool {

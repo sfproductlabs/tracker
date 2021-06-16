@@ -48,9 +48,10 @@
     "UrlFilterMatchGroup" : 6,
     "IgnoreQueryParamsKey" : "igqp",
     "AccountHashMixer" : "",    
-    "LogsTTL": 2592000,
-    "LogsOnly": false,
-    "UpdateConfigAfterPrune": false,
+    "PruneLogsTTL": 2592000,
+    "PruneLogsOnly": false,
+    "UpdateConfigAfterPrune": true,
+    "PruneSkipToTimestamp": 0,
     "PruneLimit": 100000,
     "Notify": [
         {
@@ -70,10 +71,9 @@
             "Prune": [
                 {
                     "Table": "events",
-                    "TTL": 2592000,
+                    "TTL": 0,
                     "PageSize": 10000,
                     "IgnoreCFlags": [],
-                    "SkipToTimestamp": 0,
                     "ClearAll": false,
                     "ClearParams" : true,
                     "ClearNumericParams": true,

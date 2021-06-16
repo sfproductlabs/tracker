@@ -49,6 +49,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -608,6 +609,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 //////////////////////////////////////// C*
 func (i *CassandraService) prune() error {
 	var pageState []byte
+	var lastCreated time.Time
 	var iter *gocql.Iter
 	defer i.Session.Close()
 	keyspaceMetadata, err := i.Session.KeyspaceMetadata(i.Configuration.Context)
@@ -615,7 +617,7 @@ func (i *CassandraService) prune() error {
 
 	b := i.Session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
 	// var row map[string]interface{}
-	if !i.AppConfig.LogsOnly {
+	if !i.AppConfig.PruneLogsOnly {
 		for _, p := range i.Configuration.Prune {
 			var pruned = 0
 			var total = 0
@@ -650,11 +652,14 @@ func (i *CassandraService) prune() error {
 						}
 					}
 					//PROCESS THE ROW
-					expired := checkRowExpired(row, keyspaceMetadata.Tables[p.Table], p)
+					expired, created := checkRowExpired(row, keyspaceMetadata.Tables[p.Table], p, i.AppConfig.PruneSkipToTimestamp)
 					switch p.Table {
 					case "visitors", "sessions", "events", "events_recent":
 						if expired {
 							pruned += 1
+							if created.After(lastCreated) {
+								lastCreated = *created
+							}
 
 							if p.ClearAll {
 								switch p.Table {
@@ -736,6 +741,9 @@ func (i *CassandraService) prune() error {
 				if terr != nil && err == nil {
 					err = terr
 				}
+				if i.AppConfig.PruneLimit != 0 && i.AppConfig.PruneLimit > total {
+					break
+				}
 				if i.AppConfig.Debug && terr != nil {
 					fmt.Printf("[[WARNING]] COULD NOT CLEAN ALL RECORDS FOR [%s] %v\n", p.Table, terr)
 				}
@@ -751,13 +759,27 @@ func (i *CassandraService) prune() error {
 		}
 	}
 
+	if i.AppConfig.UpdateConfigAfterPrune && lastCreated.Unix() > i.AppConfig.PruneSkipToTimestamp {
+		s, error := ioutil.ReadFile(i.AppConfig.ConfigFile)
+		var j interface{}
+		json.Unmarshal(s, &j)
+		SetValueInJSON(j, "PruneSkipToTimestamp", lastCreated.Unix())
+		s, _ = json.Marshal(j)
+		var prettyJSON bytes.Buffer
+		error = json.Indent(&prettyJSON, s, "", "    ")
+		if error == nil {
+			//fmt.Println(prettyJSON.String())
+			ioutil.WriteFile(i.AppConfig.ConfigFile, s, 0644)
+		}
+	}
+
 	//Now Prune the LOGS table
 	var pruned = 0
 	var total = 0
 	var pageSize = 10000
 	ttl := 2592000
-	if i.AppConfig.LogsTTL > 0 {
-		ttl = i.AppConfig.LogsTTL
+	if i.AppConfig.PruneLogsTTL > 0 {
+		ttl = i.AppConfig.PruneLogsTTL
 	}
 	for {
 		iter = i.Session.Query(`SELECT id FROM logs`).PageSize(pageSize).PageState(pageState).Iter()
