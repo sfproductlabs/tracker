@@ -1,4 +1,46 @@
 {
+    "AccountHashMixer": "",
+    "AllowOrigin": "*",
+    "ApiVersion": 1,
+    "Consume": [
+        {
+            "Note": "Not implemented",
+            "Service": "http"
+        },
+        {
+            "ByteLimit": 67108864,
+            "CACert": "./.setup/keys/rootCa.crt",
+            "Cert": "./.setup/keys/nats-client.crt",
+            "Critical": true,
+            "Filter": [
+                {
+                    "Alias": "log",
+                    "Id": "tic.log.\u003e",
+                    "Type": "chan"
+                },
+                {
+                    "Alias": "count",
+                    "Id": "tic.count.\u003e",
+                    "Type": "chan"
+                },
+                {
+                    "Alias": "update",
+                    "Id": "tic.update.\u003e",
+                    "Type": "chan"
+                }
+            ],
+            "Format": "json",
+            "Hosts": [
+                "tls://localhost:4222"
+            ],
+            "Key": "./.setup/keys/nats-client.key",
+            "MessageLimit": 65536,
+            "Secure": true,
+            "Service": "nats"
+        }
+    ],
+    "Debug": true,
+    "DefaultRedirect": "https://sfpl.io",
     "Domains": [
         "localhost",
         "dev.sfpl.io",
@@ -9,125 +51,66 @@
         "valid9.tr.sfpl.io",
         "chat.sfpl.io"
     ],
-    "SchemaVersion": 3,
-    "ApiVersion": 1,
-    "TempDirectory": "./tmp/",
-    "UseGeoIP": true,
-    "UseRegionDescriptions": true,
-    "UseRemoveIP": true,
     "GeoIPVersion": 1,
-    "IPv4GeoIPZip": "./.setup/geoip/IP2LOCATION-LITE-DB11.CSV.ZIP",
-    "IPv6GeoIPZip": "./.setup/geoip/IP2LOCATION-LITE-DB11.IPV6.CSV.ZIP",
     "IPv4GeoIPCSVDest": "IP2LOCATION-LITE-DB11.CSV",
+    "IPv4GeoIPZip": "./.setup/geoip/IP2LOCATION-LITE-DB11.CSV.ZIP",
     "IPv6GeoIPCSVDest": "IP2LOCATION-LITE-DB11.IPV6.CSV",
-    "StaticDirectory": "public",
-    "ProxyUrl": "http://localhost:3030",
-    "UseLocalTLS": true,
+    "IPv6GeoIPZip": "./.setup/geoip/IP2LOCATION-LITE-DB11.IPV6.CSV.ZIP",
+    "IdleTimeoutSeconds": 20,
     "IgnoreInsecureTLS": true,
-    "TLSCert" : "./.setup/keys/nginx.crt",
-    "TLSKey" : "./.setup/keys/nginx.key",
-    "ProxyPortTLS" : ":8443",
-    "ProxyPortRedirect" : "",
-    "ProxyPort" : ":8080",
-    "ProxyDailyLimit" : 0,
-    "ProxyDailyLimitChecker" : "cassandra",
-    "IgnoreProxyOptions" : false,
-    "ProxyUrlFilter" : ".*(dontlogthese|login|css|js|json|jpeg|jpg|gif|png|ico)",
-    "ProxyForceJson" : false,
+    "IgnoreProxyOptions": false,
+    "IgnoreQueryParamsKey": "igqp",
+    "MaxHeaderBytes": 1048576,
     "MaximumConnections": 150000,
-    "PrefixPrivateHash" : "",
-    "ReadTimeoutSeconds" : 20,
-    "ReadHeaderTimeoutSeconds" : 20,
-    "WriteTimeoutSeconds" : 20,
-    "IdleTimeoutSeconds" : 20,
-    "MaxHeaderBytes" : 1048576,
-    "AllowOrigin": "*",
-    "DefaultRedirect": "https://sfpl.io",
-    "Debug" : true,
-    "UrlFilter" : "http(s|)://(api|tr|dev|spark|superset|jupyter|msgxc)(\\.staging\\.|\\.|)(valid9\\.com|sfpl\\.io|localhost)(:[0-9]*|)(/[^\\?#]*)(\\?|#|)",
-    "UrlFilterMatchGroup" : 6,
-    "IgnoreQueryParamsKey" : "igqp",
-    "AccountHashMixer" : "",    
-    "PruneLogsTTL": 2592000,
-    "PruneLogsOnly": false,
-    "UpdateConfigAfterPrune": true,
-    "PruneSkipToTimestamp": 0,
-    "PruneLimit": 100000,
     "Notify": [
         {
-            "Service": "cassandra",
-            "Connections" : 2,
-            "Hosts": [
-                "127.0.0.1"
-            ],
-            "Context": "sfpla",
-            "Timeout" : 300,
             "CACert": "./.setup/keys/rootCa.crt",
             "Cert": "./.setup/keys/cassandra-client.crt",
-            "Key": "./.setup/keys/cassandra-client.key",
-            "Secure": false,
-            "Retries": 3,
-            "Critical" :true,
-            "Prune": [
-                {
-                    "Table": "events",
-                    "TTL": 0,
-                    "PageSize": 10000,
-                    "IgnoreCFlags": [],
-                    "ClearAll": false,
-                    "ClearParams" : true,
-                    "ClearNumericParams": true,
-                    "Fields": [
-                        {
-                            "Id": "ip",
-                            "Type": "inet",
-                            "DestParamHash": "iphash"                    
-                        }
-                    ]
-                }
-            ],
+            "Connections": 2,
+            "Context": "sfpla",
+            "Critical": true,
             "Filter": [
                 {
                     "Alias": "log",
                     "Id": "log",
                     "Queries": [
                         {
-                            "Statement": "INSERT INTO logs JSON ?",
-                            "QueryType": "json",
                             "Fields": [
                                 {
-                                    "Type": "string",
-                                    "Id": "name"
+                                    "Id": "name",
+                                    "Type": "string"
                                 },
                                 {
-                                    "Type": "string",
-                                    "Id": "hostname"
+                                    "Id": "hostname",
+                                    "Type": "string"
                                 },
                                 {
-                                    "Type": "int",
-                                    "Id": "level"
+                                    "Id": "level",
+                                    "Type": "int"
                                 },
                                 {
-                                    "Type": "string",
-                                    "Id": "msg"
+                                    "Id": "msg",
+                                    "Type": "string"
                                 },
                                 {
-                                    "Type": "string",
-                                    "Id": "ip"
+                                    "Id": "ip",
+                                    "Type": "string"
                                 },
                                 {
-                                    "Type": "string",
-                                    "Id": "username"
+                                    "Id": "username",
+                                    "Type": "string"
                                 },
                                 {
-                                    "Type": "date",
-                                    "Id": "ldate"
+                                    "Id": "ldate",
+                                    "Type": "date"
                                 },
                                 {
-                                    "Type": "time",
-                                    "Id": "ltime"
+                                    "Id": "ltime",
+                                    "Type": "time"
                                 }
-                            ]
+                            ],
+                            "QueryType": "json",
+                            "Statement": "INSERT INTO logs JSON ?"
                         }
                     ]
                 },
@@ -136,17 +119,17 @@
                     "Id": "count",
                     "Queries": [
                         {
-                            "Statement": "UPDATE counters set total=total+1 where id=? AND type=?",
                             "Fields": [
                                 {
-                                    "Type": "string",
-                                    "Id": "id"
+                                    "Id": "id",
+                                    "Type": "string"
                                 },
                                 {
-                                    "Type": "string",
-                                    "Id": "type"
+                                    "Id": "type",
+                                    "Type": "string"
                                 }
-                            ]
+                            ],
+                            "Statement": "UPDATE counters set total=total+1 where id=? AND type=?"
                         }
                     ]
                 },
@@ -155,75 +138,92 @@
                     "Id": "update",
                     "Queries": [
                         {
-                            "Statement" : "INSERT INTO updates (id, updated, msg) values (?,?,?)",
                             "Fields": [
                                 {
-                                    "Type": "string",
+                                    "Default": "id",
                                     "Id": "id",
-                                    "Default": "id"                                    
+                                    "Type": "string"
                                 },
                                 {
-                                    "Type": "datetime",
-                                    "Id": "updated"
+                                    "Id": "updated",
+                                    "Type": "datetime"
                                 },
                                 {
-                                    "Type": "string",
-                                    "Id": "msg"
+                                    "Id": "msg",
+                                    "Type": "string"
                                 }
-                            ]
+                            ],
+                            "Statement": "INSERT INTO updates (id, updated, msg) values (?,?,?)"
                         }
                     ]
                 }
-            ]
+            ],
+            "Hosts": [
+                "127.0.0.1"
+            ],
+            "Key": "./.setup/keys/cassandra-client.key",
+            "Prune": [
+                {
+                    "ClearAll": false,
+                    "ClearNumericParams": true,
+                    "ClearParams": true,
+                    "Fields": [
+                        {
+                            "DestParamHash": "iphash",
+                            "Id": "ip",
+                            "Type": "inet"
+                        }
+                    ],
+                    "IgnoreCFlags": [],
+                    "PageSize": 10000,
+                    "TTL": 2592000,
+                    "Table": "events"
+                }
+            ],
+            "Retries": 3,
+            "Secure": false,
+            "Service": "cassandra",
+            "Timeout": 300
         },
         {
-            "Service": "nats",
+            "CACert": "./.setup/keys/rootCa.crt",
+            "Cert": "./.setup/keys/nats-client.crt",
+            "Context": "toc.track.notify",
+            "Format": "json",
             "Hosts": [
                 "tls://localhost:4222"
             ],
-            "Context": "toc.track.notify",
-            "Secure": true,
-            "CACert": "./.setup/keys/rootCa.crt",
-            "Cert": "./.setup/keys/nats-client.crt",
             "Key": "./.setup/keys/nats-client.key",
-            "Format": "json"
+            "Secure": true,
+            "Service": "nats"
         }
     ],
-    "Consume": [
-        {
-            "Service": "http",
-            "Note": "Not implemented"
-        },
-        {
-            "Service": "nats",
-            "Hosts": [
-                "tls://localhost:4222"
-            ],
-            "Secure": true,
-            "Critical" : true,
-            "CACert": "./.setup/keys/rootCa.crt",
-            "Cert": "./.setup/keys/nats-client.crt",
-            "Key": "./.setup/keys/nats-client.key",
-            "Format": "json",
-            "MessageLimit": 65536,
-            "ByteLimit": 67108864,
-            "Filter": [
-                {
-                    "Alias": "log",
-                    "Type": "chan",
-                    "Id": "tic.log.>"
-                },
-                {
-                    "Alias": "count",
-                    "Type": "chan",
-                    "Id": "tic.count.>"
-                },
-                {
-                    "Alias": "update",
-                    "Type": "chan",
-                    "Id": "tic.update.>"
-                }
-            ]
-        }
-    ]
+    "PrefixPrivateHash": "",
+    "ProxyDailyLimit": 0,
+    "ProxyDailyLimitChecker": "cassandra",
+    "ProxyForceJson": false,
+    "ProxyPort": ":8080",
+    "ProxyPortRedirect": "",
+    "ProxyPortTLS": ":8443",
+    "ProxyUrl": "http://localhost:3030",
+    "ProxyUrlFilter": ".*(dontlogthese|login|css|js|json|jpeg|jpg|gif|png|ico)",
+    "PruneLimit": 100000,
+    "PruneLogsOnly": false,
+    "PruneLogsTTL": 2592000,
+    "PruneSkipToTimestamp": 0,
+    "ReadHeaderTimeoutSeconds": 20,
+    "ReadTimeoutSeconds": 20,
+    "SchemaVersion": 3,
+    "StaticDirectory": "public",
+    "TLSCert": "./.setup/keys/nginx.crt",
+    "TLSKey": "./.setup/keys/nginx.key",
+    "TempDirectory": "./tmp/",
+    "UpdateConfigAfterPrune": true,
+    "UrlFilter": "http(s|)://(api|tr|dev|spark|superset|jupyter|msgxc)(\\.staging\\.|\\.|)(valid9\\.com|sfpl\\.io|localhost)(:[0-9]*|)(/[^\\?#]*)(\\?|#|)",
+    "UrlFilterMatchGroup": 6,
+    "UseGeoIP": true,
+    "UseLocalTLS": true,
+    "UseRegionDescriptions": true,
+    "UseRemoveIP": true,
+    "WriteTimeoutSeconds": 20
 }

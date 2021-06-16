@@ -769,7 +769,7 @@ func (i *CassandraService) prune() error {
 		error = json.Indent(&prettyJSON, s, "", "    ")
 		if error == nil {
 			//fmt.Println(prettyJSON.String())
-			ioutil.WriteFile(i.AppConfig.ConfigFile, s, 0644)
+			ioutil.WriteFile(i.AppConfig.ConfigFile, prettyJSON.Bytes(), 0644)
 		}
 	}
 
