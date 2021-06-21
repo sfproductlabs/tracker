@@ -59,7 +59,7 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 
 ## API
 ### Track Request
-Send the server something to track (replace tr with str if its from an internal service):
+Send the server something to track (replace tr with str if it's from an internal service):
 
 #### REST Payload Example
 In the following example, we use tuplets to persist what's needed to track (Ex. {"tr":"v1"})
@@ -138,7 +138,7 @@ Since GDPR, honest reporting about user telemetry is required. The default track
 * COOKIE_EXP_PARAMS (params): Additional information (experiment parameters) that stores information about you anonymously that can be used to tailor the experience to you.
 * COOKIE_TRACK (trc): The last time you were tracked.
 * COOKIE_VID (vid): Your unique id. This is consistent across all sessions, and is stored on your device.
-* COOKIE_SESS (sess,sid): The session id. Each time you visit/use the site its approximately broken into session ids.
+* COOKIE_SESS (sess,sid): The session id. Each time you visit/use the site it's approximately broken into session ids.
 * COOKIE_JWT (jwt): The encrypted token of your user. This may optionally include your user id (uid) if logged in.
 
 ### Pruning Records
