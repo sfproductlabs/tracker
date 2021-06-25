@@ -169,24 +169,7 @@ export const getPageType = () => {
 } 
 
 export function getTrackerUrl() {
-    if (process.env.NODE_ENV == 'development') {
-        return path(["Tracker", "Url", "DEV"], config);
-    }
-    let sHosts = path(["Hosts", "Staging"], config);
-    if (typeof sHosts == 'undefined') {
-        return path(["Tracker", "Url", "PRODUCTION"], config);
-    }
-    if (typeof sHosts == 'string' && sHosts) {
-        sHosts = sHosts.replace(' ', '');
-        sHosts = sHosts.split(',');
-    }
-    if (!Array.isArray(sHosts)) {
-        return path(["Tracker", "Url", "PRODUCTION"], config);
-    }
-    if (sHosts.some((el)=> el === window.location.hostname)) {
-        return path(["Tracker", "Url", "STAGING"], config);
-    }
-    return path(["Tracker", "Url", "PRODUCTION"], config);
+    return path(["Tracker", "Url", process.env.TARGET || path(["Application", "Target"], config) || "Development"], config);
 }
 
 export function resetUserCookies() {

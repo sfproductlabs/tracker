@@ -1,6 +1,7 @@
 Application: 
     Name:
     Release: 
+    Target: Staging
 Hosts:
     Staging: 
         - staging.sfpl.io
@@ -27,9 +28,9 @@ Routes:
 Tracker:
     Track: true
     Url: 
-        DEV: https://tr.sfpl.io
-        STAGING: https://tr.sfpl.io
-        PRODUCTION: https://tr.sfpl.io
+        Development: https://tr.sfpl.io
+        Staging: https://tr.sfpl.io
+        Production: https://tr.sfpl.io
 Styles: |-
     .black { color: black; }
 
