@@ -1,0 +1,35 @@
+Application: 
+    Name:
+    Release: 
+Hosts:
+    Staging: 
+        - staging.sfpl.io
+        - localhost
+Content: 
+User:
+    Session:
+        Timeout: 3600000
+Cookies:
+    Names:
+        COOKIE_VISITOR: vid
+        COOKIE_SESSION: sid
+        COOKIE_USER: uid
+        COOKIE_AUTH: jwt
+        COOKIE_LAST_ACTIVE: la
+        COOKIE_REFERRAL: ref
+        COOKIE_EXPERIMENT: x
+        COOKIE_EXP_PARAMS: xp
+        COOKIE_QPS: qps
+Routes:
+    "/settings":
+        Regex: /settings
+        PageType: settings
+Tracker:
+    Track: true
+    Url: 
+        DEV: https://tr.sfpl.io
+        STAGING: https://tr.sfpl.io
+        PRODUCTION: https://tr.sfpl.io
+Styles: |-
+    .black { color: black; }
+
