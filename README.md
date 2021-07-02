@@ -111,6 +111,8 @@ You can run a docker version of tracker using ```docker-compose up``` then ```./
 
 
 ### Deploy
+
+#### Docker
 * Get a certificate:
     * Deploy on AWS with config parameters in conjunction with KMS on ECS on Amazon AWS https://hackernoon.com/you-should-use-ssm-parameter-store-over-lambda-env-variables-5197fc6ea45b (see dockercmd.sh)
     * Use the above test key **must be server.crt and server.key**
@@ -130,6 +132,37 @@ sudo docker run -p 8443:443 tracker
 #  sudo docker system prune -a
 ```
 * Then upload/use (try AWS ECS).
+
+#### Debian
+```sh
+mkdir tracker
+cd tracker/
+git clone https://github.com/sfproductlabs/tracker .
+sudo apt update
+sudo apt install curl
+cd ..
+curl -O https://dl.google.com/go/go1.12.7.linux-amd64.tar.gz
+sha256sum go1.12.7.linux-amd64.tar.gz
+#66d83bfb5a9ede
+tar xvf go1.12.7.linux-amd64.tar.gz
+sudo chown -R root:root ./go
+sudo mv go /usr/local
+echo "export GOPATH=$HOME/gocode" >> ~/.bashrc
+echo "export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin" >> ~/.bashrc
+# vi .bashrc 
+source ~/.bashrc 
+go version
+cd tracker/
+go build
+go get github.com/sfproductlabs/tracker && go build github.com/sfproductlabs/tracker
+go build
+cd ~/gocode/src/github.com/cockroachdb/pebble
+git checkout b64dcf2173d7fa03f54db3df14b89876fa807e42
+git checkout b64dcf2
+go build
+cd ~/tracker/
+go build
+```
 
 ## Privacy
 Since GDPR, honest reporting about user telemetry is required. The default tracker for online (https://github.com/dioptre/tracker/blob/master/.setup/www/track.js) uses a number of cookies by default:
