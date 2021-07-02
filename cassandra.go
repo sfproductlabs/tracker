@@ -736,8 +736,8 @@ func (i *CassandraService) prune() error {
 					}
 
 				}
-				fmt.Printf("Processed %d rows\n", total)
 				terr := i.Session.ExecuteBatch(b)
+				fmt.Printf("Processed %d rows\n", total)
 				if terr != nil && err == nil {
 					err = terr
 				}
