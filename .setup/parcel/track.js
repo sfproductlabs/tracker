@@ -15,6 +15,13 @@ import device from './device';
 import {getHostRoot} from './network';
 import config from '/config.yaml';
 
+/**
+ * @param {object} params - event parameters
+ * @param {!string} params.ename - event name
+ * @param {string} [params.ptyp] - page type
+ * @param {*} [params.params] - custom params
+ * @returns {null|undefined}
+ */
 export default function track(params) {
     if (!config || !config.Tracker || !config.Tracker.Track) {        
         return;
