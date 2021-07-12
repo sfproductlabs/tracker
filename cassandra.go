@@ -782,6 +782,9 @@ func (i *CassandraService) prune() error {
 		ttl = i.AppConfig.PruneLogsTTL
 	}
 	for {
+		if i.AppConfig.Debug {
+			printCStarQuery(context.Background(), i.Session, "select id from logs limit 1")
+		}
 		iter = i.Session.Query(`SELECT id FROM logs`).PageSize(pageSize).PageState(pageState).Iter()
 		nextPageState := iter.PageState()
 		for {
