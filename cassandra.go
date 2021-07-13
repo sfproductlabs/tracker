@@ -642,6 +642,7 @@ func (i *CassandraService) prune() error {
 					// }
 					row := make(map[string]interface{})
 					if !iter.MapScan(row) {
+						err = iter.Close()
 						break
 					}
 					total += 1
@@ -792,6 +793,7 @@ func (i *CassandraService) prune() error {
 				id gocql.UUID
 			)
 			if !iter.Scan(&id) {
+				err = iter.Close()
 				break
 			}
 			total += 1
