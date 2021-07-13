@@ -611,7 +611,6 @@ func (i *CassandraService) prune() error {
 	var pageState []byte
 	var lastCreated time.Time
 	var iter *gocql.Iter
-	defer i.Session.Close()
 	keyspaceMetadata, err := i.Session.KeyspaceMetadata(i.Configuration.Context)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -822,7 +821,6 @@ func (i *CassandraService) prune() error {
 		pageState = nextPageState
 	}
 	fmt.Printf("Pruned [Cassandra].[%s].[logs]: %d/%d rows\n", i.Configuration.Context, pruned, total)
-
 	return err
 }
 

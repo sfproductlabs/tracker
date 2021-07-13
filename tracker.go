@@ -431,7 +431,6 @@ func main() {
 					if err != nil {
 						fmt.Println("\nLast prune error...\n", err)
 					}
-					s.Session.close()
 				default:
 					fmt.Println("[ERROR]")
 				}
