@@ -318,7 +318,7 @@ func main() {
 	fmt.Println("Tracker.")
 	fmt.Println("Software to track growth and visitor usage")
 	fmt.Println("https://github.com/sfproductlabs/tracker")
-	fmt.Println("(c) Copyright 2018-2020 SF Product Labs LLC.")
+	fmt.Println("(c) Copyright 2018-2021 SF Product Labs LLC.")
 	fmt.Println("Use of this software is subject to the LICENSE agreement.")
 	fmt.Println("//////////////////////////////////////////////////////////////\n\n")
 
@@ -431,6 +431,7 @@ func main() {
 					if err != nil {
 						fmt.Println("\nLast prune error...\n", err)
 					}
+					s.Session.close()
 				default:
 					fmt.Println("[ERROR]")
 				}
@@ -438,6 +439,7 @@ func main() {
 			}
 		}
 		os.Exit(0)
+		return
 	} else {
 		//////////////////////////////////////// LOAD CONSUMERS
 		for idx := range configuration.Consume {

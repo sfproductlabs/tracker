@@ -613,7 +613,8 @@ func (i *CassandraService) prune() error {
 	var iter *gocql.Iter
 	defer i.Session.Close()
 	keyspaceMetadata, err := i.Session.KeyspaceMetadata(i.Configuration.Context)
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	b := i.Session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
 	// var row map[string]interface{}
@@ -783,7 +784,7 @@ func (i *CassandraService) prune() error {
 	}
 	for {
 		if i.AppConfig.Debug {
-			printCStarQuery(context.Background(), i.Session, "select id from logs limit 1")
+			printCStarQuery(ctx, i.Session, "select id from logs limit 1")
 		}
 		iter = i.Session.Query(`SELECT id FROM logs`).PageSize(pageSize).PageState(pageState).Iter()
 		nextPageState := iter.PageState()
