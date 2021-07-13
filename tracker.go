@@ -419,52 +419,57 @@ func main() {
 		}
 	}
 
-	//////////////////////////////////////// LOAD CONSUMERS
-	for idx := range configuration.Consume {
-		s := &configuration.Consume[idx]
-		switch s.Service {
-		case SERVICE_TYPE_CASSANDRA:
-			//TODO:
-			fmt.Printf("[ERROR] Consume #%d: Cassandra consumer not implemented\n", idx)
-		case SERVICE_TYPE_NATS:
-			fmt.Printf("Consume #%d: Connecting to NATS Cluster: %s\n", idx, s.Hosts)
-			gonats := NatsService{
-				Configuration: s,
-				AppConfig:     &configuration,
-			}
-			err = gonats.connect()
-			if err != nil || s.Session == nil {
-				if s.Critical {
-					log.Fatalf("[CRITICAL] Notify #%d. Could not connect to NATS Cluster. %s\n", idx, err)
-				} else {
-					fmt.Printf("[ERROR] Notify #%d. Could not connect to NATS Cluster. %s\n", idx, err)
-					continue
-				}
-
-			} else {
-				fmt.Printf("Consume #%d: Connected to NATS.\n", idx)
-			}
-			s.Session.listen()
-		default:
-			fmt.Printf("[ERROR] %s #%d Consumer not implemented\n", s.Service, idx)
-		}
-
-	}
-
 	//////////////////////////////////////// LETS JUST PRUNE AND QUIT?
 	if *prune {
 		for idx := range configuration.Notify {
 			s := &configuration.Notify[idx]
 			if s.Session != nil {
-				configuration.PruneLogsOnly = *logsOnly || configuration.PruneLogsOnly
-				err := s.Session.prune()
-				if err != nil {
-					fmt.Println("\nLast prune error...\n", err)
+				switch s.Service {
+				case SERVICE_TYPE_CASSANDRA:
+					configuration.PruneLogsOnly = *logsOnly || configuration.PruneLogsOnly
+					err := s.Session.prune()
+					if err != nil {
+						fmt.Println("\nLast prune error...\n", err)
+					}
+				default:
+					fmt.Println("[ERROR]")
 				}
 
 			}
 		}
 		os.Exit(0)
+	} else {
+		//////////////////////////////////////// LOAD CONSUMERS
+		for idx := range configuration.Consume {
+			s := &configuration.Consume[idx]
+			switch s.Service {
+			case SERVICE_TYPE_CASSANDRA:
+				//TODO:
+				fmt.Printf("[ERROR] Consume #%d: Cassandra consumer not implemented\n", idx)
+			case SERVICE_TYPE_NATS:
+				fmt.Printf("Consume #%d: Connecting to NATS Cluster: %s\n", idx, s.Hosts)
+				gonats := NatsService{
+					Configuration: s,
+					AppConfig:     &configuration,
+				}
+				err = gonats.connect()
+				if err != nil || s.Session == nil {
+					if s.Critical {
+						log.Fatalf("[CRITICAL] Notify #%d. Could not connect to NATS Cluster. %s\n", idx, err)
+					} else {
+						fmt.Printf("[ERROR] Notify #%d. Could not connect to NATS Cluster. %s\n", idx, err)
+						continue
+					}
+
+				} else {
+					fmt.Printf("Consume #%d: Connected to NATS.\n", idx)
+				}
+				s.Session.listen()
+			default:
+				fmt.Printf("[ERROR] %s #%d Consumer not implemented\n", s.Service, idx)
+			}
+
+		}
 	}
 
 	//////////////////////////////////////// SSL CERT MANAGER
