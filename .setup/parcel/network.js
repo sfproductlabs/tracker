@@ -9,3 +9,11 @@ export function getHostRoot() {
         return null;
     }
 }
+
+export function isSecure() {
+    if (location && location.href) {
+        return /^https/i.test(location.href)
+    } else {
+        return null;
+    }
+}
