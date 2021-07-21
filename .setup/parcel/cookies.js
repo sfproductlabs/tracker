@@ -1,7 +1,7 @@
 import Cookies from 'js-cookie'
 import { v1 as uuidv1 } from 'uuid';
 import config from '/config.yaml';
-import {getHostRoot} from './network';
+import {getHostRoot, isSecure} from './network';
 
 export function removeCookie(ck, opts) {
   try {
@@ -23,13 +23,18 @@ export function clearCookies() {
     }
 }
 
+
+function setCookieLax (key, value, attributes) {
+  setCookie(key,value,{...attributes, sameSite: 'lax'})
+}
+
 function setCookie (key, value, attributes) {
   const domain = getHostRoot();
   let attrs = {
+    sameSite: 'strict',
+    secure: isSecure(),
+    domain,
     ...(attributes || {}),
-    sameSite: 'lax', //lax?
-    secure: false,
-    domain
   };
   attrs.expires = 99999;
   Cookies.set(key,value, attrs);  
@@ -38,6 +43,7 @@ function setCookie (key, value, attributes) {
 export const cookies = {
     get : Cookies.get,
     set : setCookie,
+    setLax : setCookieLax,
     clear : clearCookies,
     remove : removeCookie
 } 
