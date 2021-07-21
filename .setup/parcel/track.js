@@ -31,7 +31,7 @@ export default function track(params) {
     //History
     json.last = params.last || cookies.get(config.Cookies.Names.COOKIE_REFERRAL) || document.referrer;
     json.url = params.url || window.location.href;
-    cookies.set(config.Cookies.Names.COOKIE_REFERRAL, json.url);
+    cookies.setLax(config.Cookies.Names.COOKIE_REFERRAL, json.url);
     //Experiment
     let ename = cookies.get(config.Cookies.Names.COOKIE_EXPERIMENT);
     if (defaultTo(false)(ename))
@@ -45,7 +45,7 @@ export default function track(params) {
     // Keep track of Time
     let now = Date.now();
     let inactive = (now - Number(defaultTo(now)(cookies.get(config.Cookies.Names.COOKIE_LAST_ACTIVE))));
-    cookies.set(config.Cookies.Names.COOKIE_LAST_ACTIVE, now, { expires: 99999 });
+    cookies.setLax(config.Cookies.Names.COOKIE_LAST_ACTIVE, now, { expires: 99999 });
     //Session
     let sid = cookies.get(config.Cookies.Names.COOKIE_SESSION);
     if ((inactive < Number(path(["User", "Session", "Timeout"], config) || process.env.USER_SESSION_TIMEOUT)) && defaultTo(false)(sid)) {
@@ -53,7 +53,7 @@ export default function track(params) {
     } else {
         json.sid = uuidv1();
         json.first = "true";
-        cookies.set(config.Cookies.Names.COOKIE_SESSION, json.sid);
+        cookies.setLax(config.Cookies.Names.COOKIE_SESSION, json.sid);
     }
     //Owner
     let uname = defaultTo(false)(path(['uname'], JSON.parse(cookies.get(config.Cookies.Names.COOKIE_USER) || 'null')));
@@ -85,7 +85,7 @@ export default function track(params) {
     json.vid = defaultTo(false)(cookies.get(config.Cookies.Names.COOKIE_VISITOR));
     if (!json.vid) {
         json.vid = json.sid;
-        cookies.set(config.Cookies.Names.COOKIE_VISITOR, json.vid, {
+        cookies.setLax(config.Cookies.Names.COOKIE_VISITOR, json.vid, {
             expires: 99999
         });
     }
@@ -109,11 +109,13 @@ export default function track(params) {
         let search = window.location.search.substring(1) || cookies.get(config.Cookies.Names.COOKIE_QPS) || "";
         //Only store the qparams for 1 hit, uncomment for each hit in the session
         //if (search.length > 0)
-        //    cookies.set(process.env.REACT_APP_COOKIE_QPS, search);
+        //    cookies.setLax(process.env.REACT_APP_COOKIE_QPS, search);
         let qps = JSON.parse('{"' + decodeURI(search).replace(/"/g, '\\"').replace(/&/g, '","').replace(/=/g, '":"') + '"}')
         //Remove passed down variables we dont use
         delete qps.ptyp;
         delete qps.token;
+        delete qps.accessToken;
+        delete qps.refreshToken;
         if (qps.type) {
             qps.qtype = qps.type;
             delete qps.type;
@@ -188,11 +190,11 @@ export function resetUserCookies() {
       found = false;
     }
     const sid = cookies.get(config.Cookies.Names.COOKIE_SESSION) || vid;
-    cookies.set(config.Cookies.Names.COOKIE_VISITOR, vid, { 
+    cookies.setLax(config.Cookies.Names.COOKIE_VISITOR, vid, { 
       sameSite: 'lax', 
       domain
     });
-    cookies.set(config.Cookies.Names.COOKIE_SESSION, sid, { 
+    cookies.setLax(config.Cookies.Names.COOKIE_SESSION, sid, { 
       sameSite: 'lax', 
       domain
     });
