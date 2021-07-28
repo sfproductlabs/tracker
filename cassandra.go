@@ -668,19 +668,19 @@ func (i *CassandraService) prune() error {
 									b.Entries = append(b.Entries, gocql.BatchEntry{
 										Stmt:       `DELETE from visitors where vid=?`,
 										Args:       []interface{}{row["vid"]},
-										Idempotent: true,
+										Idempotent: i.AppConfig.PruneUpdateConfig,
 									})
 								case "sessions":
 									b.Entries = append(b.Entries, gocql.BatchEntry{
 										Stmt:       `DELETE from sessions where vid=? and sid=?`,
 										Args:       []interface{}{row["vid"], row["sid"]},
-										Idempotent: true,
+										Idempotent: i.AppConfig.PruneUpdateConfig,
 									})
 								case "events", "events_recent":
 									b.Entries = append(b.Entries, gocql.BatchEntry{
 										Stmt:       fmt.Sprintf(`DELETE from %s where eid=?`, p.Table),
 										Args:       []interface{}{row["eid"]},
-										Idempotent: true,
+										Idempotent: i.AppConfig.PruneUpdateConfig,
 									})
 								}
 							} else {
@@ -717,19 +717,19 @@ func (i *CassandraService) prune() error {
 									b.Entries = append(b.Entries, gocql.BatchEntry{
 										Stmt:       fmt.Sprintf(`UPDATE visitors set updated=? %s %s %s where vid=?`, fields, params, nparams),
 										Args:       []interface{}{time.Now().UTC(), row["vid"]},
-										Idempotent: true,
+										Idempotent: i.AppConfig.PruneUpdateConfig,
 									})
 								case "sessions":
 									b.Entries = append(b.Entries, gocql.BatchEntry{
 										Stmt:       fmt.Sprintf(`UPDATE sessions set updated=? %s %s %s where vid=? and sid=?`, fields, params, nparams),
 										Args:       []interface{}{time.Now().UTC(), row["vid"], row["sid"]},
-										Idempotent: true,
+										Idempotent: i.AppConfig.PruneUpdateConfig,
 									})
 								case "events", "events_recent":
 									b.Entries = append(b.Entries, gocql.BatchEntry{
 										Stmt:       fmt.Sprintf(`UPDATE %s set updated=? %s %s %s where eid=?`, p.Table, fields, params, nparams),
 										Args:       []interface{}{time.Now().UTC(), row["eid"]},
-										Idempotent: true,
+										Idempotent: i.AppConfig.PruneUpdateConfig,
 									})
 								}
 							}
@@ -776,55 +776,60 @@ func (i *CassandraService) prune() error {
 	}
 
 	//Now Prune the LOGS table
-	var pruned = 0
-	var total = 0
-	var pageSize = 10000
-	ttl := 2592000
-	if i.AppConfig.PruneLogsTTL > 0 {
-		ttl = i.AppConfig.PruneLogsTTL
-	}
-	for {
-		if i.AppConfig.Debug {
-			printCStarQuery(ctx, i.Session, "select id from logs limit 1")
+	if !i.AppConfig.PruneLogsSkip {
+		var pruned = 0
+		var total = 0
+		var pageSize = 10000
+		if i.AppConfig.PruneLogsPageSize > 0 {
+			pageSize = i.AppConfig.PruneLogsPageSize
 		}
-		iter = i.Session.Query(`SELECT id FROM logs`).PageSize(pageSize).PageState(pageState).Iter()
-		nextPageState := iter.PageState()
+		ttl := 2592000
+		if i.AppConfig.PruneLogsTTL > 0 {
+			ttl = i.AppConfig.PruneLogsTTL
+		}
 		for {
-			var (
-				id gocql.UUID
-			)
-			if !iter.Scan(&id) {
-				err = iter.Close()
+			if i.AppConfig.Debug {
+				printCStarQuery(ctx, i.Session, "select id from logs limit 1")
+			}
+			iter = i.Session.Query(`SELECT id FROM logs`).PageSize(pageSize).PageState(pageState).Iter()
+			nextPageState := iter.PageState()
+			for {
+				var (
+					id gocql.UUID
+				)
+				if !iter.Scan(&id) {
+					err = iter.Close()
+					break
+				}
+				total += 1
+
+				//PROCESS THE ROW
+				expired := checkIdExpired(&id, ttl)
+				if expired {
+					pruned += 1
+					b.Entries = append(b.Entries, gocql.BatchEntry{
+						Stmt:       `DELETE from logs where id=?`,
+						Args:       []interface{}{id},
+						Idempotent: false,
+					})
+				}
+			}
+			fmt.Printf("Processed %d rows %d pruned\n", total, pruned)
+			terr := i.Session.ExecuteBatch(b)
+			b = i.Session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
+			if terr != nil && err == nil {
+				err = terr
+			}
+			if i.AppConfig.Debug && terr != nil {
+				fmt.Printf("[[WARNING]] COULD NOT CLEAN ALL RECORDS FOR [LOGS] %v\n", terr)
+			}
+			if len(nextPageState) == 0 {
 				break
 			}
-			total += 1
-
-			//PROCESS THE ROW
-			expired := checkIdExpired(&id, ttl)
-			if expired {
-				pruned += 1
-				b.Entries = append(b.Entries, gocql.BatchEntry{
-					Stmt:       `DELETE from logs where id=?`,
-					Args:       []interface{}{id},
-					Idempotent: false,
-				})
-			}
+			pageState = nextPageState
 		}
-		fmt.Printf("Processed %d rows %d pruned\n", total, pruned)
-		terr := i.Session.ExecuteBatch(b)
-		b = i.Session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
-		if terr != nil && err == nil {
-			err = terr
-		}
-		if i.AppConfig.Debug && terr != nil {
-			fmt.Printf("[[WARNING]] COULD NOT CLEAN ALL RECORDS FOR [LOGS] %v\n", terr)
-		}
-		if len(nextPageState) == 0 {
-			break
-		}
-		pageState = nextPageState
+		fmt.Printf("Pruned [Cassandra].[%s].[logs]: %d/%d rows\n", i.Configuration.Context, pruned, total)
 	}
-	fmt.Printf("Pruned [Cassandra].[%s].[logs]: %d/%d rows\n", i.Configuration.Context, pruned, total)
 	return err
 }
 

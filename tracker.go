@@ -247,6 +247,8 @@ type Configuration struct {
 	AccountHashMixer         string
 	PruneLogsTTL             int
 	PruneLogsOnly            bool
+	PruneLogsSkip            bool
+	PruneLogsPageSize        int
 	PruneUpdateConfig        bool
 	PruneLimit               int
 	PruneSkipToTimestamp     int64
