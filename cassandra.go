@@ -805,11 +805,11 @@ func (i *CassandraService) prune() error {
 				b.Entries = append(b.Entries, gocql.BatchEntry{
 					Stmt:       `DELETE from logs where id=?`,
 					Args:       []interface{}{id},
-					Idempotent: true,
+					Idempotent: false,
 				})
 			}
 		}
-		fmt.Printf("Processed %d rows\n", total)
+		fmt.Printf("Processed %d rows %d pruned\n", total, pruned)
 		terr := i.Session.ExecuteBatch(b)
 		if terr != nil && err == nil {
 			err = terr
