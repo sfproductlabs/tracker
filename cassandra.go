@@ -738,7 +738,8 @@ func (i *CassandraService) prune() error {
 
 				}
 				terr := i.Session.ExecuteBatch(b)
-				fmt.Printf("Processed %d rows\n", total)
+				b = i.Session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
+				fmt.Printf("Processed %d rows %d pruned\n", total, pruned)
 				if terr != nil && err == nil {
 					err = terr
 				}
@@ -811,6 +812,7 @@ func (i *CassandraService) prune() error {
 		}
 		fmt.Printf("Processed %d rows %d pruned\n", total, pruned)
 		terr := i.Session.ExecuteBatch(b)
+		b = i.Session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
 		if terr != nil && err == nil {
 			err = terr
 		}
