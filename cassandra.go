@@ -608,7 +608,6 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 
 //////////////////////////////////////// C*
 func (i *CassandraService) prune() error {
-	var pageState []byte
 	var lastCreated time.Time
 	var iter *gocql.Iter
 	keyspaceMetadata, err := i.Session.KeyspaceMetadata(i.Configuration.Context)
@@ -622,6 +621,7 @@ func (i *CassandraService) prune() error {
 			var pruned = 0
 			var total = 0
 			var pageSize = 5000
+			var pageState []byte
 			if p.PageSize > 1 {
 				pageSize = p.PageSize
 			}
@@ -780,6 +780,7 @@ func (i *CassandraService) prune() error {
 		var pruned = 0
 		var total = 0
 		var pageSize = 10000
+		var pageState []byte
 		if i.AppConfig.PruneLogsPageSize > 0 {
 			pageSize = i.AppConfig.PruneLogsPageSize
 		}
@@ -788,9 +789,6 @@ func (i *CassandraService) prune() error {
 			ttl = i.AppConfig.PruneLogsTTL
 		}
 		for {
-			if i.AppConfig.Debug {
-				printCStarQuery(ctx, i.Session, "select id from logs limit 1")
-			}
 			iter = i.Session.Query(`SELECT id FROM logs`).PageSize(pageSize).PageState(pageState).Iter()
 			nextPageState := iter.PageState()
 			for {
