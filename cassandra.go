@@ -643,6 +643,9 @@ func (i *CassandraService) prune() error {
 					row := make(map[string]interface{})
 					if !iter.MapScan(row) {
 						err = iter.Close()
+						if i.AppConfig.Debug && err != nil {
+							fmt.Printf("[[WARNING]] ERROR READING ROW [%s] %v\n", p.Table, err)
+						}
 						break
 					}
 					total += 1
