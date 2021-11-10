@@ -1,7 +1,7 @@
 import Cookies from './js-cookie';
 import {
-    URL_TRACK, 
-    COOKIE_REFERRAL, 
+    URL_TRACK,
+    COOKIE_REFERRAL,
     COOKIE_EXPERIMENT,
     COOKIE_EXP_PARAMS,
     COOKIE_TRACK,
@@ -9,7 +9,7 @@ import {
     COOKIE_SESS,
     COOKIE_JWT,
 } from './constants'
-import {uuid} from './js-uuid'
+import { uuid } from './js-uuid'
 import defaultTo from './defaultTo';
 import path from './path';
 import request from './request';
@@ -21,48 +21,50 @@ export default function track(params, force) {
     //Lets merge the query params
     try {
         var match,
-            pl     = /\+/g,  // Regex for replacing addition symbol with a space
+            pl = /\+/g,  // Regex for replacing addition symbol with a space
             search = /([^&=]+)=?([^&]*)/g,
             decode = function (s) { return decodeURIComponent(s.replace(pl, " ")); },
-            query  = window.location.search.substring(1);
+            query = window.location.search.substring(1);
         var urlParams = {};
         while (match = search.exec(query))
-        urlParams[decode(match[1])] = decode(match[2]);
-        params =  {...(urlParams || {}), ...(params || {})};
-    } catch {}
+            urlParams[decode(match[1])] = decode(match[2]);
+        params = { ...(urlParams || {}), ...(params || {}) };
+    } catch { }
     //History
     json.last = Cookies.get(COOKIE_REFERRAL) || document.referrer;
-    json.url = window.location.href;
+    //json.url = window.location.href;
+    json.user_agent = navigator.userAgent;
+    json.url = window.location.origin + window.location.pathname;
     if (json.last === json.url && !defaultTo(false)(force))
         return;
     Cookies.set(COOKIE_REFERRAL, json.url);
     //Experiment
     let xid = Cookies.get(COOKIE_EXPERIMENT);
     if (defaultTo(false)(xid))
-        json.xid = xid; 
+        json.xid = xid;
     //Included & Experiment Params
     let exp = JSON.parse(Cookies.get(COOKIE_EXP_PARAMS) || 'null');
-    json.params = {...(exp || {}), ...(params || {})}; 
+    json.params = { ...(exp || {}), ...(params || {}) };
     //Duration
     let now = Date.now();
     let historical = defaultTo(now)(Cookies.get(COOKIE_TRACK));
     json.created = now;
-    json.duration = now - historical;    
-    Cookies.set(COOKIE_TRACK, json.created, { expires: 99999 }); 
+    json.duration = now - historical;
+    Cookies.set(COOKIE_TRACK, json.created, { expires: 99999 });
     //Owner
     let vid = Cookies.get(COOKIE_VID);
     if (defaultTo(false)(vid)) {
-        json.vid = vid; 
+        json.vid = vid;
         json.first = "false";
     } else {
         json.vid = uuid.v1();
         json.first = "true";
         Cookies.set(COOKIE_VID, json.vid, { expires: 99999 });
-    }   
+    }
     //Session
     let sid = Cookies.get(COOKIE_SESS);
     if (defaultTo(false)(sid)) {
-        json.sid = sid; 
+        json.sid = sid;
         json.first = (json.first == "false") ? "false" : "true";
     } else {
         json.sid = uuid.v1();
@@ -73,15 +75,15 @@ export default function track(params, force) {
     json.tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     //Device
     json.device = device();
-    json.os = path(["os","name"], browserReportSync());    
-    json.w = path(["viewport","width"], browserReportSync());    
-    json.h = path(["viewport","height"], browserReportSync());    
-    json.sink = path(["params","sink"], json);
-    json.score = path(["params","score"], json); 
-    json.ename = path(["params","ename"], json);
-    json.outcome = path(["params","outcome"], json);
-    json.aff = path(["params","aff"], json);
-    json.ref = path(["params","ref"], json);
+    json.os = path(["os", "name"], browserReportSync());
+    json.w = path(["viewport", "width"], browserReportSync());
+    json.h = path(["viewport", "height"], browserReportSync());
+    json.sink = path(["params", "sink"], json);
+    json.score = path(["params", "score"], json);
+    json.ename = path(["params", "ename"], json);
+    json.outcome = path(["params", "outcome"], json);
+    json.aff = path(["params", "aff"], json);
+    json.ref = path(["params", "ref"], json);
     json.app = process.env.APP_NAME;
     json.rel = process.env.RELEASE;
     delete json.params.ename;
@@ -91,14 +93,37 @@ export default function track(params, force) {
     //Keep aff and ref in params in events
     // delete json.params.aff;
     // delete json.params.ref;
-    
+    var fbp = document.cookie.split(';').filter(function (c) {
+        return c.includes('_fbp=');
+    }).map(function (c) {
+        return c.split('_fbp=')[1];
+    });
+    var fbc = document.cookie.split(';').filter(function (c) {
+        return c.includes('_fbc=');
+    }).map(function (c) {
+        return c.split('_fbc=')[1];
+    });
+    fbp = fbp.length && fbp[0] || null;
+    fbc = fbc.length && fbc[0] || null;
+    if (!fbc && window.location.search.includes('fbclid=')) {
+        fbc = 'fb.1.' + (+new Date()) + '.' + window.location.search.split('fbclid=')[1];
+    }
+
+    if (fbp) {
+        json.params.fbp = fbp;
+    }
+
+    if (fbc) {
+        json.params.fbclid = fbc;
+    }
+
     let tj = Cookies.get(COOKIE_JWT);
     let ta = {};
     if (defaultTo(false)(tj)) {
         ta.headers = { "Authorization": "Bearer " + tj };
         let user = JSON.parse(tj);
-        json.uid = path(["sfpl","pub","uid"], user)
-        json.uname = path(["sfpl","pub","uname"], user)
+        json.uid = path(["sfpl", "pub", "uid"], user)
+        json.uname = path(["sfpl", "pub", "uname"], user)
     }
     request(`${URL_TRACK}/tr/v1/`, {
         method: "POST",
