@@ -348,7 +348,7 @@ func (i *FacebookService) write(w *WriteArgs) error {
 								err = e
 							}
 						} else if i.AppConfig.Debug {
-							fmt.Printf("[EVENT] Facebook CAPI request succeeded. %v\n", response.Status)
+							fmt.Printf("[RESPONSE] Facebook CAPI request succeeded. %v\n", response.Status)
 						}
 					} else {
 						err = e
