@@ -4,7 +4,7 @@ import track from "./lib/tracker/track"
 
 const App = () => {
   useEffect(() => {
-    track()
+    track({test_event_code : "TEST76022", ename: "TestEvent", fbx: true, cflags: 4096, action_source : "website"})
   }, [])
   
   return (

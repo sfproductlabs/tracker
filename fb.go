@@ -102,6 +102,19 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			cflags = &temp
 		}
 
+		var now int64 = 0
+		if val, ok := v["now"].(string); ok {
+			now, _ = strconv.ParseInt(val, 10, 64)
+		} else if val, ok := v["now"].(int64); ok {
+			now = val
+		} else if val, ok := v["now"].(float64); ok {
+			temp := int64(val)
+			now = temp
+		}
+		if now == 0 {
+			now = time.Now().Unix()
+		}
+
 		//Only accept marketing level cookies
 		if cflags == nil {
 			if !i.AppConfig.CFlagsIgnore {
@@ -112,7 +125,7 @@ func (i *FacebookService) write(w *WriteArgs) error {
 		}
 
 		//Only accept events if targeted for fb
-		if v["fb"] != nil || i.Configuration.AttemptAll {
+		if v["fbx"] != nil || i.Configuration.AttemptAll {
 
 			//[country]
 			var country *string
@@ -187,9 +200,17 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			cleanString(city)
 
 			//EventID
+			if temp, ok := v["eid"].(string); ok {
+				evt, _ := gocql.ParseUUID(temp)
+				if evt.Timestamp() != 0 {
+					w.EventID = evt
+				}
+			}
+			//Double check
 			if w.EventID.Timestamp() == 0 {
 				w.EventID = gocql.TimeUUID()
 			}
+
 			//[vid] - default
 			isNew := false
 			if vidstring, ok := v["vid"].(string); !ok {
@@ -226,6 +247,27 @@ func (i *FacebookService) write(w *WriteArgs) error {
 					v["sid"] = tempuuid
 				}
 			}
+			var params *map[string]interface{}
+			if ps, ok := v["params"].(string); ok {
+				json.Unmarshal([]byte(ps), &params)
+			} else if ps, ok := v["params"].(map[string]interface{}); ok {
+				params = &ps
+			}
+			var p map[string]interface{}
+			p = make(map[string]interface{})
+			if params != nil {
+				p = *params
+			}
+
+			var ename string
+			if val, ok := p["ename"].(string); ok {
+				ename = val
+			} else {
+				ename = v["ename"].(string)
+			}
+			if ename == "" {
+				return nil
+			}
 
 			httpposturl := "https://graph.facebook.com/v12.0/" + i.Configuration.Context + "/events?access_token=" + i.Configuration.Key
 
@@ -238,10 +280,14 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			userData["client_user_agent"] = w.Browser
 			userData["client_ip_address"] = w.IP
 			data["user_data"] = userData
-			data["event_name"] = "TestEvent"
-			data["event_time"] = time.Now().Unix() - 10000
+			data["event_name"] = ename
+			data["event_time"] = now
+			data["event_id"] = w.EventID
 			j["data"] = []interface{}{data}
-			j["test_event_code"] = "TEST76022"
+			j["test_event_code"] = v["test_event_code"]
+			if i.AppConfig.Debug {
+				fmt.Printf("[REQUEST] Facebook CAPI request payload: %s\n", j)
+			}
 			if byteArray, e := json.Marshal(j); e == nil {
 				if request, e := http.NewRequest("POST", httpposturl, bytes.NewBuffer(byteArray)); e == nil {
 					request.Header.Set("Content-Type", "application/json; charset=UTF-8")
@@ -254,6 +300,8 @@ func (i *FacebookService) write(w *WriteArgs) error {
 							} else {
 								err = e
 							}
+						} else if i.AppConfig.Debug {
+							fmt.Printf("[EVENT] Facebook CAPI request succeeded. %v\n", response.Status)
 						}
 					} else {
 						err = e
@@ -265,6 +313,9 @@ func (i *FacebookService) write(w *WriteArgs) error {
 				err = e
 			}
 		}
+	}
+	if i.AppConfig.Debug && err != nil {
+		fmt.Printf("[ERROR] Facebook CAPI request. %v\n", err)
 	}
 	return err
 }

@@ -1359,9 +1359,17 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		delete(v, "uname")
 
 		//EventID
+		if temp, ok := v["eid"].(string); ok {
+			evt, _ := gocql.ParseUUID(temp)
+			if evt.Timestamp() != 0 {
+				w.EventID = evt
+			}
+		}
+		//Double check
 		if w.EventID.Timestamp() == 0 {
 			w.EventID = gocql.TimeUUID()
 		}
+
 		//[vid] - default
 		isNew := false
 		if vidstring, ok := v["vid"].(string); !ok {
