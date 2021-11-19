@@ -1171,7 +1171,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			delete(*params, "w")
 			delete(*params, "h")
 			delete(*params, "params")
-
+			delete(*params, "eid")
 			delete(*params, "tr")
 			delete(*params, "time")
 			delete(*params, "vid")
