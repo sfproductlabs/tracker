@@ -56,6 +56,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gocql/gocql"
@@ -103,12 +104,12 @@ func (i *FacebookService) write(w *WriteArgs) error {
 		}
 
 		var now int64 = 0
-		if val, ok := v["now"].(string); ok {
-			now, _ = strconv.ParseInt(val, 10, 64)
-		} else if val, ok := v["now"].(int64); ok {
-			now = val
-		} else if val, ok := v["now"].(float64); ok {
-			temp := int64(val)
+		if temp, ok := v["now"].(string); ok {
+			now, _ = strconv.ParseInt(temp, 10, 64)
+		} else if temp, ok := v["now"].(int64); ok {
+			now = temp
+		} else if temp, ok := v["now"].(float64); ok {
+			temp := int64(temp)
 			now = temp
 		}
 		if now == 0 {
@@ -260,8 +261,8 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			}
 
 			var ename string
-			if val, ok := p["ename"].(string); ok {
-				ename = val
+			if temp, ok := p["ename"].(string); ok {
+				ename = temp
 			} else {
 				ename = v["ename"].(string)
 			}
@@ -279,15 +280,15 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			j = make(map[string]interface{})
 			userData["client_user_agent"] = w.Browser
 			userData["client_ip_address"] = w.IP
-			if val, ok := v["fbp"].(string); ok {
-				userData["fbp"] = val
+			if temp, ok := v["fbp"].(string); ok {
+				userData["fbp"] = temp
 			}
-			if val, ok := v["fbc"].(string); ok {
-				userData["fbc"] = val
+			if temp, ok := v["fbc"].(string); ok {
+				userData["fbc"] = temp
 			}
 			if zip != nil {
-				if val, ok := zip.(string); ok {
-					userData["zp"] = shasum256(val)
+				if temp, ok := zip.(string); ok {
+					userData["zp"] = shasum256(strings.ToLower(strings.TrimSpace(temp)))
 				}
 			}
 			if city != nil {
@@ -298,6 +299,17 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			}
 			if country != nil {
 				userData["country"] = shasum256(*country)
+			}
+			if v["vid"] != nil {
+				if temp, ok := v["vid"].(string); ok {
+					userData["external_id"] = shasum256(strings.ToLower(strings.TrimSpace(temp)))
+				}
+			}
+			//overwrite vid with uid if it exists
+			if v["uid"] != nil {
+				if temp, ok := v["uid"].(string); ok {
+					userData["external_id"] = shasum256(strings.ToLower(strings.TrimSpace(temp)))
+				}
 			}
 			if v["value"] != nil {
 				data["value"] = v["value"]
