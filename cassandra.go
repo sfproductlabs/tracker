@@ -190,7 +190,9 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					bhash = &temp
 				}
 				var cflags *int64
-				if com, ok := b["cflags"].(float64); ok {
+				if com, ok := b["cflags"].(int64); ok {
+					cflags = &com
+				} else if com, ok := b["cflags"].(float64); ok {
 					temp := int64(com)
 					cflags = &temp
 				}

@@ -115,7 +115,7 @@ type Prune struct {
 	Table              string
 	TTL                int64
 	PageSize           int
-	IgnoreCFlags       []int64
+	CFlagsIgnore       []int64
 	ClearAll           bool
 	ClearParams        bool
 	ClearNumericParams bool
@@ -164,6 +164,7 @@ type Service struct {
 	Timeout      time.Duration
 	Connections  int
 	Retries      int
+	AttemptAll   bool
 
 	Consumer  bool
 	Ephemeral bool
@@ -237,6 +238,8 @@ type Configuration struct {
 	ProxyDailyLimitCheck     func(string) uint64
 	SchemaVersion            int
 	ApiVersion               int
+	CFlagsMarketing          int64
+	CFlagsIgnore             bool
 	Debug                    bool
 	UrlFilter                string
 	UrlFilterMatchGroup      int

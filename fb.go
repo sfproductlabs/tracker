@@ -94,147 +94,169 @@ func (i *FacebookService) write(w *WriteArgs) error {
 		// cleanString(&(w.Browser))
 		// cleanString(&(w.Host))
 		//cleanInterfaceString(v["app"])
-
-		//[country]
-		var country *string
-		var region *string
-		var city *string
-		zip := v["zip"]
-		ensureInterfaceString(zip)
-		if tz, ok := v["tz"].(string); ok {
-			if ct, oktz := countries[tz]; oktz {
-				country = &ct
-			}
+		var cflags *int64
+		if com, ok := v["cflags"].(int64); ok {
+			cflags = &com
+		} else if com, ok := v["cflags"].(float64); ok {
+			temp := int64(com)
+			cflags = &temp
 		}
-		//[latlon]
-		var latlon *geo_point
-		latf, oklatf := v["lat"].(float64)
-		lonf, oklonf := v["lon"].(float64)
-		if oklatf && oklonf {
-			//Float
-			latlon = &geo_point{}
-			latlon.Lat = latf
-			latlon.Lon = lonf
-		} else {
-			//String
-			lats, oklats := v["lat"].(string)
-			lons, oklons := v["lon"].(string)
-			if oklats && oklons {
-				latlon = &geo_point{}
-				latlon.Lat, _ = strconv.ParseFloat(lats, 64)
-				latlon.Lon, _ = strconv.ParseFloat(lons, 64)
-			}
-		}
-		if latlon == nil {
-			if gip, err := GetGeoIP(net.ParseIP(w.IP)); err == nil && gip != nil {
-				var geoip GeoIP
-				if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
-					latlon = &geo_point{}
-					latlon.Lat = geoip.Latitude
-					latlon.Lon = geoip.Longitude
-					if geoip.CountryISO2 != "" {
-						country = &geoip.CountryISO2
-					}
-					if geoip.Region != "" {
-						region = &geoip.Region
-					}
-					if geoip.City != "" {
-						city = &geoip.City
-					}
-					if zip == nil && geoip.Zip != "" {
-						zip = &geoip.Zip
-					}
 
+		//Only accept marketing level cookies
+		if cflags == nil {
+			if !i.AppConfig.CFlagsIgnore {
+				return nil
+			}
+		} else if *cflags < i.AppConfig.CFlagsMarketing {
+			return nil
+		}
+
+		//Only accept events if targeted for fb
+		if v["fb"] != nil || i.Configuration.AttemptAll {
+
+			//[country]
+			var country *string
+			var region *string
+			var city *string
+			zip := v["zip"]
+			ensureInterfaceString(zip)
+			if tz, ok := v["tz"].(string); ok {
+				if ct, oktz := countries[tz]; oktz {
+					country = &ct
 				}
 			}
-		}
-		if !i.AppConfig.UseRegionDescriptions {
-			//country = nil
-			region = nil
-			city = nil
-		}
-		//Self identification of geo_pol overrules geoip
-		if ct, ok := v["country"].(string); ok {
-			country = &ct
-		}
-		if r, ok := v["region"].(string); ok {
-			region = &r
-		}
-		if r, ok := v["city"].(string); ok {
-			city = &r
-		}
-		cleanString(country)
-		cleanString(region)
-		cleanString(city)
+			//[latlon]
+			var latlon *geo_point
+			latf, oklatf := v["lat"].(float64)
+			lonf, oklonf := v["lon"].(float64)
+			if oklatf && oklonf {
+				//Float
+				latlon = &geo_point{}
+				latlon.Lat = latf
+				latlon.Lon = lonf
+			} else {
+				//String
+				lats, oklats := v["lat"].(string)
+				lons, oklons := v["lon"].(string)
+				if oklats && oklons {
+					latlon = &geo_point{}
+					latlon.Lat, _ = strconv.ParseFloat(lats, 64)
+					latlon.Lon, _ = strconv.ParseFloat(lons, 64)
+				}
+			}
+			if latlon == nil {
+				if gip, err := GetGeoIP(net.ParseIP(w.IP)); err == nil && gip != nil {
+					var geoip GeoIP
+					if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
+						latlon = &geo_point{}
+						latlon.Lat = geoip.Latitude
+						latlon.Lon = geoip.Longitude
+						if geoip.CountryISO2 != "" {
+							country = &geoip.CountryISO2
+						}
+						if geoip.Region != "" {
+							region = &geoip.Region
+						}
+						if geoip.City != "" {
+							city = &geoip.City
+						}
+						if zip == nil && geoip.Zip != "" {
+							zip = &geoip.Zip
+						}
 
-		//EventID
-		if w.EventID.Timestamp() == 0 {
-			w.EventID = gocql.TimeUUID()
-		}
-		//[vid] - default
-		isNew := false
-		if vidstring, ok := v["vid"].(string); !ok {
-			v["vid"] = gocql.TimeUUID()
-			isNew = true
-		} else {
-			//Let's override the event id too
-			tempvid, _ := gocql.ParseUUID(vidstring)
-			if tempvid.Timestamp() == 0 {
+					}
+				}
+			}
+			if !i.AppConfig.UseRegionDescriptions {
+				//country = nil
+				region = nil
+				city = nil
+			}
+			//Self identification of geo_pol overrules geoip
+			if ct, ok := v["country"].(string); ok {
+				country = &ct
+			}
+			if r, ok := v["region"].(string); ok {
+				region = &r
+			}
+			if r, ok := v["city"].(string); ok {
+				city = &r
+			}
+			cleanString(country)
+			cleanString(region)
+			cleanString(city)
+
+			//EventID
+			if w.EventID.Timestamp() == 0 {
+				w.EventID = gocql.TimeUUID()
+			}
+			//[vid] - default
+			isNew := false
+			if vidstring, ok := v["vid"].(string); !ok {
 				v["vid"] = gocql.TimeUUID()
 				isNew = true
-			}
-		}
-		//[uid] - let's overwrite the vid if we have a uid
-		if uidstring, ok := v["uid"].(string); ok {
-			tempuid, _ := gocql.ParseUUID(uidstring)
-			if tempuid.Timestamp() != 0 {
-				v["vid"] = v["uid"]
-				isNew = false
-			}
-		}
-		//[sid]
-		if sidstring, ok := v["sid"].(string); !ok {
-			if isNew {
-				v["sid"] = v["vid"]
 			} else {
-				v["sid"] = gocql.TimeUUID()
+				//Let's override the event id too
+				tempvid, _ := gocql.ParseUUID(vidstring)
+				if tempvid.Timestamp() == 0 {
+					v["vid"] = gocql.TimeUUID()
+					isNew = true
+				}
 			}
-		} else {
-			tempuuid, _ := gocql.ParseUUID(sidstring)
-			if tempuuid.Timestamp() == 0 {
-				v["sid"] = gocql.TimeUUID()
+			//[uid] - let's overwrite the vid if we have a uid
+			if uidstring, ok := v["uid"].(string); ok {
+				tempuid, _ := gocql.ParseUUID(uidstring)
+				if tempuid.Timestamp() != 0 {
+					v["vid"] = v["uid"]
+					isNew = false
+				}
+			}
+			//[sid]
+			if sidstring, ok := v["sid"].(string); !ok {
+				if isNew {
+					v["sid"] = v["vid"]
+				} else {
+					v["sid"] = gocql.TimeUUID()
+				}
 			} else {
-				v["sid"] = tempuuid
+				tempuuid, _ := gocql.ParseUUID(sidstring)
+				if tempuuid.Timestamp() == 0 {
+					v["sid"] = gocql.TimeUUID()
+				} else {
+					v["sid"] = tempuuid
+				}
 			}
-		}
 
-		httpposturl := "https://graph.facebook.com/v12.0/" + i.Configuration.Context + "/events?access_token=" + i.Configuration.Key
+			httpposturl := "https://graph.facebook.com/v12.0/" + i.Configuration.Context + "/events?access_token=" + i.Configuration.Key
 
-		var userData map[string]interface{}
-		userData = make(map[string]interface{})
-		var data map[string]interface{}
-		data = make(map[string]interface{})
-		var j map[string]interface{}
-		j = make(map[string]interface{})
-		userData["client_user_agent"] = w.Browser
-		userData["client_ip_address"] = w.IP
-		data["user_data"] = userData
-		data["event_name"] = "TestEvent"
-		data["event_time"] = time.Now().Unix() - 10000
-		j["data"] = []interface{}{data}
-		j["test_event_code"] = "TEST76022"
-		if byteArray, e := json.Marshal(j); e == nil {
-			if request, e := http.NewRequest("POST", httpposturl, bytes.NewBuffer(byteArray)); e == nil {
-				request.Header.Set("Content-Type", "application/json; charset=UTF-8")
-				client := &http.Client{}
-				if response, e := client.Do(request); e == nil {
-					defer response.Body.Close()
-					if response.StatusCode < 200 || response.StatusCode > 299 {
-						if body, e := ioutil.ReadAll(response.Body); e == nil {
-							err = fmt.Errorf("[ERROR] %s", string(body))
-						} else {
-							err = e
+			var userData map[string]interface{}
+			userData = make(map[string]interface{})
+			var data map[string]interface{}
+			data = make(map[string]interface{})
+			var j map[string]interface{}
+			j = make(map[string]interface{})
+			userData["client_user_agent"] = w.Browser
+			userData["client_ip_address"] = w.IP
+			data["user_data"] = userData
+			data["event_name"] = "TestEvent"
+			data["event_time"] = time.Now().Unix() - 10000
+			j["data"] = []interface{}{data}
+			j["test_event_code"] = "TEST76022"
+			if byteArray, e := json.Marshal(j); e == nil {
+				if request, e := http.NewRequest("POST", httpposturl, bytes.NewBuffer(byteArray)); e == nil {
+					request.Header.Set("Content-Type", "application/json; charset=UTF-8")
+					client := &http.Client{}
+					if response, e := client.Do(request); e == nil {
+						defer response.Body.Close()
+						if response.StatusCode < 200 || response.StatusCode > 299 {
+							if body, e := ioutil.ReadAll(response.Body); e == nil {
+								err = fmt.Errorf("[ERROR] %s", string(body))
+							} else {
+								err = e
+							}
 						}
+					} else {
+						err = e
 					}
 				} else {
 					err = e
@@ -242,8 +264,6 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			} else {
 				err = e
 			}
-		} else {
-			err = e
 		}
 	}
 	return err

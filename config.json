@@ -2,6 +2,8 @@
     "AccountHashMixer": "",
     "AllowOrigin": "*",
     "ApiVersion": 1,
+    "CFlagsMarketing": 4096,
+    "CFlagsIgnore" : false,
     "Consume": [
         {
             "Note": "Not implemented",
@@ -174,7 +176,7 @@
                             "Type": "inet"
                         }
                     ],
-                    "IgnoreCFlags": [],
+                    "CFlagsIgnore": [],
                     "PageSize": 10000,
                     "TTL": 2592000,
                     "Table": "events"
@@ -201,7 +203,8 @@
             "Critical": true,
             "Context": "417425153222226",
             "Key": "lkjasflkjasd",
-            "Service": "facebook"
+            "Service": "facebook",
+            "AttemptAll" : false
         }
     ],
     "PrefixPrivateHash": "",

@@ -314,7 +314,7 @@ func checkRowExpired(row map[string]interface{}, meta *gocql.TableMetadata, p Pr
 	// 	goto tablefailed
 	// }
 	var ignore int64
-	for _, icflag := range p.IgnoreCFlags {
+	for _, icflag := range p.CFlagsIgnore {
 		ignore += icflag
 	}
 	if cftemp1, ok := row["cflags"]; ok {
