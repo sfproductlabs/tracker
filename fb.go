@@ -279,6 +279,41 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			j = make(map[string]interface{})
 			userData["client_user_agent"] = w.Browser
 			userData["client_ip_address"] = w.IP
+			if val, ok := v["fbp"].(string); ok {
+				userData["fbp"] = val
+			}
+			if val, ok := v["fbc"].(string); ok {
+				userData["fbc"] = val
+			}
+			if zip != nil {
+				if val, ok := zip.(string); ok {
+					userData["zp"] = shasum256(val)
+				}
+			}
+			if city != nil {
+				userData["ct"] = shasum256(*city)
+			}
+			if region != nil {
+				userData["st"] = shasum256(*region)
+			}
+			if country != nil {
+				userData["country"] = shasum256(*country)
+			}
+			if v["value"] != nil {
+				data["value"] = v["value"]
+			}
+			if v["order_id"] != nil {
+				data["order_id"] = v["order_id"]
+			}
+			if v["predicted_ltv"] != nil {
+				data["predicted_ltv"] = v["predicted_ltv"]
+			}
+			if v["content_category"] != nil {
+				data["content_category"] = v["content_category"]
+			}
+			if v["search_string"] != nil {
+				data["search_string"] = v["search_string"]
+			}
 			data["user_data"] = userData
 			data["event_name"] = ename
 			data["event_time"] = now

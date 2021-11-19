@@ -23,6 +23,7 @@ Cookies:
         COOKIE_EXPERIMENT: x
         COOKIE_EXP_PARAMS: xp
         COOKIE_QPS: qps
+        COOKIE_CONSENT: CookieConsent
 Routes:
     "/settings":
         Regex: /settings
