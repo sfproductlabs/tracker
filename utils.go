@@ -51,6 +51,7 @@ package main
 import (
 	"archive/zip"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"hash/fnv"
@@ -79,6 +80,12 @@ func sha(s string) string {
 	hasher := sha1.New()
 	hasher.Write([]byte(s))
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+}
+
+func shasum256(s string) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(s))
+	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
 ////////////////////////////////////////

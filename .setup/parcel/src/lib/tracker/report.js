@@ -216,7 +216,7 @@ export default (userAgent) => {
             if (console.warn) {
                 console.warn(msg);
             } else {
-                console.log(msg);
+                console.debug(msg);
             }
         }
     }

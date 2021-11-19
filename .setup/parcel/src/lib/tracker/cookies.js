@@ -1,11 +1,14 @@
 import Cookies from 'js-cookie'
 import { v1 as uuidv1 } from 'uuid';
-import config from '/config.yaml';
+import config from '../../../config.yaml';
 import {getHostRoot, isSecure} from './network';
 
 export function removeCookie(ck, opts) {
   try {
+    const domain = getHostRoot();
     Cookies.remove(ck, opts);
+    Cookies.remove(ck, { domain: domain });
+    Cookies.remove(ck, { domain: "." + domain });
   } catch {}
 }
 

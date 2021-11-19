@@ -13,7 +13,7 @@ import report from './report';
 import request from './request';
 import device from './device';
 import {getHostRoot} from './network';
-import config from '/config.yaml';
+import config from '../../../config.yaml';
 
 /**
  * @param {object} params - event parameters
@@ -102,6 +102,29 @@ export default function track(params) {
     json.app = (json.params.app || path(["Application", "Name"], config) || process.env.APP_NAME) + "";
     json.app = !json.app ? null : json.app;
 
+    //Facebook extenstions
+    var fbp = document.cookie.split(';').filter(function (c) {
+        return c.includes('_fbp=');
+    }).map(function (c) {
+        return c.split('_fbp=')[1];
+    });
+    var fbc = document.cookie.split(';').filter(function (c) {
+        return c.includes('_fbc=');
+    }).map(function (c) {
+        return c.split('_fbc=')[1];
+    });
+    fbp = fbp.length && fbp[0] || void 0;
+    fbc = fbc.length && fbc[0] || void 0;
+    if (!fbc && window.location.search.includes('fbclid=')) {
+        fbc = 'fb.1.' + (+new Date()) + '.' + window.location.search.split('fbclid=')[1];
+    }
+    if (fbp) {
+        json.params.fbp = fbp;
+    }
+    if (fbc) {
+        json.params.fbc = fbc;
+    }
+    json.now = Date.now()
 
     //Existing Query Params
     //Ex. http://localhost:3003/?gu=1&ptyp=blog&utm_source=news_service&utm_medium=email&utm_campaign=campaign&aff=promo&ref=60c59df0ed0811e8a766de1a241fb011&uname=admin
@@ -114,8 +137,8 @@ export default function track(params) {
         //Remove passed down variables we dont use
         delete qps.ptyp;
         delete qps.token;
-        delete qps.accessToken;
-        delete qps.refreshToken;
+        delete qps.token;
+        delete qps.refresh;
         if (qps.type) {
             qps.qtype = qps.type;
             delete qps.type;

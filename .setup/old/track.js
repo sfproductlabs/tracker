@@ -33,7 +33,6 @@ export default function track(params, force) {
     //History
     json.last = Cookies.get(COOKIE_REFERRAL) || document.referrer;
     //json.url = window.location.href;
-    json.user_agent = navigator.userAgent;
     json.url = window.location.origin + window.location.pathname;
     if (json.last === json.url && !defaultTo(false)(force))
         return;
@@ -93,6 +92,7 @@ export default function track(params, force) {
     //Keep aff and ref in params in events
     // delete json.params.aff;
     // delete json.params.ref;
+    json.user_agent = navigator.userAgent;
     var fbp = document.cookie.split(';').filter(function (c) {
         return c.includes('_fbp=');
     }).map(function (c) {
@@ -103,8 +103,8 @@ export default function track(params, force) {
     }).map(function (c) {
         return c.split('_fbc=')[1];
     });
-    fbp = fbp.length && fbp[0] || null;
-    fbc = fbc.length && fbc[0] || null;
+    fbp = fbp.length && fbp[0] || void 0;
+    fbc = fbc.length && fbc[0] || void 0;
     if (!fbc && window.location.search.includes('fbclid=')) {
         fbc = 'fb.1.' + (+new Date()) + '.' + window.location.search.split('fbclid=')[1];
     }
@@ -114,7 +114,7 @@ export default function track(params, force) {
     }
 
     if (fbc) {
-        json.params.fbclid = fbc;
+        json.params.fbc = fbc;
     }
 
     let tj = Cookies.get(COOKIE_JWT);

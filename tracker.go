@@ -185,6 +185,11 @@ type NatsService struct { //Implements 'session'
 	AppConfig     *Configuration
 }
 
+type FacebookService struct { //Implements 'session'
+	Configuration *Service
+	AppConfig     *Configuration
+}
+
 type GeoIP struct {
 	IPStart     string  `json:"ips"`
 	IPEnd       string  `json:"ipe"`
@@ -225,6 +230,7 @@ type Configuration struct {
 	ProxyForceJson           bool
 	ProxyPort                string
 	ProxyPortTLS             string
+	ProxyExceptHTTP          string
 	ProxyPortRedirect        string
 	ProxyDailyLimit          uint64
 	ProxyDailyLimitChecker   string //Service, Ex. casssandra
@@ -261,6 +267,7 @@ const (
 
 	SERVICE_TYPE_CASSANDRA string = "cassandra"
 	SERVICE_TYPE_NATS      string = "nats"
+	SERVICE_TYPE_FACEBOOK  string = "facebook"
 
 	NATS_QUEUE_GROUP = "tracker"
 
@@ -378,6 +385,7 @@ func main() {
 	if configuration.UseLocalTLS && configuration.ProxyPort != "" {
 		proxyPortTLS = configuration.ProxyPortTLS
 	}
+
 	if !configuration.UseLocalTLS && (configuration.ProxyPort != "" || configuration.ProxyPortTLS != "") {
 		log.Fatalln("[CRITICAL] Can not use non-standard ports with LetsEncyrpt")
 	}
@@ -416,6 +424,17 @@ func main() {
 		case SERVICE_TYPE_NATS:
 			//TODO:
 			fmt.Printf("[ERROR] Notify #%d: NATS notifier not implemented\n", idx)
+		case SERVICE_TYPE_FACEBOOK:
+			facebook := FacebookService{
+				Configuration: s,
+				AppConfig:     &configuration,
+			}
+			err = facebook.connect()
+			if s.Critical && (s.Context == "" || s.Key == "" || err != nil) {
+				log.Fatalf("[CRITICAL] Notify #%d. Could not setup connection to Facebook CAPI.\n", idx)
+			}
+			configuration.API = *s
+			fmt.Printf("Notify #%d: Facebook CAPI configured for events\n", idx)
 		default:
 			fmt.Printf("[ERROR] %s #%d Notifier not implemented\n", s.Service, idx)
 		}
@@ -468,6 +487,9 @@ func main() {
 					fmt.Printf("Consume #%d: Connected to NATS.\n", idx)
 				}
 				s.Session.listen()
+			case SERVICE_TYPE_FACEBOOK:
+				//TODO:
+				fmt.Printf("[ERROR] Consume #%d: Facebook consumer not implemented\n", idx)
 			default:
 				fmt.Printf("[ERROR] %s #%d Consumer not implemented\n", s.Service, idx)
 			}
@@ -956,6 +978,12 @@ func main() {
 		}
 
 	}()
+	go func() {
+		if configuration.ProxyExceptHTTP != "" {
+			fmt.Printf("Serving HTTP on %s\n", configuration.ProxyExceptHTTP)
+			http.ListenAndServe(configuration.ProxyExceptHTTP, nil)
+		}
+	}()
 	fmt.Printf("Serving TLS requests on: %s\n", proxyPortTLS)
 	if configuration.UseLocalTLS {
 		server.TLSConfig.GetCertificate = nil
@@ -1150,6 +1178,9 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	}
 	if wargs.Host == "" {
 		wargs.Host = getHost(r)
+	}
+	if c.Debug {
+		fmt.Printf("[EVENT] %s\n", wargs)
 	}
 	for idx := range c.Notify {
 		s := &c.Notify[idx]

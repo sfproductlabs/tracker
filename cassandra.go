@@ -946,9 +946,6 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["msg"],
 			v["params"]).Exec()
 	case WRITE_EVENT:
-		if i.AppConfig.Debug {
-			fmt.Printf("EVENT %s\n", w)
-		}
 		//TODO: Commented for AWS, perhaps non-optimal, CHECK
 		//go func() {
 

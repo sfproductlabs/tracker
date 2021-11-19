@@ -196,6 +196,12 @@
             "Key": "./.setup/keys/nats-client.key",
             "Secure": true,
             "Service": "nats"
+        },
+        {
+            "Critical": true,
+            "Context": "417425153222226",
+            "Key": "lkjasflkjasd",
+            "Service": "facebook"
         }
     ],
     "PrefixPrivateHash": "",
@@ -205,6 +211,7 @@
     "ProxyPort": ":8080",
     "ProxyPortRedirect": "",
     "ProxyPortTLS": ":8443",
+    "ProxyExceptHTTP": ":8880",
     "ProxyUrl": "http://localhost:3030",
     "ProxyUrlFilter": ".*(dontlogthese|login|css|js|json|jpeg|jpg|gif|png|ico)",
     "PruneLimit": 100000,

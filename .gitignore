@@ -23,3 +23,5 @@ pem/
 config.*.json
 
 .DS_Store
+
+config.homodea.json

@@ -1,8 +1,10 @@
 Application: 
     Name:
     Release: 
-    Target: Staging
+    Target: Development
 Hosts:
+    Development: 
+        - localhost
     Staging: 
         - staging.sfpl.io
         - localhost
@@ -28,7 +30,7 @@ Routes:
 Tracker:
     Track: true
     Url: 
-        Development: https://tr.sfpl.io
+        Development: http://localhost:8880
         Staging: https://tr.sfpl.io
         Production: https://tr.sfpl.io
 Styles: |-
