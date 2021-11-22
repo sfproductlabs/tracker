@@ -24,6 +24,7 @@ Cookies:
         COOKIE_EXP_PARAMS: xp
         COOKIE_QPS: qps
         COOKIE_CONSENT: CookieConsent
+        COOKIE_EMAIL_HASH: ehash
 Routes:
     "/settings":
         Regex: /settings

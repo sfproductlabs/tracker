@@ -300,6 +300,9 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			if country != nil {
 				userData["country"] = shasum256(*country)
 			}
+			if v["ehash"] != nil {
+				userData["em"] = v["ehash"]
+			}
 			if v["vid"] != nil {
 				if temp, ok := v["vid"].(string); ok {
 					userData["external_id"] = shasum256(strings.ToLower(strings.TrimSpace(temp)))

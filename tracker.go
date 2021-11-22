@@ -1088,6 +1088,11 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 			j["cflags"] = cflags
 		}
 	}
+	//Try to get EmailHash from cookie (ehash)
+	cookie, cerr = r.Cookie("ehash")
+	if cerr == nil && cookie != nil {
+		j["ehash"] = cookie.Value
+	}
 	//Try to get sid from cookie
 	cookie, cerr = r.Cookie("sid")
 	if cerr == nil && cookie != nil {

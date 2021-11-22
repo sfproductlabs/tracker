@@ -88,7 +88,8 @@ export default function request(url, options) {
           fetch(`${URL_API}/api/v1/history/track`, {
             method: "POST",
             body: JSON.stringify(track),
-            headers : ta
+            headers : ta,
+            //credentials: "include"
           });
         }
       }, 3000);
@@ -101,6 +102,7 @@ export default function request(url, options) {
       ...opts.headers,
       ...auth
     };
+    //opts.credentials = "include";
     if (camelize)
       return fetch(url, opts)
         .then(checkStatusAndParseJSON)

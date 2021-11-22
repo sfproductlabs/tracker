@@ -128,7 +128,8 @@ export default function track(params) {
         json.params.fbc = fbc;
     }
     json.now = now / 1000
-    //json.cflags = cookies.get(config.Cookies.Names.COOKIE_CONSENT);
+    json.ehash = json.ehash || cookies.get(config.Cookies.Names.COOKIE_EMAIL_HASH) || undefined;    
+    json.cflags = json.cflags || cookies.get(config.Cookies.Names.COOKIE_CONSENT) || undefined;
 
     //Existing Query Params
     //Ex. http://localhost:3003/?gu=1&ptyp=blog&utm_source=news_service&utm_medium=email&utm_campaign=campaign&aff=promo&ref=60c59df0ed0811e8a766de1a241fb011&uname=admin
