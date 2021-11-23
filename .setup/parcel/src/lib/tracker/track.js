@@ -7,7 +7,7 @@
  */
 
 import { cookies } from './cookies';
-import { defaultTo, path } from 'ramda';
+import { defaultTo, join, path } from 'ramda';
 import { v1 as uuidv1 } from 'uuid';
 import report from './report';
 import request from './request';
@@ -186,6 +186,7 @@ export default function track(params) {
             tr(json);
             break;
     }
+    return json.eid;
 };
 
 export const getPageType = () => {
