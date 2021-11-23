@@ -329,12 +329,17 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			if v["search_string"] != nil {
 				data["search_string"] = v["search_string"]
 			}
+			if v["url"] != nil {
+				data["event_source_url"] = v["url"]
+			}
 			data["user_data"] = userData
 			data["event_name"] = ename
 			data["event_time"] = now
 			data["event_id"] = w.EventID
 			j["data"] = []interface{}{data}
-			j["test_event_code"] = v["test_event_code"]
+			if temp, ok := v["test_event_code"].(string); ok {
+				j["test_event_code"] = strings.ToUpper(temp)
+			}
 			if i.AppConfig.Debug {
 				fmt.Printf("[REQUEST] Facebook CAPI request payload: %s\n", j)
 			}
