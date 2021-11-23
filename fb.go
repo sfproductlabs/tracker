@@ -337,8 +337,8 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			data["event_time"] = now
 			data["event_id"] = w.EventID
 			j["data"] = []interface{}{data}
-			if v["test_event_code"] != nil {
-				j["test_event_code"] = v["test_event_code"]
+			if temp, ok := v["test_event_code"].(string); ok {
+				j["test_event_code"] = strings.ToUpper(temp)
 			}
 			if i.AppConfig.Debug {
 				fmt.Printf("[REQUEST] Facebook CAPI request payload: %s\n", j)
