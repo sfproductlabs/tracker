@@ -329,8 +329,8 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			if v["search_string"] != nil {
 				data["search_string"] = v["search_string"]
 			}
-			if v["url"] != nil {
-				data["event_source_url"] = v["url"]
+			if v["uri"] != nil {
+				data["event_source_url"] = v["uri"]
 			}
 			data["user_data"] = userData
 			data["event_name"] = ename

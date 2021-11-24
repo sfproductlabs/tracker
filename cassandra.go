@@ -1156,6 +1156,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 		if params != nil {
 			//De-identify data
+			delete(*params, "uri")
 			delete(*params, "hhash")
 			delete(*params, "iphash")
 			delete(*params, "cell")
