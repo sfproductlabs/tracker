@@ -68,6 +68,9 @@ import (
 
 func (i *FacebookService) connect() error {
 	i.Configuration.Session = i
+	if i.Configuration.Context == "" || i.Configuration.Key == "" {
+		return fmt.Errorf("You must provide a pixel and token to use the facebook endpoint")
+	}
 	return nil
 }
 

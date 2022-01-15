@@ -272,6 +272,9 @@ const (
 	SERVICE_TYPE_NATS      string = "nats"
 	SERVICE_TYPE_FACEBOOK  string = "facebook"
 
+	FB_PIXEL string = "FB_PIXEL"
+	FB_TOKEN string = "FB_TOKEN"
+
 	NATS_QUEUE_GROUP = "tracker"
 
 	IDX_PREFIX_IPV4 = "gip4::"
@@ -337,6 +340,8 @@ func main() {
 	//////////////////////////////////////// LOAD CONFIG
 	fmt.Println("Starting services...")
 	configFile := "config.json"
+	var fbPixelFlag = flag.String("fb-pixel", "", "provide facebook pixel")
+	var fbTokenFlag = flag.String("fb-token", "", "provide facebook token")
 	var prune = flag.Bool("prune", false, "prune items")
 	var logsOnly = flag.Bool("logs-only", false, "clear out log only")
 	flag.Parse()
@@ -353,6 +358,38 @@ func main() {
 		fmt.Println("error:", err)
 	}
 	configuration.ConfigFile = configFile
+
+	//////////////////////////////////////// OVERRIDE FACEBOOK VARIABLES
+	var fbPixel = os.Getenv(FB_PIXEL)
+	var fbToken = os.Getenv(FB_TOKEN)
+	if fbPixel == "" {
+		fbPixel = *fbPixelFlag
+	}
+	if fbToken == "" {
+		fbToken = *fbTokenFlag
+	}
+	if fbPixel != "" || fbToken != "" {
+		var fbNotify = &Service{}
+		var fbFound = false
+		for idx := range configuration.Notify {
+			s := &configuration.Notify[idx]
+			if s.Service == SERVICE_TYPE_FACEBOOK {
+				fbNotify = s
+				fbFound = true
+			}
+		}
+		if fbPixel != "" {
+			fbNotify.Context = fbPixel
+		}
+		if fbToken != "" {
+			fbNotify.Key = fbToken
+		}
+		fbNotify.Service = SERVICE_TYPE_FACEBOOK
+		if !fbFound {
+			fbNotify.AttemptAll = false
+			configuration.Notify = append(configuration.Notify, *fbNotify)
+		}
+	}
 
 	//////////////////////////////////////// SETUP CACHE
 	cache := cacheDir()
