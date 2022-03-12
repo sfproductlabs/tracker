@@ -13,7 +13,7 @@
             "ByteLimit": 67108864,
             "CACert": "./.setup/keys/rootCa.crt",
             "Cert": "./.setup/keys/nats-client.crt",
-            "Critical": true,
+            "Critical": false,
             "Filter": [
                 {
                     "Alias": "log",
@@ -70,7 +70,7 @@
             "Cert": "./.setup/keys/cassandra-client.crt",
             "Connections": 2,
             "Context": "sfpla",
-            "Critical": true,
+            "Critical": false,
             "Filter": [
                 {
                     "Alias": "log",

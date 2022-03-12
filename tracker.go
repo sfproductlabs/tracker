@@ -593,7 +593,7 @@ func main() {
 					Browser:   r.Header.Get("user-agent"),
 					Language:  r.Header.Get("accept-language"),
 					EventID:   gocql.TimeUUID(),
-					URI:       (*sargs.Values)["Redirect"],
+					URI:       r.RequestURI,
 					Host:      getHost(r),
 					IsServer:  false,
 					Values:    &values,

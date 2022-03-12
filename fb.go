@@ -50,6 +50,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -347,9 +348,11 @@ func (i *FacebookService) write(w *WriteArgs) error {
 				fmt.Printf("[REQUEST] Facebook CAPI request payload: %s\n", j)
 			}
 			if byteArray, e := json.Marshal(j); e == nil {
+				ctx, _ := context.WithCancel(context.Background())
 				if request, e := http.NewRequest("POST", httpposturl, bytes.NewBuffer(byteArray)); e == nil {
+					request.WithContext(ctx)
 					request.Header.Set("Content-Type", "application/json; charset=UTF-8")
-					client := &http.Client{}
+					client := &http.Client{Timeout: 30 * time.Second}
 					if response, e := client.Do(request); e == nil {
 						defer response.Body.Close()
 						if response.StatusCode < 200 || response.StatusCode > 299 {
