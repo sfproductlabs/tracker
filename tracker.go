@@ -49,6 +49,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/csv"
 	"encoding/json"
@@ -68,6 +69,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ClickHouse/ch-go"
+	"github.com/ClickHouse/ch-go/proto"
 	"github.com/gocql/gocql"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
@@ -173,6 +176,12 @@ type Service struct {
 	Session session
 }
 
+type ClickhouseService struct { //Implements 'session'
+	Configuration *Service
+	Session       *gocql.Session
+	AppConfig     *Configuration
+}
+
 type CassandraService struct { //Implements 'session'
 	Configuration *Service
 	Session       *gocql.Session
@@ -268,9 +277,10 @@ const (
 	PONG              string = "pong"
 	API_LIMIT_REACHED string = "API Limit Reached"
 
-	SERVICE_TYPE_CASSANDRA string = "cassandra"
-	SERVICE_TYPE_NATS      string = "nats"
-	SERVICE_TYPE_FACEBOOK  string = "facebook"
+	SERVICE_TYPE_CLICKHOUSE string = "clickhouse"
+	SERVICE_TYPE_CASSANDRA  string = "cassandra"
+	SERVICE_TYPE_NATS       string = "nats"
+	SERVICE_TYPE_FACEBOOK   string = "facebook"
 
 	FB_PIXEL string = "FB_PIXEL"
 	FB_TOKEN string = "FB_TOKEN"
@@ -438,6 +448,24 @@ func main() {
 	for idx := range configuration.Notify {
 		s := &configuration.Notify[idx]
 		switch s.Service {
+		case SERVICE_TYPE_CLICKHOUSE:
+			ctx := context.Background()
+			var (
+				numbers int
+				data    proto.ColUInt64
+			)
+			c, _ := ch.Dial(ctx, ch.Options{Address: "localhost:9000"})
+			c.Do(ctx, ch.Query{
+				Body: "SELECT number FROM system.numbers LIMIT 500000000",
+				Result: proto.Results{
+					{Name: "number", Data: &data},
+				},
+				// OnResult will be called on next received data block.
+				OnResult: func(ctx context.Context, b proto.Block) error {
+					numbers += len(data)
+					return nil
+				},
+			})
 		case SERVICE_TYPE_CASSANDRA:
 			fmt.Printf("Notify #%d: Connecting to Cassandra Cluster: %s\n", idx, s.Hosts)
 			cassandra := CassandraService{
