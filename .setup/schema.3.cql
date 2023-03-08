@@ -800,7 +800,7 @@ WITH CLUSTERING ORDER BY (created DESC);
 -- GROWTH Extended --
 
 --total lifetime value, by user
-create table tlv (
+create table ltv (
   hhash text,
   uid timeuuid,
   vid timeuuid,   
@@ -816,7 +816,7 @@ create table tlv (
 );
 
 --total lifetime value, by user, order
-create table tlvu (
+create table ltvu (
   hhash text,
   uid timeuuid,
   vid timeuuid,   
@@ -833,7 +833,7 @@ create table tlvu (
 );
 
 --total lifetime value, by vid, order
-create table tlvv (
+create table ltvv (
   hhash text,
   uid timeuuid,
   vid timeuuid,   
