@@ -69,7 +69,7 @@ import (
 // Interface Implementations
 ////////////////////////////////////////
 
-//////////////////////////////////////// C*
+// ////////////////////////////////////// C*
 // Connect initiates the primary connection to the range of provided URLs
 func (i *CassandraService) connect() error {
 	err := fmt.Errorf("Could not connect to cassandra")
@@ -118,7 +118,7 @@ func (i *CassandraService) connect() error {
 	return nil
 }
 
-//////////////////////////////////////// C*
+// ////////////////////////////////////// C*
 // Close will terminate the session to the backend, returning error if an issue arises
 func (i *CassandraService) close() error {
 	if !i.Session.Closed() {
@@ -608,7 +608,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 
 }
 
-//////////////////////////////////////// C*
+// ////////////////////////////////////// C*
 func (i *CassandraService) prune() error {
 	var lastCreated time.Time
 	var iter *gocql.Iter
@@ -836,7 +836,7 @@ func (i *CassandraService) prune() error {
 	return err
 }
 
-//////////////////////////////////////// C*
+// ////////////////////////////////////// C*
 func (i *CassandraService) write(w *WriteArgs) error {
 	err := fmt.Errorf("Could not write to any cassandra server in cluster")
 	v := *w.Values
@@ -2049,7 +2049,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 
 		return nil
-	case WRITE_TLV:
+	case WRITE_LTV:
 		cleanString(&(w.Host))
 		//TODO: Add array of payments
 		//////////////////////////////////////////////
@@ -2273,9 +2273,9 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		var pmts []payment
 		var prevpaid *float64
-		//[TLV]
-		if xerr := i.Session.Query("SELECT payments,created,paid FROM tlv WHERE hhash=? AND uid=?", hhash, v["uid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[tlv]:", xerr)
+		//[LTV]
+		if xerr := i.Session.Query("SELECT payments,created,paid FROM ltv WHERE hhash=? AND uid=?", hhash, v["uid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[ltv]:", xerr)
 		}
 		if prevpaid != nil && paid != nil {
 			*prevpaid = *prevpaid + *paid
@@ -2285,7 +2285,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		pmts = append(pmts, *pmt)
 
-		if xerr := i.Session.Query(`UPDATE tlv SET
+		if xerr := i.Session.Query(`UPDATE ltv SET
 			vid = ?, 
 			sid = ?,
 			payments = ?, 
@@ -2309,15 +2309,15 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			hhash,
 			v["uid"],
 		).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[tlv]:", xerr)
+			fmt.Println("C*[ltv]:", xerr)
 		}
 
-		//[TLVU]
+		//[LTVU]
 		pmts = pmts[:0]
 		created = &updated
 		prevpaid = nil
-		if xerr := i.Session.Query("SELECT payments,created,paid FROM tlvu WHERE hhash=? AND uid=? AND orid=?", hhash, v["uid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[tlvu]:", xerr)
+		if xerr := i.Session.Query("SELECT payments,created,paid FROM ltvu WHERE hhash=? AND uid=? AND orid=?", hhash, v["uid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[ltvu]:", xerr)
 		}
 		if prevpaid != nil && paid != nil {
 			*prevpaid = *prevpaid + *paid
@@ -2327,7 +2327,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		pmts = append(pmts, *pmt)
 
-		if xerr := i.Session.Query(`UPDATE tlvu SET
+		if xerr := i.Session.Query(`UPDATE ltvu SET
 			vid = ?, 
 			sid = ?,
 			payments = ?, 
@@ -2352,15 +2352,15 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["uid"],
 			v["orid"],
 		).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[tlvu]:", xerr)
+			fmt.Println("C*[ltvu]:", xerr)
 		}
 
-		//[TLVV]
+		//[LTVV]
 		pmts = pmts[:0]
 		created = &updated
 		prevpaid = nil
-		if xerr := i.Session.Query("SELECT payments,created,paid FROM tlvv WHERE hhash=? AND vid=? AND orid=?", hhash, v["vid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[tlvv]:", xerr)
+		if xerr := i.Session.Query("SELECT payments,created,paid FROM ltvv WHERE hhash=? AND vid=? AND orid=?", hhash, v["vid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("C*[ltvv]:", xerr)
 		}
 		if prevpaid != nil && paid != nil {
 			*prevpaid = *prevpaid + *paid
@@ -2370,7 +2370,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		pmts = append(pmts, *pmt)
 
-		if xerr := i.Session.Query(`UPDATE tlvv SET
+		if xerr := i.Session.Query(`UPDATE ltvv SET
 			uid = ?, 
 			sid = ?,
 			payments = ?, 
@@ -2395,7 +2395,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["vid"],
 			v["orid"],
 		).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[tlvv]:", xerr)
+			fmt.Println("C*[ltvv]:", xerr)
 		}
 
 		return nil

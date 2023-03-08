@@ -74,9 +74,9 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-////////////////////////////////////////
+// //////////////////////////////////////
 // Get the system setup from the config.json file:
-////////////////////////////////////////
+// //////////////////////////////////////
 type session interface {
 	connect() error
 	close() error
@@ -263,7 +263,7 @@ type Configuration struct {
 	PruneSkipToTimestamp     int64
 }
 
-//////////////////////////////////////// Constants
+// ////////////////////////////////////// Constants
 const (
 	PONG              string = "pong"
 	API_LIMIT_REACHED string = "API Limit Reached"
@@ -285,7 +285,7 @@ const (
 	WRITE_UPDATE = 1 << iota
 	WRITE_COUNT  = 1 << iota
 	WRITE_EVENT  = 1 << iota
-	WRITE_TLV    = 1 << iota
+	WRITE_LTV    = 1 << iota
 
 	WRITE_DESC_LOG    = "log"
 	WRITE_DESC_UPDATE = "update"
@@ -320,14 +320,14 @@ var (
 	regexUtmPrefix   = regexp.MustCompile(`utm_`)
 )
 
-//////////////////////////////////////// Transparent GIF
+// ////////////////////////////////////// Transparent GIF
 var TRACKING_GIF = []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x1, 0x0, 0x1, 0x0, 0x80, 0x0, 0x0, 0xff, 0xff, 0xff, 0x0, 0x0, 0x0, 0x2c, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x2, 0x2, 0x44, 0x1, 0x0, 0x3b}
 
 var kv = (*KV)(nil)
 
-////////////////////////////////////////
+// //////////////////////////////////////
 // Start here
-////////////////////////////////////////
+// //////////////////////////////////////
 func main() {
 	fmt.Println("\n\n//////////////////////////////////////////////////////////////")
 	fmt.Println("Tracker.")
@@ -740,7 +740,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// Track Lifetime Value
-	http.HandleFunc("/tlv/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/ltv/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -752,7 +752,7 @@ func main() {
 		} else {
 			select {
 			case <-connc:
-				tlv(&configuration, &w, r)
+				ltv(&configuration, &w, r)
 				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 				w.WriteHeader(http.StatusOK)
 				connc <- struct{}{}
@@ -1034,9 +1034,9 @@ func main() {
 
 }
 
-////////////////////////////////////////
+// //////////////////////////////////////
 // Serve APIs
-////////////////////////////////////////
+// //////////////////////////////////////
 func serveWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, args *ServiceArgs) error {
 	s := &c.API
 	if s != nil && s.Session != nil {
@@ -1050,9 +1050,9 @@ func serveWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, ar
 	return nil
 }
 
-////////////////////////////////////////
+// //////////////////////////////////////
 // Check
-////////////////////////////////////////
+// //////////////////////////////////////
 func check(c *Configuration, r *http.Request) error {
 	//Precheck
 	if c.ProxyDailyLimit > 0 && c.ProxyDailyLimitCheck != nil && c.ProxyDailyLimitCheck(getIP(r)) > c.ProxyDailyLimit {
@@ -1061,13 +1061,13 @@ func check(c *Configuration, r *http.Request) error {
 	return nil
 }
 
-////////////////////////////////////////
+// //////////////////////////////////////
 // Total Lifetime Value
-////////////////////////////////////////
-func tlv(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
+// //////////////////////////////////////
+func ltv(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 	//Setup
 	wargs := WriteArgs{
-		WriteType: WRITE_TLV,
+		WriteType: WRITE_LTV,
 		IP:        getIP(r),
 		Browser:   r.Header.Get("user-agent"),
 		Language:  r.Header.Get("accept-language"),
@@ -1078,9 +1078,9 @@ func tlv(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 	return trackWithArgs(c, w, r, &wargs)
 }
 
-////////////////////////////////////////
+// //////////////////////////////////////
 // Telemetry
-////////////////////////////////////////
+// //////////////////////////////////////
 func track(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 	//Setup
 	wargs := WriteArgs{
