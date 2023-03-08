@@ -70,7 +70,7 @@ import (
 
 	"github.com/gocql/gocql"
 	"github.com/gorilla/mux"
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/nats.go"
 	"golang.org/x/crypto/acme/autocert"
 )
 

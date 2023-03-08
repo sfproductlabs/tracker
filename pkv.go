@@ -241,7 +241,7 @@ func openPebbleDB(config LogDBConfig, callback LogDBCallback,
 	el := &eventListener{
 		kv: kv,
 	}
-	opts.EventListener = pebble.EventListener{
+	opts.EventListener = &pebble.EventListener{
 		WALCreated: el.onWALCreated,
 		FlushEnd:   el.onFlushEnd,
 	}
@@ -375,7 +375,7 @@ func (r *KV) BulkRemoveEntries(fk []byte, lk []byte) error {
 
 // CompactEntries ...
 func (r *KV) CompactEntries(fk []byte, lk []byte) error {
-	return r.db.Compact(fk, lk)
+	return r.db.Compact(fk, lk, true)
 }
 
 // FullCompaction ...
@@ -386,5 +386,5 @@ func (r *KV) FullCompaction() error {
 		fk[i] = 0
 		lk[i] = 0xFF
 	}
-	return r.db.Compact(fk, lk)
+	return r.db.Compact(fk, lk, true)
 }
