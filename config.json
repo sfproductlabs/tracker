@@ -7,7 +7,7 @@
     "Consume": [
         {
             "Note": "Not implemented",
-            "Service": "http"
+            "Service": "http_"
         },
         {
             "ByteLimit": 67108864,
@@ -38,7 +38,7 @@
             "Key": "./.setup/keys/nats-client.key",
             "MessageLimit": 65536,
             "Secure": true,
-            "Service": "nats"
+            "Service": "nats_"
         }
     ],
     "Debug": true,
@@ -65,6 +65,39 @@
     "MaxHeaderBytes": 1048576,
     "MaximumConnections": 150000,
     "Notify": [
+        {
+            "CACert": null,
+            "Cert": null,
+            "Key": null,
+            "Connections": 2,
+            "Context": "default",
+            "Critical": false,
+            "Hosts": [
+                "127.0.0.1"
+            ],            
+            "Prune": [
+                {
+                    "ClearAll": false,
+                    "ClearNumericParams": false,
+                    "ClearParams": false,
+                    "Fields": [
+                        {
+                            "DestParamHash": "iphash",
+                            "Id": "ip",
+                            "Type": "ip4"
+                        }
+                    ],
+                    "CFlagsIgnore": [],
+                    "PageSize": 10000,
+                    "TTL": 2592000,
+                    "Table": "events"
+                }
+            ],
+            "Retries": 3,
+            "Secure": false,
+            "Service": "clickhouse",
+            "Timeout": 300
+        },
         {
             "CACert": "./.setup/keys/rootCa.crt",
             "Cert": "./.setup/keys/cassandra-client.crt",
@@ -184,7 +217,7 @@
             ],
             "Retries": 3,
             "Secure": false,
-            "Service": "cassandra",
+            "Service": "cassandra_",
             "Timeout": 300
         },
         {
@@ -197,13 +230,13 @@
             ],
             "Key": "./.setup/keys/nats-client.key",
             "Secure": true,
-            "Service": "nats"
+            "Service": "nats_"
         },
         {
-            "Critical": true,
+            "Critical": false,
             "Context": "417425153222226",
             "Key": "lkjasflkjasd",
-            "Service": "facebook",
+            "Service": "facebook_",
             "AttemptAll" : false
         }
     ],
