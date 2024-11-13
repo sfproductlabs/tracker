@@ -50,6 +50,7 @@ package main
 
 import (
 	"crypto/tls"
+	"database/sql"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -173,6 +174,13 @@ type Service struct {
 	Session session
 }
 
+type DuckService struct { //Implements 'session'
+	Configuration *Service
+	Session       *gocql.Session
+	AppConfig     *Configuration
+	DB            *sql.DB
+}
+
 type CassandraService struct { //Implements 'session'
 	Configuration *Service
 	Session       *gocql.Session
@@ -268,6 +276,7 @@ const (
 	PONG              string = "pong"
 	API_LIMIT_REACHED string = "API Limit Reached"
 
+	SERVICE_TYPE_DUCKDB    string = "duckdb"
 	SERVICE_TYPE_CASSANDRA string = "cassandra"
 	SERVICE_TYPE_NATS      string = "nats"
 	SERVICE_TYPE_FACEBOOK  string = "facebook"
@@ -438,6 +447,23 @@ func main() {
 	for idx := range configuration.Notify {
 		s := &configuration.Notify[idx]
 		switch s.Service {
+		case SERVICE_TYPE_DUCKDB:
+			fmt.Printf("Notify #%d: Connecting to DuckDB: %s\n", idx, s.Hosts)
+			duck := DuckService{
+				Configuration: s,
+				AppConfig:     &configuration,
+			}
+			err = duck.connect()
+			if err != nil || s.Session == nil {
+				if s.Critical {
+					log.Fatalf("[CRITICAL] Notify #%d. Could not connect to duck. %s\n", idx, err)
+				} else {
+					fmt.Printf("[ERROR] Notify #%d. Could not connect to duck. %s\n", idx, err)
+					continue
+				}
+			}
+			//Now attach the one and only API service, replace if multiple
+			configuration.API = *s
 		case SERVICE_TYPE_CASSANDRA:
 			fmt.Printf("Notify #%d: Connecting to Cassandra Cluster: %s\n", idx, s.Hosts)
 			cassandra := CassandraService{
