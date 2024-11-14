@@ -51,6 +51,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -62,7 +63,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gocql/gocql"
+	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/google/uuid"
 )
 
 ////////////////////////////////////////
@@ -72,44 +74,53 @@ import (
 // ////////////////////////////////////// C*
 // Connect initiates the primary connection to the range of provided URLs
 func (i *ClickhouseService) connect() error {
-	err := fmt.Errorf("Could not connect to cassandra")
-	cluster := gocql.NewCluster(i.Configuration.Hosts...)
-	cluster.Keyspace = i.Configuration.Context
-	cluster.Consistency = gocql.LocalOne
-	if i.Configuration.Retries > 0 {
-		cluster.RetryPolicy = &gocql.SimpleRetryPolicy{NumRetries: i.Configuration.Retries}
-	}
-	cluster.Timeout = i.Configuration.Timeout * time.Millisecond
-	cluster.NumConns = i.Configuration.Connections
-	cluster.ReconnectInterval = time.Second
-	cluster.SocketKeepalive = time.Millisecond * 500
-	cluster.MaxPreparedStmts = 10000
-	if i.Configuration.CACert != "" {
-		sslOpts := &gocql.SslOptions{
-			CaPath:                 i.Configuration.CACert,
-			EnableHostVerification: i.Configuration.Secure, //TODO: SECURITY THREAT
-		}
-		if i.Configuration.Cert != "" && i.Configuration.Key != "" {
-			sslOpts.CertPath = i.Configuration.Cert
-			sslOpts.KeyPath = i.Configuration.Key
-		}
-		cluster.SslOpts = sslOpts
-	}
+	// Create ClickHouse connection
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{i.Configuration.Hosts[0]},
+		Auth: clickhouse.Auth{
+			Database: i.Configuration.Context,
+		},
+		Debug: i.AppConfig.Debug,
+		Settings: map[string]interface{}{
+			"max_execution_time": 60,
+		},
+		Compression: &clickhouse.Compression{
+			Method: clickhouse.CompressionLZ4,
+		},
+		DialTimeout:     time.Second * 30,
+		MaxOpenConns:    5,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: time.Hour,
+	})
 
-	if i.Session, err = cluster.CreateSession(); err != nil {
-		fmt.Println("[ERROR] Connecting to C*:", err)
+	if err != nil {
+		fmt.Println("[ERROR] Connecting to ClickHouse:", err)
 		return err
 	}
+
+	// Verify connection is alive
+	ctx := context.Background()
+	if err := conn.Ping(ctx); err != nil {
+		return fmt.Errorf("failed to ping clickhouse: %v", err)
+	}
+
+	i.Session = &conn
 	i.Configuration.Session = i
 
-	//Setup rand
+	// Setup rand
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	//Setup limit checker (cassandra)
-	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CASSANDRA {
+	// Setup limit checker
+	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CLICKHOUSE {
 		i.AppConfig.ProxyDailyLimitCheck = func(ip string) uint64 {
 			var total uint64
-			if i.Session.Query(`SELECT total FROM dailies where ip=? AND day=?`, ip, time.Now().UTC()).Scan(&total); err != nil {
+			err := (*i.Session).QueryRow(context.Background(),
+				`SELECT total FROM dailies WHERE ip = ? AND day = ?`,
+				ip, time.Now().UTC()).Scan(&total)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return 0
+				}
 				return 0xFFFFFFFFFFFFFFFF
 			}
 			return total
@@ -118,23 +129,20 @@ func (i *ClickhouseService) connect() error {
 	return nil
 }
 
-// ////////////////////////////////////// C*
+// ////////////////////////////////////// ClickHouse
 // Close will terminate the session to the backend, returning error if an issue arises
 func (i *ClickhouseService) close() error {
-	if !i.Session.Closed() {
-		i.Session.Close()
+	if i.Session != nil {
+		return (*i.Session).Close()
 	}
 	return nil
 }
 
 func (i *ClickhouseService) listen() error {
-	//TODO: Listen for cassandra triggers
-	return fmt.Errorf("[ERROR] Cassandra listen not implemented")
+	return fmt.Errorf("[ERROR] ClickHouse listen not implemented")
 }
 
 func (i *ClickhouseService) auth(s *ServiceArgs) error {
-	//TODO: AG implement JWT
-	//TODO: AG implement creds (check domain level auth)
 	if *s.Values == nil {
 		return fmt.Errorf("User not provided")
 	}
@@ -146,321 +154,125 @@ func (i *ClickhouseService) auth(s *ServiceArgs) error {
 	if password == "" {
 		return fmt.Errorf("User pass not provided")
 	}
+
+	ctx := context.Background()
 	var pwd string
-	if err := i.Session.Query(`SELECT pwd FROM accounts where uid=?`, uid).Scan(&pwd); err == nil {
-		if pwd != sha(password) {
-			return fmt.Errorf("Bad pass")
+	err := (*i.Session).QueryRow(ctx,
+		`SELECT pwd FROM accounts WHERE uid = ?`, uid).Scan(&pwd)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("User not found")
 		}
-		return nil
-	} else {
 		return err
 	}
-
+	if pwd != sha(password) {
+		return fmt.Errorf("Bad pass")
+	}
+	return nil
 }
 
 func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error {
+	ctx := context.Background()
+
 	switch s.ServiceType {
-	case SVC_POST_AGREE:
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return fmt.Errorf("Bad JS (body)")
-		}
-		if len(body) > 0 {
-			b := make(map[string]interface{})
-			if err := json.Unmarshal(body, &b); err == nil {
-				created := time.Now().UTC()
-				//[hhash]
-				var hhash *string
-				addr := getHost(r)
-				if addr != "" {
-					temp := strconv.FormatInt(int64(hash(addr)), 36)
-					hhash = &temp
-				}
-				ip := getIP(r)
-				var iphash string
-				//128 bits = ipv6
-				iphash = strconv.FormatInt(int64(hash(ip)), 36)
-				iphash = iphash + strconv.FormatInt(int64(hash(ip+iphash)), 36)
-				iphash = iphash + strconv.FormatInt(int64(hash(ip+iphash)), 36)
-				iphash = iphash + strconv.FormatInt(int64(hash(ip+iphash)), 36)
-				browser := r.Header.Get("user-agent")
-				var bhash *string
-				if browser != "" {
-					temp := strconv.FormatInt(int64(hash(browser)), 36)
-					bhash = &temp
-				}
-				var cflags *int64
-				if com, ok := b["cflags"].(int64); ok {
-					cflags = &com
-				} else if com, ok := b["cflags"].(float64); ok {
-					temp := int64(com)
-					cflags = &temp
-				}
-				//[country]
-				var country *string
-				var region *string
-				if tz, ok := b["tz"].(string); ok {
-					cleanString(&tz)
-					if ct, oktz := countries[tz]; oktz {
-						country = &ct
-					}
-				}
-				//[latlon]
-				var latlon *geo_point
-				latf, oklatf := b["lat"].(float64)
-				lonf, oklonf := b["lon"].(float64)
-				if oklatf && oklonf {
-					//Float
-					latlon = &geo_point{}
-					latlon.Lat = latf
-					latlon.Lon = lonf
-				} else {
-					//String
-					lats, oklats := b["lat"].(string)
-					lons, oklons := b["lon"].(string)
-					if oklats && oklons {
-						latlon = &geo_point{}
-						latlon.Lat, _ = strconv.ParseFloat(lats, 64)
-						latlon.Lon, _ = strconv.ParseFloat(lons, 64)
-					}
-				}
-				if latlon == nil {
-					if gip, err := GetGeoIP(net.ParseIP(ip)); err == nil && gip != nil {
-						var geoip GeoIP
-						if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
-							latlon = &geo_point{}
-							latlon.Lat = geoip.Latitude
-							latlon.Lon = geoip.Longitude
-							if geoip.CountryISO2 != "" {
-								country = &geoip.CountryISO2
-							}
-							if geoip.Region != "" {
-								region = &geoip.Region
-							}
-						}
-					}
-				}
-				//Self identification of geo_pol overrules geoip
-				if ct, ok := b["country"].(string); ok {
-					country = &ct
-				}
-				if r, ok := b["region"].(string); ok {
-					region = &r
-				}
-				upperString(country)
-				cleanString(region)
-				if /* results, */ err := i.Session.Query(`INSERT into agreements (
-					vid, 
-					created,  
-					-- compliances,
-					cflags,
-					sid, 
-					uid, 
-					avid,
-					hhash, 
-					app, 
-					rel, 
+	case SVC_GET_AGREE:
+		if vid := r.URL.Query().Get("vid"); vid != "" {
+			rows, err := (*i.Session).Query(ctx,
+				"SELECT * FROM agreements WHERE vid = ?", vid)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
 
-					url, 
-					ip,
-					iphash, 
-					gaid,
-					idfa,
-					msid,
-					fbid,
-					country, 
-					region,
-					culture, 
-					
-					source,
-					medium,
-					campaign,
-					term, 
-					ref, 
-					rcode, 
-					aff,
-					browser,
-					bhash,
-					device, 
-					
-					os, 
-					tz,
-					--vp,
-					--loc frozen<geo_pol>,
-					latlon,
-					zip,
-					owner,
-					org
-				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
-					b["vid"],
-					created,
-					//compliances map<text,frozen<set<text>>>,
-					cflags,
-					b["sid"],
-					b["uid"],
-					b["avid"],
-					hhash,
-					b["app"],
-					b["rel"],
-
-					b["url"],
-					ip,
-					iphash,
-					b["gaid"],
-					b["idfa"],
-					b["msid"],
-					b["fbid"],
-					country,
-					region,
-					b["culture"],
-
-					b["source"],
-					b["medium"],
-					b["campaign"],
-					b["term"],
-					b["ref"],
-					b["rcode"],
-					b["aff"],
-					browser,
-					bhash,
-					b["device"],
-
-					b["os"],
-					b["tz"],
-					//  vp frozen<viewport>,
-					//  loc frozen<geo_pol>,
-					latlon,
-					b["zip"],
-					b["owner"],
-					b["org"],
-				).Exec(); err != nil {
+			var result []map[string]interface{}
+			for rows.Next() {
+				// Get column names
+				columns := rows.Columns()
+				if err != nil {
 					return err
 				}
 
-				i.Session.Query(`INSERT into agreed (
-					vid, 
-					created,  
-					-- compliances,
-					cflags,
-					sid, 
-					uid, 
-					avid,
-					hhash, 
-					app, 
-					rel, 
+				// Create a slice of interface{} to hold the values
+				values := make([]interface{}, len(columns))
+				valuePointers := make([]interface{}, len(columns))
+				for i := range values {
+					valuePointers[i] = &values[i]
+				}
 
-					url, 
-					ip,
-					iphash, 
-					gaid,
-					idfa,
-					msid,
-					fbid,
-					country, 
-					region,
-					culture, 
-					
-					source,
-					medium,
-					campaign,
-					term, 
-					ref, 
-					rcode, 
-					aff,
-					browser,
-					bhash,
-					device, 
-					
-					os, 
-					tz,
-					--vp,
-					--loc frozen<geo_pol>,
-					latlon,
-					zip,
-					owner,
-					org
-				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
-					b["vid"],
-					created,
-					//compliances map<text,frozen<set<text>>>,
-					cflags,
-					b["sid"],
-					b["uid"],
-					b["avid"],
-					hhash,
-					b["app"],
-					b["rel"],
+				// Scan the row into the slice of interface{}
+				if err := rows.Scan(valuePointers...); err != nil {
+					return err
+				}
 
-					b["url"],
-					ip,
-					iphash,
-					b["gaid"],
-					b["idfa"],
-					b["msid"],
-					b["fbid"],
-					country,
-					region,
-					b["culture"],
-
-					b["source"],
-					b["medium"],
-					b["campaign"],
-					b["term"],
-					b["ref"],
-					b["rcode"],
-					b["aff"],
-					browser,
-					bhash,
-					b["device"],
-
-					b["os"],
-					b["tz"],
-					//  vp frozen<viewport>,
-					//  loc frozen<geo_pol>,
-					latlon,
-					b["zip"],
-					b["owner"],
-					b["org"],
-				).Exec()
-
-				(*w).WriteHeader(http.StatusOK)
-				return nil
-			} else {
-				return fmt.Errorf("Bad request (data)")
+				// Create the map and populate it
+				row := make(map[string]interface{})
+				for i, col := range columns {
+					row[col] = values[i]
+				}
+				result = append(result, row)
 			}
-		} else {
-			return fmt.Errorf("Bad request (body)")
-		}
-	case SVC_GET_AGREE:
-		var vid string
-		if len(r.URL.Query()["vid"]) > 0 {
-			vid = r.URL.Query()["vid"][0]
-			if rows, err := i.Session.Query(`SELECT * FROM agreements where vid=?`, vid).Iter().SliceMap(); err == nil {
-				js, err := json.Marshal(rows)
-				(*w).WriteHeader(http.StatusOK)
-				(*w).Header().Set("Content-Type", "application/json")
-				(*w).Write(js)
-				return err
-			} else {
+
+			js, err := json.Marshal(result)
+			if err != nil {
 				return err
 			}
-		} else {
-			(*w).WriteHeader(http.StatusNotFound)
+
 			(*w).Header().Set("Content-Type", "application/json")
-			(*w).Write([]byte("[]"))
-		}
-		fmt.Println(vid)
-		return nil
-	case SVC_GET_JURISDICTIONS:
-		if jds, err := i.Session.Query(`SELECT * FROM jurisdictions`).Iter().SliceMap(); err == nil {
-			js, err := json.Marshal(jds)
 			(*w).WriteHeader(http.StatusOK)
-			(*w).Header().Set("Content-Type", "application/json")
 			(*w).Write(js)
-			return err
-		} else {
+			return nil
+		}
+
+		(*w).Header().Set("Content-Type", "application/json")
+		(*w).WriteHeader(http.StatusNotFound)
+		(*w).Write([]byte("[]"))
+		return nil
+
+	case SVC_GET_JURISDICTIONS:
+		rows, err := (*i.Session).Query(ctx, `SELECT * FROM jurisdictions`)
+		if err != nil {
 			return err
 		}
+		defer rows.Close()
+
+		var result []map[string]interface{}
+		for rows.Next() {
+			// Get column names
+			columns := rows.Columns()
+			if err != nil {
+				return err
+			}
+
+			// Create a slice of interface{} to hold the values
+			values := make([]interface{}, len(columns))
+			valuePointers := make([]interface{}, len(columns))
+			for i := range values {
+				valuePointers[i] = &values[i]
+			}
+
+			// Scan the row into the slice of interface{}
+			if err := rows.Scan(valuePointers...); err != nil {
+				return err
+			}
+
+			// Create the map and populate it
+			row := make(map[string]interface{})
+			for i, col := range columns {
+				row[col] = values[i]
+			}
+			result = append(result, row)
+		}
+
+		js, err := json.Marshal(result)
+		if err != nil {
+			return err
+		}
+
+		(*w).Header().Set("Content-Type", "application/json")
+		(*w).WriteHeader(http.StatusOK)
+		(*w).Write(js)
+		return nil
+
 	case SVC_GET_GEOIP:
 		ip := getIP(r)
 		if len(r.URL.Query()["ip"]) > 0 {
@@ -468,8 +280,8 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		}
 		pip := net.ParseIP(ip)
 		if gip, err := GetGeoIP(pip); err == nil && gip != nil {
-			(*w).WriteHeader(http.StatusOK)
 			(*w).Header().Set("Content-Type", "application/json")
+			(*w).WriteHeader(http.StatusOK)
 			(*w).Write(gip)
 			return nil
 		} else {
@@ -478,29 +290,73 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 			}
 			return err
 		}
+
 	case SVC_GET_REDIRECTS:
 		if err := i.auth(s); err != nil {
 			return err
 		}
-		if results, err := i.Session.Query(`SELECT * FROM redirect_history`).Iter().SliceMap(); err == nil {
-			json, _ := json.Marshal(map[string]interface{}{"results": results})
-			(*w).Header().Set("Content-Type", "application/json")
-			(*w).WriteHeader(http.StatusOK)
-			(*w).Write(json)
-			return nil
-		} else {
+
+		var result []map[string]interface{}
+		rows, err := (*i.Session).Query(ctx, `SELECT * FROM redirect_history`)
+		if err != nil {
 			return err
 		}
+		defer rows.Close()
+
+		for rows.Next() {
+			// Get column names
+			columns := rows.Columns()
+			if err != nil {
+				return err
+			}
+
+			// Create a slice of interface{} to hold the values
+			values := make([]interface{}, len(columns))
+			valuePointers := make([]interface{}, len(columns))
+			for i := range values {
+				valuePointers[i] = &values[i]
+			}
+
+			// Scan the row into the slice of interface{}
+			if err := rows.Scan(valuePointers...); err != nil {
+				return err
+			}
+
+			// Create the map and populate it
+			row := make(map[string]interface{})
+			for i, col := range columns {
+				row[col] = values[i]
+			}
+			result = append(result, row)
+		}
+
+		json, err := json.Marshal(map[string]interface{}{"results": result})
+		if err != nil {
+			return err
+		}
+
+		(*w).Header().Set("Content-Type", "application/json")
+		(*w).WriteHeader(http.StatusOK)
+		(*w).Write(json)
+		return nil
+
 	case SVC_GET_REDIRECT:
-		//TODO: AG ADD CACHE
 		var redirect string
-		if err := i.Session.Query(`SELECT urlto FROM redirects where urlfrom=?`, fmt.Sprintf("%s%s", r.Host, r.URL.Path)).Scan(&redirect); err == nil {
-			s.Values = &map[string]string{"Redirect": redirect}
-			http.Redirect(*w, r, redirect, http.StatusFound)
-			return nil
-		} else {
+		err := (*i.Session).QueryRow(ctx,
+			`SELECT urlto FROM redirects WHERE urlfrom = ?`,
+			fmt.Sprintf("%s%s", r.Host, r.URL.Path)).Scan(&redirect)
+
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return fmt.Errorf("Redirect not found")
+			}
 			return err
 		}
+
+		s.Values = &map[string]string{"Redirect": redirect}
+		http.Redirect(*w, r, redirect, http.StatusFound)
+		return nil
+
 	case SVC_POST_REDIRECT:
 		if err := i.auth(s); err != nil {
 			return err
@@ -543,7 +399,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 				if len(urlfromURL.Path) < 2 {
 					return fmt.Errorf("Bad URL (from path)")
 				}
-				//[hhash]
+
 				var hhash *string
 				addr := getHost(r)
 				if addr != "" {
@@ -551,37 +407,36 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 					hhash = &temp
 				}
 
-				if /* results, */ err := i.Session.Query(`INSERT into redirects (
-					 hhash,
-					 urlfrom, 					
-					 urlto,
-					 updated, 
-					 updater 
-				 ) values (?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+				err = (*i.Session).Exec(ctx, `
+					INSERT INTO redirects (
+						hhash,
+						urlfrom,
+						urlto,
+						updated,
+						updater
+					) VALUES (?, ?, ?, ?, ?)`,
 					hhash,
 					strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path),
 					urlto,
 					updated,
-					(*s.Values)["uid"],
-				).Exec(); err != nil {
+					(*s.Values)["uid"])
+
+				if err != nil {
 					return err
 				}
-				// Removed 'IF NOT EXISTS'
-				//.NoSkipMetadata().Iter().SliceMap()
-				// if false == results[0]["[applied]"] {
-				// 	return fmt.Errorf("URL exists")
-				// }
-				if err := i.Session.Query(`INSERT into redirect_history (
-					 urlfrom, 
-					 hostfrom,
-					 slugfrom, 
-					 urlto, 
-					 hostto, 
-					 pathto, 
-					 searchto, 
-					 updated, 
-					 updater
-				 ) values (?,?,?,?,?,?,?,?,?)`,
+
+				err = (*i.Session).Exec(ctx, `
+					INSERT INTO redirect_history (
+						urlfrom,
+						hostfrom,
+						slugfrom,
+						urlto,
+						hostto,
+						pathto,
+						searchto,
+						updated,
+						updater
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					urlfrom,
 					strings.ToLower(urlfromURL.Host),
 					strings.ToLower(urlfromURL.Path),
@@ -591,278 +446,226 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 					b["searchto"],
 					updated,
 					(*s.Values)["uid"],
-				).Exec(); err != nil {
+				)
+
+				if err != nil {
 					return err
 				}
+
 				(*w).WriteHeader(http.StatusOK)
 				return nil
-			} else {
-				return fmt.Errorf("Bad request (data)")
 			}
-		} else {
-			return fmt.Errorf("Bad request (body)")
+			return fmt.Errorf("Bad request (data)")
 		}
-	default:
-		return fmt.Errorf("[ERROR] Cassandra service not implemented %d", s.ServiceType)
-	}
+		return fmt.Errorf("Bad request (body)")
 
+	default:
+		return fmt.Errorf("[ERROR] ClickHouse service not implemented %d", s.ServiceType)
+	}
 }
 
-// ////////////////////////////////////// C*
+// ////////////////////////////////////// Clickhouse
 func (i *ClickhouseService) prune() error {
 	var lastCreated time.Time
-	var iter *gocql.Iter
-	keyspaceMetadata, err := i.Session.KeyspaceMetadata(i.Configuration.Context)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
-	b := i.Session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
-	// var row map[string]interface{}
 	if !i.AppConfig.PruneLogsOnly {
 		for _, p := range i.Configuration.Prune {
 			var pruned = 0
 			var total = 0
-			var pageSize = 5000
-			var pageState []byte
-			if p.PageSize > 1 {
-				pageSize = p.PageSize
-			}
-			for {
-				switch p.Table {
-				case "visitors", "sessions", "events", "events_recent":
-					iter = i.Session.Query(fmt.Sprintf(`SELECT * FROM %s`, p.Table)).PageSize(pageSize).PageState(pageState).Iter()
-				default:
-					err = fmt.Errorf("Table %s not supported for pruning", p.Table)
-					break
+
+			switch p.Table {
+			case "visitors", "sessions", "events", "events_recent":
+				// Get rows to prune
+				rows, err := (*i.Session).Query(ctx, fmt.Sprintf(`SELECT * FROM %s WHERE updated IS NULL`, p.Table))
+				if err != nil {
+					if i.AppConfig.Debug {
+						fmt.Printf("[[WARNING]] ERROR READING TABLE [%s] %v\n", p.Table, err)
+					}
+					continue
 				}
-				nextPageState := iter.PageState()
-				for {
-					//TODO: Could optimize with static pointers later
-					// row := map[string]interface{}{
-					// 	"eid": &eid,
-					// 	"ip":  &ip,
-					// }
+
+				for rows.Next() {
+					total++
 					row := make(map[string]interface{})
-					if !iter.MapScan(row) {
-						err = iter.Close()
-						if i.AppConfig.Debug && err != nil {
+					// Get column names
+					columns := rows.Columns()
+					if err != nil {
+						if i.AppConfig.Debug {
+							fmt.Printf("[[WARNING]] ERROR GETTING COLUMNS [%s] %v\n", p.Table, err)
+						}
+						continue
+					}
+
+					// Create a slice of interface{} to hold the values
+					values := make([]interface{}, len(columns))
+					valuePointers := make([]interface{}, len(columns))
+					for i := range values {
+						valuePointers[i] = &values[i]
+					}
+
+					// Scan the row into the slice of interface{}
+					if err := rows.Scan(valuePointers...); err != nil {
+						if i.AppConfig.Debug {
 							fmt.Printf("[[WARNING]] ERROR READING ROW [%s] %v\n", p.Table, err)
 						}
-						break
-					}
-					total += 1
-					//CHECK IF ALREADY CLEANED
-					if u, ok := row["updated"].(time.Time); ok {
-						if !u.IsZero() {
-							continue
-						}
-					}
-					//PROCESS THE ROW
-					expired, created := checkRowExpired(row, keyspaceMetadata.Tables[p.Table], p, i.AppConfig.PruneSkipToTimestamp)
-					switch p.Table {
-					case "visitors", "sessions", "events", "events_recent":
-						if expired {
-							pruned += 1
-							if created.After(lastCreated) {
-								lastCreated = *created
-							}
-
-							if p.ClearAll {
-								switch p.Table {
-								case "visitors":
-									b.Entries = append(b.Entries, gocql.BatchEntry{
-										Stmt:       `DELETE from visitors where vid=?`,
-										Args:       []interface{}{row["vid"]},
-										Idempotent: i.AppConfig.PruneUpdateConfig,
-									})
-								case "sessions":
-									b.Entries = append(b.Entries, gocql.BatchEntry{
-										Stmt:       `DELETE from sessions where vid=? and sid=?`,
-										Args:       []interface{}{row["vid"], row["sid"]},
-										Idempotent: i.AppConfig.PruneUpdateConfig,
-									})
-								case "events", "events_recent":
-									b.Entries = append(b.Entries, gocql.BatchEntry{
-										Stmt:       fmt.Sprintf(`DELETE from %s where eid=?`, p.Table),
-										Args:       []interface{}{row["eid"]},
-										Idempotent: i.AppConfig.PruneUpdateConfig,
-									})
-								}
-							} else {
-								update := make([]string, 0)
-								desthash := make([]string, 0)
-								var nparams string
-								var params string
-								var dhashes string
-								var fields string
-								for _, f := range p.Fields {
-									update = append(update, fmt.Sprintf("%s=null", f.Id))
-									if v, ok := row[f.Id].(string); ok && (len(f.DestParamHash) > 0) {
-										desthash = append(desthash, fmt.Sprintf(`'%s':'%s'`, f.DestParamHash, sha(v)))
-									}
-								}
-								if len(update) > 0 {
-									fields = ", " + strings.Join(update, ",")
-								}
-								if p.ClearNumericParams {
-									nparams = ", nparams=null "
-								}
-								if len(desthash) > 0 {
-									dhashes = "{" + strings.Join(desthash, ",") + "}"
-									if p.ClearParams {
-										params = ", params=" + dhashes
-									} else {
-										params = ", params=params+" + dhashes
-									}
-								} else if p.ClearParams {
-									params = ", params=null "
-								}
-								switch p.Table {
-								case "visitors":
-									b.Entries = append(b.Entries, gocql.BatchEntry{
-										Stmt:       fmt.Sprintf(`UPDATE visitors set updated=? %s %s %s where vid=?`, fields, params, nparams),
-										Args:       []interface{}{time.Now().UTC(), row["vid"]},
-										Idempotent: i.AppConfig.PruneUpdateConfig,
-									})
-								case "sessions":
-									b.Entries = append(b.Entries, gocql.BatchEntry{
-										Stmt:       fmt.Sprintf(`UPDATE sessions set updated=? %s %s %s where vid=? and sid=?`, fields, params, nparams),
-										Args:       []interface{}{time.Now().UTC(), row["vid"], row["sid"]},
-										Idempotent: i.AppConfig.PruneUpdateConfig,
-									})
-								case "events", "events_recent":
-									b.Entries = append(b.Entries, gocql.BatchEntry{
-										Stmt:       fmt.Sprintf(`UPDATE %s set updated=? %s %s %s where eid=?`, p.Table, fields, params, nparams),
-										Args:       []interface{}{time.Now().UTC(), row["eid"]},
-										Idempotent: i.AppConfig.PruneUpdateConfig,
-									})
-								}
-							}
-						}
+						continue
 					}
 
+					// Create the map and populate it
+					for i, col := range columns {
+						row[col] = values[i]
+					}
+
+					// Check if row should be pruned
+					expired, created := checkRowExpired(row, nil, p, i.AppConfig.PruneSkipToTimestamp)
+					if !expired {
+						continue
+					}
+
+					pruned++
+					if created.After(lastCreated) {
+						lastCreated = *created
+					}
+
+					// Build prune query
+					if p.ClearAll {
+						var query string
+						switch p.Table {
+						case "visitors":
+							query = `ALTER TABLE visitors DELETE WHERE vid = ?`
+						case "sessions":
+							query = `ALTER TABLE sessions DELETE WHERE vid = ? AND sid = ?`
+						case "events", "events_recent":
+							query = fmt.Sprintf(`ALTER TABLE %s DELETE WHERE eid = ?`, p.Table)
+						}
+
+						if err := (*i.Session).Exec(ctx, query, row["vid"], row["sid"]); err != nil && i.AppConfig.Debug {
+							fmt.Printf("[[WARNING]] COULD NOT DELETE ROW [%s] %v\n", p.Table, err)
+						}
+
+					} else {
+						// Build partial update
+						update := make([]string, 0)
+						desthash := make([]string, 0)
+						for _, f := range p.Fields {
+							update = append(update, fmt.Sprintf("%s = NULL", f.Id))
+							if v, ok := row[f.Id].(string); ok && len(f.DestParamHash) > 0 {
+								desthash = append(desthash, fmt.Sprintf(`'%s':'%s'`, f.DestParamHash, sha(v)))
+							}
+						}
+
+						var query string
+						switch p.Table {
+						case "visitors":
+							query = fmt.Sprintf(`ALTER TABLE visitors UPDATE updated = ?, %s WHERE vid = ?`,
+								strings.Join(update, ","))
+						case "sessions":
+							query = fmt.Sprintf(`ALTER TABLE sessions UPDATE updated = ?, %s WHERE vid = ? AND sid = ?`,
+								strings.Join(update, ","))
+						case "events", "events_recent":
+							query = fmt.Sprintf(`ALTER TABLE %s UPDATE updated = ?, %s WHERE eid = ?`,
+								p.Table, strings.Join(update, ","))
+						}
+
+						if err := (*i.Session).Exec(ctx, query, time.Now().UTC(), row["vid"], row["sid"]); err != nil && i.AppConfig.Debug {
+							fmt.Printf("[[WARNING]] COULD NOT UPDATE ROW [%s] %v\n", p.Table, err)
+						}
+					}
 				}
-				terr := i.Session.ExecuteBatch(b)
-				b = i.Session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
-				fmt.Printf("Processed %d rows %d pruned\n", total, pruned)
-				if terr != nil && err == nil {
-					err = terr
-				}
-				if i.AppConfig.PruneLimit != 0 && i.AppConfig.PruneLimit > total {
-					break
-				}
-				if i.AppConfig.Debug && terr != nil {
-					fmt.Printf("[[WARNING]] COULD NOT CLEAN ALL RECORDS FOR [%s] %v\n", p.Table, terr)
-				}
-				//TODO: Optimize Paging
-				//fmt.Printf("next page state: %+v\n", nextPageState)
-				if len(nextPageState) == 0 {
-					break
-				}
-				pageState = nextPageState
+			default:
+				return fmt.Errorf("Table %s not supported for pruning", p.Table)
 			}
-			fmt.Printf("Pruned [Cassandra].[%s].[%v]: %d/%d rows\n", i.Configuration.Context, p.Table, pruned, total)
 
+			fmt.Printf("Pruned [ClickHouse].[%s].[%v]: %d/%d rows\n", i.Configuration.Context, p.Table, pruned, total)
 		}
 	}
 
 	if i.AppConfig.PruneUpdateConfig && lastCreated.Unix() > i.AppConfig.PruneSkipToTimestamp {
-		s, error := ioutil.ReadFile(i.AppConfig.ConfigFile)
+		s, err := ioutil.ReadFile(i.AppConfig.ConfigFile)
+		if err != nil {
+			return err
+		}
 		var j interface{}
-		json.Unmarshal(s, &j)
+		if err := json.Unmarshal(s, &j); err != nil {
+			return err
+		}
 		SetValueInJSON(j, "PruneSkipToTimestamp", lastCreated.Unix())
 		s, _ = json.Marshal(j)
 		var prettyJSON bytes.Buffer
-		error = json.Indent(&prettyJSON, s, "", "    ")
-		if error == nil {
-			//fmt.Println(prettyJSON.String())
-			ioutil.WriteFile(i.AppConfig.ConfigFile, prettyJSON.Bytes(), 0644)
+		if err := json.Indent(&prettyJSON, s, "", "    "); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(i.AppConfig.ConfigFile, prettyJSON.Bytes(), 0644); err != nil {
+			return err
 		}
 	}
 
-	//Now Prune the LOGS table
+	// Prune logs table
 	if !i.AppConfig.PruneLogsSkip {
 		var pruned = 0
 		var total = 0
-		var pageSize = 10000
-		var pageState []byte
-		if i.AppConfig.PruneLogsPageSize > 0 {
-			pageSize = i.AppConfig.PruneLogsPageSize
-		}
 		ttl := 2592000
 		if i.AppConfig.PruneLogsTTL > 0 {
 			ttl = i.AppConfig.PruneLogsTTL
 		}
-		for {
-			iter = i.Session.Query(`SELECT id FROM logs`).PageSize(pageSize).PageState(pageState).Iter()
-			nextPageState := iter.PageState()
-			for {
-				var (
-					id gocql.UUID
-				)
-				if !iter.Scan(&id) {
-					err = iter.Close()
-					break
-				}
-				total += 1
 
-				//PROCESS THE ROW
-				expired := checkIdExpired(&id, ttl)
-				if expired {
-					pruned += 1
-					b.Entries = append(b.Entries, gocql.BatchEntry{
-						Stmt:       `DELETE from logs where id=?`,
-						Args:       []interface{}{id},
-						Idempotent: false,
-					})
+		rows, err := (*i.Session).Query(ctx, `SELECT id FROM logs`)
+		if err != nil {
+			return err
+		}
+
+		for rows.Next() {
+			var id uuid.UUID
+			if err := rows.Scan(&id); err != nil {
+				continue
+			}
+			total++
+
+			if checkUUIDExpired(&id, ttl) {
+				pruned++
+				if err := (*i.Session).Exec(ctx, `ALTER TABLE logs DELETE WHERE id = ?`, id); err != nil && i.AppConfig.Debug {
+					fmt.Printf("[[WARNING]] COULD NOT DELETE LOG %v\n", err)
 				}
 			}
-			fmt.Printf("Processed %d rows %d pruned\n", total, pruned)
-			terr := i.Session.ExecuteBatch(b)
-			b = i.Session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
-			if terr != nil && err == nil {
-				err = terr
-			}
-			if i.AppConfig.Debug && terr != nil {
-				fmt.Printf("[[WARNING]] COULD NOT CLEAN ALL RECORDS FOR [LOGS] %v\n", terr)
-			}
-			if len(nextPageState) == 0 {
-				break
-			}
-			pageState = nextPageState
 		}
-		fmt.Printf("Pruned [Cassandra].[%s].[logs]: %d/%d rows\n", i.Configuration.Context, pruned, total)
+
+		fmt.Printf("Pruned [ClickHouse].[%s].[logs]: %d/%d rows\n", i.Configuration.Context, pruned, total)
 	}
-	return err
+
+	return nil
 }
 
-// ////////////////////////////////////// C*
+// ////////////////////////////////////// Clickhouse
 func (i *ClickhouseService) write(w *WriteArgs) error {
-	err := fmt.Errorf("Could not write to any cassandra server in cluster")
 	v := *w.Values
 	switch w.WriteType {
 	case WRITE_COUNT:
 		if i.AppConfig.Debug {
 			fmt.Printf("COUNT %s\n", w)
 		}
-		return i.Session.Query(`UPDATE counters set total=total+1 where id=?`,
-			v["id"]).Exec()
+		return (*i.Session).Exec(context.Background(), `
+			ALTER TABLE counters 
+			UPDATE total = total + 1 
+			WHERE id = ?`,
+			v["id"])
+
 	case WRITE_UPDATE:
 		if i.AppConfig.Debug {
 			fmt.Printf("UPDATE %s\n", w)
 		}
 		timestamp := time.Now().UTC()
-		updated, ok := v["updated"].(string)
-		if ok {
-			millis, err := strconv.ParseInt(updated, 10, 64)
-			if err == nil {
+		if updated, ok := v["updated"].(string); ok {
+			if millis, err := strconv.ParseInt(updated, 10, 64); err == nil {
 				timestamp = time.Unix(0, millis*int64(time.Millisecond))
 			}
 		}
-		return i.Session.Query(`INSERT INTO updates (id, updated, msg) values (?,?,?)`,
+		return (*i.Session).Exec(context.Background(), `
+			INSERT INTO updates (id, updated, msg) 
+			VALUES (?, ?, ?)`,
 			v["id"],
 			timestamp,
-			v["msg"]).Exec()
+			v["msg"])
 
 	case WRITE_LOG:
 		if i.AppConfig.Debug {
@@ -915,25 +718,11 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 			iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
 		}
 
-		return i.Session.Query(`INSERT INTO logs
-		 (
-			 id,
-			 ldate,
-			 created,
-			 ltime,
-			 topic, 
-			 name, 
-			 host, 
-			 hostname, 
-			 owner,
-			 ip,
-			 iphash,
-			 level, 
-			 msg,
-			 params
-		 ) 
-		 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?)`, //14
-			gocql.TimeUUID(),
+		return (*i.Session).Exec(context.Background(), `
+			INSERT INTO logs
+			(id, ldate, created, ltime, topic, name, host, hostname, owner, ip, iphash, level, msg, params)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			uuid.New(),
 			v["ldate"],
 			time.Now().UTC(),
 			ltime,
@@ -946,1109 +735,8 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 			iphash,
 			level,
 			v["msg"],
-			v["params"]).Exec()
-	case WRITE_EVENT:
-		//TODO: Commented for AWS, perhaps non-optimal, CHECK
-		//go func() {
+			v["params"])
 
-		//////////////////////////////////////////////
-		//FIX CASE
-		//////////////////////////////////////////////
-		delete(v, "cleanIP")
-		cleanString(&(w.Browser))
-		cleanString(&(w.Host))
-		cleanInterfaceString(v["app"])
-		cleanInterfaceString(v["rel"])
-		cleanInterfaceString(v["ptyp"])
-		cleanInterfaceString(v["xid"])
-		cleanInterfaceString(v["split"])
-		cleanInterfaceString(v["ename"])
-		cleanInterfaceString(v["etyp"])
-		cleanInterfaceString(v["sink"])
-		cleanInterfaceString(v["source"])
-		cleanInterfaceString(v["medium"])
-		cleanInterfaceString(v["campaign"])
-		cleanInterfaceString(v["term"])
-		cleanInterfaceString(v["rcode"])
-		cleanInterfaceString(v["aff"])
-		cleanInterfaceString(v["device"])
-		cleanInterfaceString(v["os"])
-		cleanInterfaceString(v["relation"])
-
-		//////////////////////////////////////////////
-		//FIX VARS
-		//////////////////////////////////////////////
-		//[hhash]
-		var hhash *string
-		if w.Host != "" {
-			temp := strconv.FormatInt(int64(hash(w.Host)), 36)
-			hhash = &temp
-		}
-		//[iphash]
-		var iphash string
-		if w.IP != "" {
-			//128 bits = ipv6
-			iphash = strconv.FormatInt(int64(hash(w.IP)), 36)
-			iphash = iphash + strconv.FormatInt(int64(hash(w.IP+iphash)), 36)
-			iphash = iphash + strconv.FormatInt(int64(hash(w.IP+iphash)), 36)
-			iphash = iphash + strconv.FormatInt(int64(hash(w.IP+iphash)), 36)
-		}
-		//check host account id
-		//don't track without it
-		//SEVERELY LIMITING SO DON'T USE IT
-		var hAccountID *string
-		if w.Host != "" && i.AppConfig.AccountHashMixer != "" {
-			temp := strconv.FormatInt(int64(hash(w.Host+i.AppConfig.AccountHashMixer)), 36)
-			hAccountID = &temp
-			if v["acct"].(string) != *hAccountID {
-				err := fmt.Errorf("[ERROR] Host: %s Account-ID: %s Incorrect for (acct): %s", w.Host, *hAccountID, v["acct"])
-				return err
-			}
-		}
-		//[updated]
-		updated := time.Now().UTC()
-		//[rid]
-		var rid *gocql.UUID
-		if temp, ok := v["rid"].(string); ok {
-			if temp2, err := gocql.ParseUUID(temp); err == nil {
-				rid = &temp2
-			}
-		}
-		//[auth]
-		var auth *gocql.UUID
-		if temp, ok := v["auth"].(string); ok {
-			if temp2, err := gocql.ParseUUID(temp); err == nil {
-				auth = &temp2
-			}
-		}
-		//[country]
-		var country *string
-		var region *string
-		var city *string
-		zip := v["zip"]
-		ensureInterfaceString(zip)
-		if tz, ok := v["tz"].(string); ok {
-			if ct, oktz := countries[tz]; oktz {
-				country = &ct
-			}
-		}
-		//[latlon]
-		var latlon *geo_point
-		latf, oklatf := v["lat"].(float64)
-		lonf, oklonf := v["lon"].(float64)
-		if oklatf && oklonf {
-			//Float
-			latlon = &geo_point{}
-			latlon.Lat = latf
-			latlon.Lon = lonf
-		} else {
-			//String
-			lats, oklats := v["lat"].(string)
-			lons, oklons := v["lon"].(string)
-			if oklats && oklons {
-				latlon = &geo_point{}
-				latlon.Lat, _ = strconv.ParseFloat(lats, 64)
-				latlon.Lon, _ = strconv.ParseFloat(lons, 64)
-			}
-		}
-		if latlon == nil {
-			if gip, err := GetGeoIP(net.ParseIP(w.IP)); err == nil && gip != nil {
-				var geoip GeoIP
-				if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
-					latlon = &geo_point{}
-					latlon.Lat = geoip.Latitude
-					latlon.Lon = geoip.Longitude
-					if geoip.CountryISO2 != "" {
-						country = &geoip.CountryISO2
-					}
-					if geoip.Region != "" {
-						region = &geoip.Region
-					}
-					if geoip.City != "" {
-						city = &geoip.City
-					}
-					if zip == nil && geoip.Zip != "" {
-						zip = &geoip.Zip
-					}
-
-				}
-			}
-		}
-		if !i.AppConfig.UseRegionDescriptions {
-			//country = nil
-			region = nil
-			city = nil
-		}
-		//Self identification of geo_pol overrules geoip
-		if ct, ok := v["country"].(string); ok {
-			country = &ct
-		}
-		if r, ok := v["region"].(string); ok {
-			region = &r
-		}
-		if r, ok := v["city"].(string); ok {
-			city = &r
-		}
-		upperString(country)
-		cleanString(region)
-		cleanString(city)
-		//[vp]
-		var vp *viewport
-		width, okwf := v["w"].(float64)
-		height, okhf := v["h"].(float64)
-		if okwf && okhf {
-			//Float
-			vp = &viewport{}
-			vp.H = int64(height)
-			vp.W = int64(width)
-		}
-		//[duration]
-		var duration *int64
-		if d, ok := v["duration"].(string); ok {
-			temp, _ := strconv.ParseInt(d, 10, 64)
-			duration = &temp
-		}
-		if d, ok := v["duration"].(float64); ok {
-			temp := int64(d)
-			duration = &temp
-		}
-		//[ver]
-		var version *int64
-		if ver, ok := v["version"].(string); ok {
-			temp, _ := strconv.ParseInt(ver, 10, 32)
-			version = &temp
-		}
-		if ver, ok := v["version"].(float64); ok {
-			temp := int64(ver)
-			version = &temp
-		}
-		//[cflags] - compliance flags
-		var cflags *int64
-		if com, ok := v["cflags"].(int64); ok {
-			cflags = &com
-		} else if com, ok := v["cflags"].(float64); ok {
-			temp := int64(com)
-			cflags = &temp
-		}
-		//[bhash]
-		var bhash *string
-		if w.Browser != "" {
-			temp := strconv.FormatInt(int64(hash(w.Browser)), 36)
-			bhash = &temp
-		}
-		//[score]
-		var score *float64
-		if s, ok := v["score"].(string); ok {
-			temp, _ := strconv.ParseFloat(s, 64)
-			score = &temp
-
-		} else if s, ok := v["score"].(float64); ok {
-			score = &s
-		}
-
-		//Exclude the following from **all** params in events,visitors and sessions. Note: further exclusions after events insert.
-		//[params]
-		var params *map[string]interface{}
-		if ps, ok := v["params"].(string); ok {
-			json.Unmarshal([]byte(ps), &params)
-		} else if ps, ok := v["params"].(map[string]interface{}); ok {
-			params = &ps
-		}
-		if params != nil {
-			//De-identify data
-			delete(*params, "uri")
-			delete(*params, "hhash")
-			delete(*params, "iphash")
-			delete(*params, "cell")
-			delete(*params, "chash")
-			delete(*params, "email")
-			delete(*params, "ehash")
-			delete(*params, "uname")
-			delete(*params, "acct")
-			//Remove column params/duplicates
-			delete(*params, "first")
-			delete(*params, "lat")
-			delete(*params, "lon")
-			delete(*params, "w")
-			delete(*params, "h")
-			delete(*params, "params")
-			delete(*params, "eid")
-			delete(*params, "tr")
-			delete(*params, "time")
-			delete(*params, "vid")
-			delete(*params, "did")
-			delete(*params, "sid")
-			delete(*params, "app")
-			delete(*params, "rel")
-			delete(*params, "cflags")
-			delete(*params, "created")
-			delete(*params, "uid")
-			delete(*params, "last")
-			delete(*params, "url")
-			delete(*params, "ip")
-			delete(*params, "latlon")
-			delete(*params, "ptyp")
-			delete(*params, "bhash")
-			delete(*params, "auth")
-			delete(*params, "duration")
-			delete(*params, "xid")
-			delete(*params, "split")
-			delete(*params, "etyp")
-			delete(*params, "ver")
-			delete(*params, "sink")
-			delete(*params, "score")
-			delete(*params, "params")
-			delete(*params, "gaid")
-			delete(*params, "idfa")
-			delete(*params, "msid")
-			delete(*params, "fbid")
-			delete(*params, "country")
-			delete(*params, "region")
-			delete(*params, "city")
-			delete(*params, "zip")
-			delete(*params, "culture")
-			delete(*params, "ref")
-			delete(*params, "aff")
-			delete(*params, "browser")
-			delete(*params, "device")
-			delete(*params, "os")
-			delete(*params, "tz")
-			delete(*params, "vp")
-			delete(*params, "targets")
-			delete(*params, "rid")
-			delete(*params, "relation")
-			delete(*params, "rcode")
-
-			delete(*params, "ename")
-			delete(*params, "source")
-			delete(*params, "content")
-			delete(*params, "medium")
-			delete(*params, "campaign")
-			delete(*params, "term")
-
-			if len(*params) == 0 {
-				params = nil
-			}
-		}
-
-		var nparams *map[string]float64
-		if params != nil {
-			tparams := make(map[string]float64)
-			for npk, npv := range *params {
-				if d, ok := npv.(float64); ok {
-					tparams[npk] = d
-					(*params)[npk] = fmt.Sprintf("%f", d) //let's keep both string and numerical
-					//delete(*params, npk) //we delete the old copy
-					continue
-				}
-				if npb, ok := npv.(bool); ok {
-					if npb {
-						tparams[npk] = 1
-					} else {
-						tparams[npk] = 0
-					}
-					(*params)[npk] = fmt.Sprintf("%v", npb)
-					continue
-				}
-				if nps, ok := npv.(string); !ok {
-					//UNKNOWN TYPE
-					(*params)[npk] = fmt.Sprintf("%+v", npv) //clean up instead
-					//delete(*params, npk) //remove if not a string
-				} else {
-					if strings.TrimSpace(strings.ToLower(nps)) == "true" {
-						tparams[npk] = 1
-						continue
-					}
-					if strings.TrimSpace(strings.ToLower(nps)) == "false" {
-						tparams[npk] = 0
-						continue
-					}
-					if npf, err := strconv.ParseFloat(nps, 64); err == nil && len(nps) > 0 {
-						tparams[npk] = npf
-					}
-
-				}
-			}
-			if len(tparams) > 0 {
-				nparams = &tparams
-			}
-		}
-
-		//[culture]
-		var culture *string
-		c := strings.Split(w.Language, ",")
-		if len(c) > 0 {
-			culture = &c[0]
-			cleanString(culture)
-		}
-
-		//WARNING: w.URI has destructive changes here
-		//[last],[url]
-		if i.AppConfig.IsUrlFiltered {
-			if last, ok := v["last"].(string); ok {
-				filterUrl(i.AppConfig, &last, &i.AppConfig.UrlFilterMatchGroup)
-				filterUrlPrefix(&last)
-				v["last"] = last
-			}
-			if url, ok := v["url"].(string); ok {
-				filterUrl(i.AppConfig, &url, &i.AppConfig.UrlFilterMatchGroup)
-				filterUrlPrefix(&url)
-				v["url"] = url
-			} else {
-				//check for /tr/ /pub/ /img/ (ignore)
-				if !regexInternalURI.MatchString(w.URI) {
-					filterUrl(i.AppConfig, &w.URI, &i.AppConfig.UrlFilterMatchGroup)
-					filterUrlPrefix(&w.URI)
-					v["url"] = w.URI
-				} else {
-					delete(v, "url")
-				}
-			}
-		} else {
-			if last, ok := v["last"].(string); ok {
-				filterUrlPrefix(&last)
-				filterUrlAppendix(&last)
-				v["last"] = last
-			}
-			if url, ok := v["url"].(string); ok {
-				filterUrlPrefix(&url)
-				filterUrlAppendix(&url)
-				v["url"] = url
-			} else {
-				//check for /tr/ /pub/ /img/ (ignore)
-				if !regexInternalURI.MatchString(w.URI) {
-					filterUrlPrefix(&w.URI)
-					filterUrlAppendix(&w.URI)
-					v["url"] = w.URI
-				} else {
-					delete(v, "url")
-				}
-			}
-		}
-
-		//[Cell Phone]
-		var chash *string
-		if temp, ok := v["chash"].(string); ok {
-			chash = &temp
-		} else if temp, ok := v["cell"].(string); ok {
-			temp = strings.ToLower(strings.TrimSpace(temp))
-			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
-			chash = &temp
-		}
-		delete(v, "cell")
-
-		//[Email]
-		var ehash *string
-		if temp, ok := v["ehash"].(string); ok {
-			ehash = &temp
-		} else if temp, ok := v["email"].(string); ok {
-			temp = strings.ToLower(strings.TrimSpace(temp))
-			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
-			ehash = &temp
-		}
-		delete(v, "email")
-
-		//[uname]
-		var uhash *string
-		if temp, ok := v["uhash"].(string); ok {
-			uhash = &temp
-		} else if temp, ok := v["uname"].(string); ok {
-			temp = strings.ToLower(strings.TrimSpace(temp))
-			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
-			uhash = &temp
-		}
-		delete(v, "uname")
-
-		//EventID
-		if temp, ok := v["eid"].(string); ok {
-			evt, _ := gocql.ParseUUID(temp)
-			if evt.Timestamp() != 0 {
-				w.EventID = evt
-			}
-		}
-		//Double check
-		if w.EventID.Timestamp() == 0 {
-			w.EventID = gocql.TimeUUID()
-		}
-
-		//[vid] - default
-		isNew := false
-		if vidstring, ok := v["vid"].(string); !ok {
-			v["vid"] = gocql.TimeUUID()
-			isNew = true
-		} else {
-			//Let's override the event id too
-			tempvid, _ := gocql.ParseUUID(vidstring)
-			if tempvid.Timestamp() == 0 {
-				v["vid"] = gocql.TimeUUID()
-				isNew = true
-			}
-		}
-		//[uid] - let's overwrite the vid if we have a uid
-		if uidstring, ok := v["uid"].(string); ok {
-			tempuid, _ := gocql.ParseUUID(uidstring)
-			if tempuid.Timestamp() != 0 {
-				v["vid"] = v["uid"]
-				isNew = false
-			}
-		}
-		//[sid]
-		if sidstring, ok := v["sid"].(string); !ok {
-			if isNew {
-				v["sid"] = v["vid"]
-			} else {
-				v["sid"] = gocql.TimeUUID()
-			}
-		} else {
-			tempuuid, _ := gocql.ParseUUID(sidstring)
-			if tempuuid.Timestamp() == 0 {
-				v["sid"] = gocql.TimeUUID()
-			} else {
-				v["sid"] = tempuuid
-			}
-		}
-
-		//////////////////////////////////////////////
-		//Persist
-		//////////////////////////////////////////////
-
-		//ips
-		if xerr := i.Session.Query(`UPDATE ips set total=total+1 where hhash=? AND ip=?`,
-			hhash, w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[ips]:", xerr)
-		}
-
-		//routed
-		if xerr := i.Session.Query(`UPDATE routed set url=? where hhash=? AND ip=?`,
-			v["url"], hhash, w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[routed]:", xerr)
-		}
-
-		if xerr := i.Session.Query(`INSERT into events_recent 
-			 (
-				 eid,
-				 vid, 
-				 sid,
-				 hhash, 
-				 app,
-				 rel,
-				 cflags,
-				 created,
-				 uid,
-				 last,
-				 url,
-				 ip,
-				 iphash,
-				 latlon,
-				 ptyp,
-				 bhash,
-				 auth,
-				 duration,
-				 xid,
-				 split,
-				 ename,
-				 source,
-				 medium,
-				 campaign,
-				 country,
-				 region,
-				 city,
-				 zip,
-				 term,
-				 etyp,
-				 ver,
-				 sink,
-				 score,							
-				 params,
-				 nparams,
-				 targets,
-				 rid,
-				 relation
-			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
-			w.EventID,
-			v["vid"],
-			v["sid"],
-			hhash,
-			v["app"],
-			v["rel"],
-			cflags,
-			updated,
-			v["uid"],
-			v["last"],
-			v["url"],
-			w.IP,
-			iphash,
-			latlon,
-			v["ptyp"],
-			bhash,
-			auth,
-			duration,
-			v["xid"],
-			v["split"],
-			v["ename"],
-			v["source"],
-			v["medium"],
-			v["campaign"],
-			country,
-			region,
-			city,
-			zip,
-			v["term"],
-			v["etyp"],
-			version,
-			v["sink"],
-			score,
-			params,
-			nparams,
-			v["targets"],
-			rid,
-			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[events_recent]:", xerr)
-		}
-
-		if !i.AppConfig.UseRemoveIP {
-			v["cleanIP"] = w.IP
-		}
-
-		//events
-		if xerr := i.Session.Query(`INSERT into events 
-			 (
-				 eid,
-				 vid, 
-				 sid,
-				 hhash, 
-				 app,
-				 rel,
-				 cflags,
-				 created,
-				 uid,
-				 last,
-				 url,
-				 ip,
-				 iphash,
-				 latlon,
-				 ptyp,
-				 bhash,
-				 auth,
-				 duration,
-				 xid,
-				 split,
-				 ename,
-				 source,
-				 medium,
-				 campaign,
-				 country,
-				 region,
-				 city,
-				 zip,
-				 term,
-				 etyp,
-				 ver,
-				 sink,
-				 score,							
-				 params,
-				 nparams,
-				 targets,
-				 rid,
-				 relation
-			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
-			w.EventID,
-			v["vid"],
-			v["sid"],
-			hhash,
-			v["app"],
-			v["rel"],
-			cflags,
-			updated,
-			v["uid"],
-			v["last"],
-			v["url"],
-			v["cleanIP"],
-			iphash,
-			latlon,
-			v["ptyp"],
-			bhash,
-			auth,
-			duration,
-			v["xid"],
-			v["split"],
-			v["ename"],
-			v["source"],
-			v["medium"],
-			v["campaign"],
-			country,
-			region,
-			city,
-			zip,
-			v["term"],
-			v["etyp"],
-			version,
-			v["sink"],
-			score,
-			params,
-			nparams,
-			v["targets"],
-			rid,
-			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[events]:", xerr)
-		}
-
-		//Exclude from params in sessions and visitors. Note: more above.
-		if params != nil {
-			delete(*params, "campaign")
-			delete(*params, "source")
-			delete(*params, "medium")
-			if len(*params) == 0 {
-				params = nil
-			}
-		}
-
-		if !w.IsServer {
-
-			w.SaveCookie = true
-
-			//[first]
-			isFirst := isNew || (v["first"] != "false")
-
-			//hits
-			if _, ok := v["url"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE hits set total=total+1 where hhash=? AND url=?`,
-					hhash, v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[hits]:", xerr)
-				}
-			}
-
-			//daily
-			if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.IP, updated).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[dailies]:", xerr)
-			}
-
-			//unknown vid
-			if isNew {
-				if xerr := i.Session.Query(`UPDATE counters set total=total+1 where id='vids_created'`).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[counters]vids_created:", xerr)
-				}
-			}
-
-			//outcome
-			if outcome, ok := v["outcome"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where hhash=? AND outcome=? AND sink=? AND created=? AND url=?`,
-					hhash, outcome, v["sink"], updated, v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[outcomes]:", xerr)
-				}
-			}
-
-			//referrers
-			if _, ok := v["last"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where hhash=? AND url=?`,
-					hhash, v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[referrers]:", xerr)
-				}
-			}
-
-			//referrals
-			if v["ref"] != nil {
-				if xerr := i.Session.Query(`INSERT into referrals 
-					 (
-						 hhash,
-						 vid, 
-						 ref
-					 ) 
-					 values (?,?,?) IF NOT EXISTS`, //3
-					hhash,
-					v["vid"],
-					v["ref"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[referrals]:", xerr)
-				}
-			}
-
-			//referred
-			if v["rcode"] != nil {
-				if xerr := i.Session.Query(`INSERT into referred 
-					 (
-						 hhash,
-						 vid, 
-						 rcode
-					 ) 
-					 values (?,?,?) IF NOT EXISTS`, //3
-					hhash,
-					v["vid"],
-					v["rcode"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[referred]:", xerr)
-				}
-			}
-
-			//hosts
-			if w.Host != "" {
-				if xerr := i.Session.Query(`INSERT into hosts 
-					 (
-						 hhash,
-						 hostname						
-					 ) 
-					 values (?,?) IF NOT EXISTS`, //2
-					hhash,
-					w.Host).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[hosts]:", xerr)
-				}
-			}
-
-			//browsers
-			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where hhash=? AND browser=? AND bhash=?`,
-				hhash, w.Browser, bhash).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[browsers]:", xerr)
-			}
-
-			//nodes
-			if xerr := i.Session.Query(`INSERT into nodes 
-				 (
-					 hhash,
-					 vid, 
-					 uid,
-					 ip,
-					 iphash,
-					 sid
-				 ) 
-				 values (?,?,?,?,?,?)`, //6
-				hhash,
-				v["vid"],
-				v["uid"],
-				w.IP,
-				iphash,
-				v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[nodes]:", xerr)
-			}
-
-			//locations
-			if latlon != nil {
-				if xerr := i.Session.Query(`INSERT into locations 
-				 (
-					 hhash,
-					 vid, 
-					 latlon,
-					 uid,
-					 sid
-				 ) 
-				 values (?,?,?,?,?)`, //5
-					hhash,
-					v["vid"],
-					latlon,
-					v["uid"],
-					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[locations]:", xerr)
-				}
-			}
-
-			//alias
-			if v["uid"] != nil {
-				if xerr := i.Session.Query(`INSERT into aliases 
-					 (
-						 hhash,
-						 vid, 
-						 uid,
-						 sid
-					 ) 
-					 values (?,?,?,?)`, //4
-					hhash,
-					v["vid"],
-					v["uid"],
-					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[aliases]:", xerr)
-				}
-			}
-
-			//users
-			if v["uid"] != nil {
-				if xerr := i.Session.Query(`INSERT into users 
-					 (
-						 hhash,
-						 vid, 
-						 uid,
-						 sid
-					 ) 
-					 values (?,?,?,?)`, //4
-					hhash,
-					v["vid"],
-					v["uid"],
-					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[users]:", xerr)
-				}
-			}
-
-			//uhash
-			if uhash != nil {
-				if xerr := i.Session.Query(`INSERT into usernames 
-					 (
-						 hhash,
-						 vid, 
-						 uhash,
-						 sid
-					 ) 
-					 values (?,?,?,?)`, //4
-					hhash,
-					v["vid"],
-					uhash,
-					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[usernames]:", xerr)
-				}
-			}
-
-			//ehash
-			if ehash != nil {
-				if xerr := i.Session.Query(`INSERT into emails
-					 (
-						 hhash,
-						 vid, 
-						 ehash,
-						 sid
-					 ) 
-					 values (?,?,?,?)`, //4
-					hhash,
-					v["vid"],
-					ehash,
-					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[emails]:", xerr)
-				}
-			}
-
-			//chash
-			if chash != nil {
-				if xerr := i.Session.Query(`INSERT into cells
-					 (
-						 hhash,
-						 vid, 
-						 chash,
-						 sid
-					 ) 
-					 values (?,?,?,?)`, //4
-					hhash,
-					v["vid"],
-					chash,
-					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[cells]:", xerr)
-				}
-			}
-
-			//reqs
-			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where hhash=? AND vid=?`,
-				hhash, v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-				fmt.Println("C*[reqs]:", xerr)
-			}
-
-			if isNew || isFirst {
-				//vistors
-				if xerr := i.Session.Query(`INSERT into visitors 
-						 (
-							 vid, 
-							 did,
-							 sid, 
-							 hhash,
-							 app,
-							 rel,
-							 cflags,
-							 created,
-							 uid,
-							 last,
-							 url,
-							 ip,
-							 iphash,
-							 latlon,
-							 ptyp,
-							 bhash,
-							 auth,
-							 xid,
-							 split,
-							 ename,
-							 etyp,
-							 ver,
-							 sink,
-							 score,							
-							 params,
-							 nparams,
-							 gaid,
-							 idfa,
-							 msid,
-							 fbid,
-							 country,
-							 region,
-							 city,
-							 zip,
-							 culture,
-							 source,
-							 medium,
-							 campaign,
-							 term,
-							 ref,
-							 rcode,
-							 aff,
-							 browser,
-							 device,
-							 os,
-							 tz,
-							 vp
-						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //47
-					v["vid"],
-					v["did"],
-					v["sid"],
-					hhash,
-					v["app"],
-					v["rel"],
-					cflags,
-					updated,
-					v["uid"],
-					v["last"],
-					v["url"],
-					v["cleanIP"],
-					iphash,
-					latlon,
-					v["ptyp"],
-					bhash,
-					auth,
-					v["xid"],
-					v["split"],
-					v["ename"],
-					v["etyp"],
-					version,
-					v["sink"],
-					score,
-					params,
-					nparams,
-					v["gaid"],
-					v["idfa"],
-					v["msid"],
-					v["fbid"],
-					country,
-					region,
-					city,
-					zip,
-					culture,
-					v["source"],
-					v["medium"],
-					v["campaign"],
-					v["term"],
-					v["ref"],
-					v["rcode"],
-					v["aff"],
-					w.Browser,
-					v["device"],
-					v["os"],
-					v["tz"],
-					vp).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[visitors]:", xerr)
-				}
-
-				//starts
-				if xerr := i.Session.Query(`INSERT into sessions 
-						 (
-							 vid, 
-							 did,
-							 sid, 
-							 hhash,
-							 app,
-							 rel,
-							 cflags,
-							 created,
-							 uid,
-							 last,
-							 url,
-							 ip,
-							 iphash,
-							 latlon,
-							 ptyp,
-							 bhash,
-							 auth,
-							 duration,
-							 xid,
-							 split,
-							 ename,
-							 etyp,
-							 ver,
-							 sink,
-							 score,							
-							 params,
-							 nparams,
-							 gaid,
-							 idfa,
-							 msid,
-							 fbid,
-							 country,
-							 region,
-							 city,
-							 zip,
-							 culture,
-							 source,
-							 medium,
-							 campaign,
-							 term,
-							 ref,
-							 rcode,
-							 aff,
-							 browser,
-							 device,
-							 os,
-							 tz,
-							 vp                        
-						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //48
-					v["vid"],
-					v["did"],
-					v["sid"],
-					hhash,
-					v["app"],
-					v["rel"],
-					cflags,
-					updated,
-					v["uid"],
-					v["last"],
-					v["url"],
-					v["cleanIP"],
-					iphash,
-					latlon,
-					v["ptyp"],
-					bhash,
-					auth,
-					duration,
-					v["xid"],
-					v["split"],
-					v["ename"],
-					v["etyp"],
-					version,
-					v["sink"],
-					score,
-					params,
-					nparams,
-					v["gaid"],
-					v["idfa"],
-					v["msid"],
-					v["fbid"],
-					country,
-					region,
-					city,
-					zip,
-					culture,
-					v["source"],
-					v["medium"],
-					v["campaign"],
-					v["term"],
-					v["ref"],
-					v["rcode"],
-					v["aff"],
-					w.Browser,
-					v["device"],
-					v["os"],
-					v["tz"],
-					vp).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[sessions]:", xerr)
-				}
-
-			}
-		}
-
-		return nil
 	case WRITE_LTV:
 		cleanString(&(w.Host))
 		//TODO: Add array of payments
@@ -2071,12 +759,12 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 
 		//UUIDs
 		if iid, ok := v["invid"].(string); ok {
-			if temp, err := gocql.ParseUUID(iid); err == nil {
+			if temp, err := uuid.Parse(iid); err == nil {
 				pmt.InvoiceID = &temp
 			}
 		}
 		if pid, ok := v["pid"].(string); ok {
-			if temp, err := gocql.ParseUUID(pid); err == nil {
+			if temp, err := uuid.Parse(pid); err == nil {
 				pmt.ProductID = &temp
 			}
 		}
@@ -2274,8 +962,8 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 		var pmts []payment
 		var prevpaid *float64
 		//[LTV]
-		if xerr := i.Session.Query("SELECT payments,created,paid FROM ltv WHERE hhash=? AND uid=?", hhash, v["uid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[ltv]:", xerr)
+		if xerr := (*i.Session).QueryRow(context.Background(), "SELECT payments,created,paid FROM ltv WHERE hhash=? AND uid=?", hhash, v["uid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+			fmt.Println("CH[ltv]:", xerr)
 		}
 		if prevpaid != nil && paid != nil {
 			*prevpaid = *prevpaid + *paid
@@ -2285,17 +973,13 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 
 		pmts = append(pmts, *pmt)
 
-		if xerr := i.Session.Query(`UPDATE ltv SET
-			vid = ?, 
-			sid = ?,
-			payments = ?, 
-			paid = ?,
-			org = ?,
-			updated = ?,
-			updater = ?,
-			created = ?,
-			owner = ?
-			WHERE hhash=? AND uid=?`, //11
+		// Update LTV table
+		err := (*i.Session).Exec(context.Background(), `
+			INSERT INTO ltv
+			(hhash, uid, vid, sid, payments, paid, org, updated, updater, created, owner)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			hhash,
+			v["uid"],
 			v["vid"],
 			v["sid"],
 			pmts,
@@ -2304,19 +988,16 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 			updated,
 			v["uid"],
 			created,
-			v["uid"],
-
-			hhash,
-			v["uid"],
-		).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[ltv]:", xerr)
+			v["uid"])
+		if err != nil && i.AppConfig.Debug {
+			fmt.Println("CH[ltv]:", err)
 		}
 
 		//[LTVU]
 		pmts = pmts[:0]
 		created = &updated
 		prevpaid = nil
-		if xerr := i.Session.Query("SELECT payments,created,paid FROM ltvu WHERE hhash=? AND uid=? AND orid=?", hhash, v["uid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+		if xerr := (*i.Session).QueryRow(context.Background(), "SELECT payments,created,paid FROM ltvu WHERE hhash=? AND uid=? AND orid=?", hhash, v["uid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[ltvu]:", xerr)
 		}
 		if prevpaid != nil && paid != nil {
@@ -2327,17 +1008,14 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 
 		pmts = append(pmts, *pmt)
 
-		if xerr := i.Session.Query(`UPDATE ltvu SET
-			vid = ?, 
-			sid = ?,
-			payments = ?, 
-			paid = ?,
-			org = ?,
-			updated = ?,
-			updater = ?,
-			created = ?,
-			owner = ?
-			WHERE hhash=? AND uid=? AND orid = ?`, //11
+		// Update LTVU table
+		err = (*i.Session).Exec(context.Background(), `
+			INSERT INTO ltvu
+			(hhash, uid, orid, vid, sid, payments, paid, org, updated, updater, created, owner)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			hhash,
+			v["uid"],
+			v["orid"],
 			v["vid"],
 			v["sid"],
 			pmts,
@@ -2346,20 +1024,16 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 			updated,
 			v["uid"],
 			created,
-			v["uid"],
-
-			hhash,
-			v["uid"],
-			v["orid"],
-		).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[ltvu]:", xerr)
+			v["uid"])
+		if err != nil && i.AppConfig.Debug {
+			fmt.Println("CH[ltvu]:", err)
 		}
 
 		//[LTVV]
 		pmts = pmts[:0]
 		created = &updated
 		prevpaid = nil
-		if xerr := i.Session.Query("SELECT payments,created,paid FROM ltvv WHERE hhash=? AND vid=? AND orid=?", hhash, v["vid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+		if xerr := (*i.Session).QueryRow(context.Background(), "SELECT payments,created,paid FROM ltvv WHERE hhash=? AND vid=? AND orid=?", hhash, v["vid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[ltvv]:", xerr)
 		}
 		if prevpaid != nil && paid != nil {
@@ -2370,17 +1044,14 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 
 		pmts = append(pmts, *pmt)
 
-		if xerr := i.Session.Query(`UPDATE ltvv SET
-			uid = ?, 
-			sid = ?,
-			payments = ?, 
-			paid = ?,
-			org = ?,
-			updated = ?,
-			updater = ?,
-			created = ?,
-			owner = ?
-			WHERE hhash=? AND vid=? AND orid = ?`, //11
+		// Update LTVV table
+		err = (*i.Session).Exec(context.Background(), `
+			INSERT INTO ltvv
+			(hhash, vid, orid, uid, sid, payments, paid, org, updated, updater, created, owner)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			hhash,
+			v["vid"],
+			v["orid"],
 			v["uid"],
 			v["sid"],
 			pmts,
@@ -2389,23 +1060,17 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 			updated,
 			v["uid"],
 			created,
-			v["uid"],
-
-			hhash,
-			v["vid"],
-			v["orid"],
-		).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[ltvv]:", xerr)
+			v["uid"])
+		if err != nil && i.AppConfig.Debug {
+			fmt.Println("CH[ltvv]:", err)
 		}
 
 		return nil
+
 	default:
-		//TODO: Manually run query via query in config.json
 		if i.AppConfig.Debug {
 			fmt.Printf("UNHANDLED %s\n", w)
 		}
+		return fmt.Errorf("unhandled write type")
 	}
-
-	//TODO: Retries
-	return err
 }

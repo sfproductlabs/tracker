@@ -63,6 +63,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+	"github.com/google/uuid"
 )
 
 ////////////////////////////////////////
@@ -2071,12 +2072,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		//UUIDs
 		if iid, ok := v["invid"].(string); ok {
-			if temp, err := gocql.ParseUUID(iid); err == nil {
+			if temp, err := uuid.Parse(iid); err == nil {
 				pmt.InvoiceID = &temp
 			}
 		}
 		if pid, ok := v["pid"].(string); ok {
-			if temp, err := gocql.ParseUUID(pid); err == nil {
+			if temp, err := uuid.Parse(pid); err == nil {
 				pmt.ProductID = &temp
 			}
 		}

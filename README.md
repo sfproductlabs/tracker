@@ -164,6 +164,13 @@ cd ~/tracker/
 go build
 ```
 
+#### Mac
+```sh
+brew install go
+go build
+./tracker config.json
+```
+
 ## Privacy
 Since GDPR, honest reporting about user telemetry is required. The default tracker for online (https://github.com/dioptre/tracker/blob/master/.setup/www/track.js) uses a number of cookies by default:
 * COOKIE_REFERRAL (ref): An entity that referred you to the site. 

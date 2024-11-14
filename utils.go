@@ -65,11 +65,12 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+	"github.com/google/uuid"
 )
 
-////////////////////////////////////////
+// //////////////////////////////////////
 // hash
-////////////////////////////////////////
+// //////////////////////////////////////
 func hash(s string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(s))
@@ -88,11 +89,11 @@ func shasum256(s string) string {
 	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
-////////////////////////////////////////
+// //////////////////////////////////////
 // filterUrl
 // matchGroup is a 1 indexed array (0 is default last)
 // returns last match if no group, or group
-////////////////////////////////////////
+// //////////////////////////////////////
 func filterUrl(c *Configuration, s *string, matchGroup *int) error {
 	matches := regexFilterUrl.FindStringSubmatch(*s)
 	mi := len(matches)
@@ -176,9 +177,9 @@ func FixedLengthNumberString(length int, str string) string {
 	return strings.Replace(fmt.Sprintf(verb, str), " ", "0", -1)
 }
 
-////////////////////////////////////////
+// //////////////////////////////////////
 // cacheDir in /tmp for SSL
-////////////////////////////////////////
+// //////////////////////////////////////
 func cacheDir() (dir string) {
 	if u, _ := user.Current(); u != nil {
 		dir = filepath.Join(os.TempDir(), "cache-golang-autocert-"+u.Username)
@@ -338,6 +339,19 @@ func checkIdExpired(uuid *gocql.UUID, ttl int) bool {
 
 	return created.Add(time.Second * time.Duration(ttl)).Before(time.Now().UTC())
 
+}
+
+func checkUUIDExpired(uuid *uuid.UUID, ttl int) bool {
+	//If the id is incorrectly formatted expire it
+	if uuid == nil || uuid.Version() != 1 {
+		return true
+	}
+
+	// Convert UUID timestamp to time.Time
+	// UUID v1 timestamp is 100-nanosecond intervals since UUID epoch (15 Oct 1582)
+	uuidTime := time.Unix(0, int64((uuid.Time()-0x01B21DD213814000)*100))
+
+	return uuidTime.Add(time.Second * time.Duration(ttl)).Before(time.Now().UTC())
 }
 
 func SetValueInJSON(iface interface{}, path string, value interface{}) interface{} {

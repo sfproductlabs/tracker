@@ -66,6 +66,36 @@
     "MaximumConnections": 150000,
     "Notify": [
         {
+            "Connections": 1,
+            "Context": "default", 
+            "Critical": false,
+            "Hosts": [
+                "127.0.0.1"
+            ],
+            "Prune": [
+                {
+                    "ClearAll": false,
+                    "ClearNumericParams": false,
+                    "ClearParams": false,
+                    "Fields": [
+                        {
+                            "DestParamHash": "iphash",
+                            "Id": "ip",
+                            "Type": "ip4"
+                        }
+                    ],
+                    "CFlagsIgnore": [],
+                    "PageSize": 10000,
+                    "TTL": 2592000,
+                    "Table": "events"
+                }
+            ],
+            "Retries": 3,
+            "Secure": false,
+            "Service": "duckdb",
+            "Timeout": 300
+        },
+        {
             "CACert": null,
             "Cert": null,
             "Key": null,
@@ -95,7 +125,7 @@
             ],
             "Retries": 3,
             "Secure": false,
-            "Service": "clickhouse",
+            "Service": "clickhouse_",
             "Timeout": 300
         },
         {

@@ -49,8 +49,8 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
+	"database/sql"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -69,8 +69,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ClickHouse/ch-go"
-	"github.com/ClickHouse/ch-go/proto"
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gocql/gocql"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
@@ -178,7 +177,13 @@ type Service struct {
 
 type ClickhouseService struct { //Implements 'session'
 	Configuration *Service
-	Session       *gocql.Session
+	Session       *clickhouse.Conn
+	AppConfig     *Configuration
+}
+
+type DuckService struct { //Implements 'session'
+	Configuration *Service
+	Session       *sql.DB
 	AppConfig     *Configuration
 }
 
@@ -278,9 +283,10 @@ const (
 	API_LIMIT_REACHED string = "API Limit Reached"
 
 	SERVICE_TYPE_CLICKHOUSE string = "clickhouse"
-	SERVICE_TYPE_CASSANDRA  string = "cassandra"
 	SERVICE_TYPE_NATS       string = "nats"
 	SERVICE_TYPE_FACEBOOK   string = "facebook"
+	SERVICE_TYPE_DUCKDB     string = "duckdb"
+	SERVICE_TYPE_CASSANDRA  string = "cassandra"
 
 	FB_PIXEL string = "FB_PIXEL"
 	FB_TOKEN string = "FB_TOKEN"
@@ -449,23 +455,39 @@ func main() {
 		s := &configuration.Notify[idx]
 		switch s.Service {
 		case SERVICE_TYPE_CLICKHOUSE:
-			ctx := context.Background()
-			var (
-				numbers int
-				data    proto.ColUInt64
-			)
-			c, _ := ch.Dial(ctx, ch.Options{Address: "localhost:9000"})
-			c.Do(ctx, ch.Query{
-				Body: "SELECT number FROM system.numbers LIMIT 500000000",
-				Result: proto.Results{
-					{Name: "number", Data: &data},
-				},
-				// OnResult will be called on next received data block.
-				OnResult: func(ctx context.Context, b proto.Block) error {
-					numbers += len(data)
-					return nil
-				},
-			})
+			fmt.Printf("Notify #%d: Connecting to ClickHouse: %s\n", idx, s.Hosts)
+			clickhouse := ClickhouseService{
+				Configuration: s,
+				AppConfig:     &configuration,
+			}
+			err = clickhouse.connect()
+			if err != nil || s.Session == nil {
+				if s.Critical {
+					log.Fatalf("[CRITICAL] Notify #%d. Could not connect to ClickHouse. %s\n", idx, err)
+				} else {
+					fmt.Printf("[ERROR] Notify #%d. Could not connect to ClickHouse. %s\n", idx, err)
+					continue
+				}
+			}
+			//Now attach the one and only API service, replace if multiple
+			configuration.API = *s
+		case SERVICE_TYPE_DUCKDB:
+			fmt.Printf("Notify #%d: Connecting to DuckDB: %s\n", idx, s.Hosts)
+			duck := DuckService{
+				Configuration: s,
+				AppConfig:     &configuration,
+			}
+			err = duck.connect()
+			if err != nil || s.Session == nil {
+				if s.Critical {
+					log.Fatalf("[CRITICAL] Notify #%d. Could not connect to duck. %s\n", idx, err)
+				} else {
+					fmt.Printf("[ERROR] Notify #%d. Could not connect to duck. %s\n", idx, err)
+					continue
+				}
+			}
+			//Now attach the one and only API service, replace if multiple
+			configuration.API = *s
 		case SERVICE_TYPE_CASSANDRA:
 			fmt.Printf("Notify #%d: Connecting to Cassandra Cluster: %s\n", idx, s.Hosts)
 			cassandra := CassandraService{
