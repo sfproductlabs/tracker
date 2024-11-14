@@ -182,9 +182,11 @@ type ClickhouseService struct { //Implements 'session'
 }
 
 type DuckService struct { //Implements 'session'
-	Configuration *Service
-	Session       *sql.DB
-	AppConfig     *Configuration
+	Configuration     *Service
+	Session           *sql.DB
+	AppConfig         *Configuration
+	HealthCheckTicker *time.Ticker
+	HealthCheckDone   chan bool
 }
 
 type CassandraService struct { //Implements 'session'
@@ -275,6 +277,12 @@ type Configuration struct {
 	PruneUpdateConfig        bool
 	PruneLimit               int
 	PruneSkipToTimestamp     int64
+	S3Bucket                 string
+	S3Prefix                 string
+	S3Region                 string
+	S3AccessKeyID            string
+	S3SecretAccessKey        string
+	HealthCheckInterval      int
 }
 
 // ////////////////////////////////////// Constants

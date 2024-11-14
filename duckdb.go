@@ -75,11 +75,33 @@ func (i *DuckService) connect() error {
 		}
 	}
 
+	// Start background health check if not already running
+	if i.HealthCheckTicker == nil {
+		interval := 5 * time.Minute //default interval
+		if i.AppConfig.HealthCheckInterval > 0 {
+			interval = time.Duration(i.AppConfig.HealthCheckInterval) * time.Second
+		}
+
+		i.HealthCheckTicker = time.NewTicker(interval)
+		i.HealthCheckDone = make(chan bool)
+
+		go i.runHealthCheck()
+	}
+
 	return nil
 }
 
 // Close terminates the DuckDB connection
 func (i *DuckService) close() error {
+	// Stop health check if running
+	if i.HealthCheckTicker != nil {
+		i.HealthCheckTicker.Stop()
+		i.HealthCheckDone <- true
+		close(i.HealthCheckDone)
+		i.HealthCheckTicker = nil
+	}
+
+	// Existing close logic
 	if i.Session != nil {
 		return i.Session.Close()
 	}
@@ -983,14 +1005,145 @@ func (i *DuckService) prune() error {
 	return nil
 }
 
-// Add a new method for health checks
+// Add this method to handle the background health check
+func (i *DuckService) runHealthCheck() {
+	if i.AppConfig.Debug {
+		fmt.Println("[HealthCheck] Starting background health check service")
+	}
+
+	for {
+		select {
+		case <-i.HealthCheckDone:
+			if i.AppConfig.Debug {
+				fmt.Println("[HealthCheck] Stopping background health check service")
+			}
+			return
+		case <-i.HealthCheckTicker.C:
+			if err := i.healthCheck(); err != nil {
+				fmt.Printf("[HealthCheck] Error during health check: %v\n", err)
+			}
+		}
+	}
+}
+
+// Add a new method for health checks, checks that the database is reachable
+// We also check the size of each table, if the size of any table is greater than 100MB we write the data in the table to s3
+// OR if the table has not been modified in the past 15 minutes
+// We then truncate the table and reset the auto increment id
 func (i *DuckService) healthCheck() error {
+	// Check database connection
 	if i.Session == nil {
 		return fmt.Errorf("database connection not initialized")
+	}
+
+	// Verify S3 configuration if needed
+	if i.AppConfig.S3Bucket == "" || i.AppConfig.S3Prefix == "" {
+		return fmt.Errorf("S3 configuration missing for table exports")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	return i.Session.PingContext(ctx)
+	// Test connection
+	if err := i.Session.PingContext(ctx); err != nil {
+		return fmt.Errorf("database ping failed: %v", err)
+	}
+
+	// Get list of tables
+	tables, err := i.Session.Query(`
+		SELECT table_name 
+		FROM information_schema.tables 
+		WHERE table_schema = 'main'
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to query tables: %v", err)
+	}
+	defer tables.Close()
+
+	const (
+		maxSizeBytes    = 100 * 1024 * 1024 // 100MB
+		inactivityLimit = 15 * time.Minute
+	)
+
+	for tables.Next() {
+		var tableName string
+		if err := tables.Scan(&tableName); err != nil {
+			return fmt.Errorf("failed to scan table name: %v", err)
+		}
+
+		// Check table size
+		var sizeBytes int64
+		err := i.Session.QueryRow(`
+			SELECT sum(estimated_size)
+			FROM pragma_table_info(?)
+		`, tableName).Scan(&sizeBytes)
+		if err != nil {
+			return fmt.Errorf("failed to get size for table %s: %v", tableName, err)
+		}
+
+		// Check last modification time
+		var lastModified time.Time
+		err = i.Session.QueryRow(`
+			SELECT COALESCE(MAX(created), '1970-01-01') 
+			FROM ` + tableName).Scan(&lastModified)
+		if err != nil {
+			return fmt.Errorf("failed to get last modification time for table %s: %v", tableName, err)
+		}
+
+		// Export if table is too large or inactive
+		if sizeBytes > maxSizeBytes || time.Since(lastModified) > inactivityLimit {
+			if err := i.exportAndTruncateTable(tableName); err != nil {
+				return fmt.Errorf("failed to process table %s: %v", tableName, err)
+			}
+
+			if i.AppConfig.Debug {
+				fmt.Printf("[HealthCheck] Processed table %s (size: %.2f MB, last modified: %v)\n",
+					tableName,
+					float64(sizeBytes)/(1024*1024),
+					lastModified)
+			}
+		}
+	}
+
+	return nil
+}
+
+// Helper function to handle table export and truncation
+func (i *DuckService) exportAndTruncateTable(tableName string) error {
+	// Generate export path
+	timestamp := time.Now().UTC().Format("2006-01-02-15-04-05")
+	s3Path := fmt.Sprintf("s3://%s/%s/%s_%s.parquet",
+		i.AppConfig.S3Bucket,
+		i.AppConfig.S3Prefix,
+		tableName,
+		timestamp)
+
+	// Begin transaction
+	tx, err := i.Session.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %v", err)
+	}
+	defer tx.Rollback() // Will be ignored if transaction is committed
+
+	// Export to S3
+	_, err = tx.Exec(fmt.Sprintf(`
+		COPY (SELECT * FROM %s) 
+		TO '%s' (FORMAT 'parquet')
+	`, tableName, s3Path))
+	if err != nil {
+		return fmt.Errorf("failed to export to S3: %v", err)
+	}
+
+	// Truncate table after successful export
+	_, err = tx.Exec(fmt.Sprintf("TRUNCATE TABLE %s", tableName))
+	if err != nil {
+		return fmt.Errorf("failed to truncate table: %v", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %v", err)
+	}
+
+	return nil
 }
