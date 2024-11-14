@@ -455,19 +455,19 @@ func (i *DuckService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceA
 func (i *DuckService) createTables() error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS counters (
-			id VARCHAR PRIMARY KEY,
+			id UUID PRIMARY KEY,
 			total INTEGER DEFAULT 0
 		)`,
 		`CREATE TABLE IF NOT EXISTS accounts (
-			uid VARCHAR PRIMARY KEY,
+			uid UUID PRIMARY KEY,
 			pwd VARCHAR NOT NULL
 		)`,
 		`CREATE TABLE IF NOT EXISTS agreements (
-			vid VARCHAR,
+			vid UUID,
 			created TIMESTAMP,
 			cflags INTEGER,
-			sid VARCHAR,
-			uid VARCHAR,
+			sid UUID,
+			uid UUID,
 			avid VARCHAR,
 			hhash VARCHAR,
 			app VARCHAR,
@@ -500,11 +500,11 @@ func (i *DuckService) createTables() error {
 			org VARCHAR
 		)`,
 		`CREATE TABLE IF NOT EXISTS agreed (
-			vid VARCHAR,
+			vid UUID,
 			created TIMESTAMP,
 			cflags INTEGER,
-			sid VARCHAR,
-			uid VARCHAR,
+			sid UUID,
+			uid UUID,
 			avid VARCHAR,
 			hhash VARCHAR,
 			app VARCHAR,
@@ -537,7 +537,7 @@ func (i *DuckService) createTables() error {
 			org VARCHAR
 		)`,
 		`CREATE TABLE IF NOT EXISTS jurisdictions (
-			id VARCHAR PRIMARY KEY,
+			id UUID PRIMARY KEY,
 			name VARCHAR,
 			description VARCHAR
 		)`,
@@ -547,16 +547,16 @@ func (i *DuckService) createTables() error {
 			created TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS redirect_history (
-			id VARCHAR PRIMARY KEY,
+			id UUID PRIMARY KEY,
 			urlfrom VARCHAR,
 			urlto VARCHAR,
 			created TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS ltv (
 			hhash VARCHAR,
-			uid VARCHAR,
-			vid VARCHAR,
-			sid VARCHAR,
+			uid UUID,
+			vid UUID,
+			sid UUID,
 			payments VARCHAR, -- Store JSON as string
 			paid DOUBLE,
 			org VARCHAR,
@@ -568,10 +568,10 @@ func (i *DuckService) createTables() error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS ltvu (
 			hhash VARCHAR,
-			uid VARCHAR,
-			orid VARCHAR,
-			vid VARCHAR,
-			sid VARCHAR,
+			uid UUID,
+			orid UUID,
+			vid UUID,
+			sid UUID,
 			payments VARCHAR, -- Store JSON as string
 			paid DOUBLE,
 			org VARCHAR,
@@ -583,10 +583,10 @@ func (i *DuckService) createTables() error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS ltvv (
 			hhash VARCHAR,
-			vid VARCHAR,
-			orid VARCHAR,
-			uid VARCHAR,
-			sid VARCHAR,
+			vid UUID,
+			orid UUID,
+			uid UUID,
+			sid UUID,
 			payments VARCHAR, -- Store JSON as string
 			paid DOUBLE,
 			org VARCHAR,
@@ -598,48 +598,48 @@ func (i *DuckService) createTables() error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS users (
 			hhash VARCHAR,
-			vid VARCHAR,
-			uid VARCHAR,
-			sid VARCHAR,
+			vid UUID,
+			uid UUID,
+			sid UUID,
 			PRIMARY KEY (hhash, vid, uid)
 		)`,
 		`CREATE TABLE IF NOT EXISTS usernames (
 			hhash VARCHAR,
-			vid VARCHAR,
+			vid UUID,
 			uhash VARCHAR,
-			sid VARCHAR,
+			sid UUID,
 			PRIMARY KEY (hhash, vid, uhash)
 		)`,
 		`CREATE TABLE IF NOT EXISTS emails (
 			hhash VARCHAR,
-			vid VARCHAR,
+			vid UUID,
 			ehash VARCHAR,
-			sid VARCHAR,
+			sid UUID,
 			PRIMARY KEY (hhash, vid, ehash)
 		)`,
 		`CREATE TABLE IF NOT EXISTS cells (
 			hhash VARCHAR,
-			vid VARCHAR,
+			vid UUID,
 			chash VARCHAR,
-			sid VARCHAR,
+			sid UUID,
 			PRIMARY KEY (hhash, vid, chash)
 		)`,
 		`CREATE TABLE IF NOT EXISTS reqs (
 			hhash VARCHAR,
-			vid VARCHAR,
+			vid UUID,
 			total INTEGER DEFAULT 0,
 			PRIMARY KEY (hhash, vid)
 		)`,
 		`CREATE TABLE IF NOT EXISTS visitors (
-			vid VARCHAR PRIMARY KEY,
-			did VARCHAR,
-			sid VARCHAR,
+			vid UUID PRIMARY KEY,
+			did UUID,
+			sid UUID,
 			hhash VARCHAR,
 			app VARCHAR,
 			rel VARCHAR,
 			cflags INTEGER,
 			created TIMESTAMP,
-			uid VARCHAR,
+			uid UUID,
 			last VARCHAR,
 			url VARCHAR,
 			ip VARCHAR,
@@ -648,15 +648,14 @@ func (i *DuckService) createTables() error {
 			ptyp VARCHAR,
 			bhash VARCHAR,
 			auth VARCHAR,
-			xid VARCHAR,
+			xid UUID,
 			split VARCHAR,
 			ename VARCHAR,
 			etyp VARCHAR,
 			ver VARCHAR,
 			sink VARCHAR,
 			score DOUBLE,
-			params VARCHAR,
-			nparams INTEGER,
+			params JSON,
 			gaid VARCHAR,
 			idfa VARCHAR,
 			msid VARCHAR,
@@ -680,15 +679,15 @@ func (i *DuckService) createTables() error {
 			vp VARCHAR
 		)`,
 		`CREATE TABLE IF NOT EXISTS sessions (
-			vid VARCHAR,
-			did VARCHAR,
-			sid VARCHAR,
+			vid UUID,
+			did UUID,
+			sid UUID,
 			hhash VARCHAR,
 			app VARCHAR,
 			rel VARCHAR,
 			cflags INTEGER,
 			created TIMESTAMP,
-			uid VARCHAR,
+			uid UUID,
 			last VARCHAR,
 			url VARCHAR,
 			ip VARCHAR,
@@ -698,15 +697,14 @@ func (i *DuckService) createTables() error {
 			bhash VARCHAR,
 			auth VARCHAR,
 			duration INTEGER,
-			xid VARCHAR,
+			xid UUID,
 			split VARCHAR,
 			ename VARCHAR,
 			etyp VARCHAR,
 			ver VARCHAR,
 			sink VARCHAR,
 			score DOUBLE,
-			params VARCHAR,
-			nparams INTEGER,
+			params JSON,
 			gaid VARCHAR,
 			idfa VARCHAR,
 			msid VARCHAR,
@@ -731,7 +729,7 @@ func (i *DuckService) createTables() error {
 			PRIMARY KEY (vid, sid)
 		)`,
 		`CREATE TABLE IF NOT EXISTS logs (
-			id VARCHAR PRIMARY KEY,
+			id UUID PRIMARY KEY,
 			ldate TIMESTAMP,
 			created TIMESTAMP,
 			ltime INTEGER,
@@ -743,8 +741,8 @@ func (i *DuckService) createTables() error {
 			ip VARCHAR,
 			iphash VARCHAR,
 			level INTEGER,
-			msg VARCHAR,
-			params VARCHAR
+			msg JSON,
+			params JSON
 		)`,
 		`CREATE TABLE IF NOT EXISTS dailies (
 			ip VARCHAR,
@@ -916,8 +914,7 @@ func (i *DuckService) prune() error {
 				result, err := i.Session.Exec(fmt.Sprintf(`
 					UPDATE %s 
 					SET updated = ?,
-						params = NULL,
-						nparams = NULL
+						params = NULL
 					WHERE created < ?`, table),
 					time.Now().UTC(), pruneTime)
 
