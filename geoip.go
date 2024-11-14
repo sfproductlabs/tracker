@@ -46,7 +46,6 @@ func GetGeoIP(pip net.IP) ([]byte, error) {
 							return fmt.Errorf("Not Found (IP)")
 						}
 					}
-					break
 				}
 			}
 			return fmt.Errorf("Not Found (IP)")
@@ -87,7 +86,6 @@ func GetGeoIP(pip net.IP) ([]byte, error) {
 							return fmt.Errorf("Not Found (IP)")
 						}
 					}
-					break
 				}
 
 			}
