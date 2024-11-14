@@ -18,6 +18,7 @@ import (
 	_ "github.com/marcboeker/go-duckdb" // Import DuckDB driver
 )
 
+// TODO: Andy - setup proxyRealtimeStorageService
 // Connect initiates the primary connection to DuckDB
 func (i *DuckService) connect() error {
 	err := fmt.Errorf("Could not connect to DuckDB")

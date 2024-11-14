@@ -173,6 +173,8 @@ type Service struct {
 	Note      string
 
 	Session session
+
+	ProxyRealtimeStorageService *Service
 }
 
 type ClickhouseService struct { //Implements 'session'
