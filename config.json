@@ -69,7 +69,7 @@
         {
             "Connections": 1,
             "Context": "default", 
-            "Critical": false,
+            "Critical": true,
             "Hosts": [
                 "127.0.0.1"
             ],
@@ -94,7 +94,8 @@
             "Retries": 3,
             "Secure": false,
             "Service": "duckdb",
-            "Timeout": 300
+            "Timeout": 300,
+            "ProxyRealtimeStorageServiceName" : "cassandra"
         },
         {
             "CACert": null,
@@ -102,7 +103,7 @@
             "Key": null,
             "Connections": 2,
             "Context": "default",
-            "Critical": false,
+            "Critical": true,
             "Hosts": [
                 "127.0.0.1"
             ],            
@@ -248,7 +249,8 @@
             ],
             "Retries": 3,
             "Secure": false,
-            "Service": "cassandra_",
+            "Skip": true,
+            "Service": "cassandra",
             "Timeout": 300
         },
         {

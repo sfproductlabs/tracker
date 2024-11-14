@@ -174,7 +174,9 @@ type Service struct {
 
 	Session session
 
-	ProxyRealtimeStorageService *Service
+	Skip                            bool
+	ProxyRealtimeStorageService     *Service
+	ProxyRealtimeStorageServiceName string
 }
 
 type ClickhouseService struct { //Implements 'session'
@@ -461,8 +463,10 @@ func main() {
 		proxyPortRedirect = configuration.ProxyPortRedirect
 	}
 	//////////////////////////////////////// LOAD NOTIFIERS
+	notification_services := make(map[string]*Service)
 	for idx := range configuration.Notify {
 		s := &configuration.Notify[idx]
+		notification_services[s.Service] = s
 		switch s.Service {
 		case SERVICE_TYPE_CLICKHOUSE:
 			fmt.Printf("Notify #%d: Connecting to ClickHouse: %s\n", idx, s.Hosts)
@@ -480,7 +484,9 @@ func main() {
 				}
 			}
 			//Now attach the one and only API service, replace if multiple
-			configuration.API = *s
+			if !s.Skip {
+				configuration.API = *s
+			}
 		case SERVICE_TYPE_DUCKDB:
 			fmt.Printf("Notify #%d: Connecting to DuckDB: %s\n", idx, s.Hosts)
 			duck := DuckService{
@@ -497,7 +503,9 @@ func main() {
 				}
 			}
 			//Now attach the one and only API service, replace if multiple
-			configuration.API = *s
+			if !s.Skip {
+				configuration.API = *s
+			}
 		case SERVICE_TYPE_CASSANDRA:
 			fmt.Printf("Notify #%d: Connecting to Cassandra Cluster: %s\n", idx, s.Hosts)
 			cassandra := CassandraService{
@@ -520,7 +528,9 @@ func main() {
 				fmt.Printf("Notify #%d: Connected to Cassandra: DB_VER %d\n", idx, seq)
 			}
 			//Now attach the one and only API service, replace if multiple
-			configuration.API = *s
+			if !s.Skip {
+				configuration.API = *s
+			}
 		case SERVICE_TYPE_NATS:
 			//TODO:
 			fmt.Printf("[ERROR] Notify #%d: NATS notifier not implemented\n", idx)
@@ -533,10 +543,18 @@ func main() {
 			if s.Critical && (s.Context == "" || s.Key == "" || err != nil) {
 				log.Fatalf("[CRITICAL] Notify #%d. Could not setup connection to Facebook CAPI.\n", idx)
 			}
-			configuration.API = *s
+			if !s.Skip {
+				configuration.API = *s
+			}
 			fmt.Printf("Notify #%d: Facebook CAPI configured for events\n", idx)
 		default:
 			fmt.Printf("[ERROR] %s #%d Notifier not implemented\n", s.Service, idx)
+		}
+	}
+	//////////////////////////////////////// SETUP NOTIFICATION PROXIES
+	for _, s := range notification_services {
+		if s.ProxyRealtimeStorageServiceName != "" {
+			s.ProxyRealtimeStorageService = notification_services[s.ProxyRealtimeStorageServiceName]
 		}
 	}
 
@@ -566,8 +584,11 @@ func main() {
 			s := &configuration.Consume[idx]
 			switch s.Service {
 			case SERVICE_TYPE_CASSANDRA:
-				//TODO:
 				fmt.Printf("[ERROR] Consume #%d: Cassandra consumer not implemented\n", idx)
+			case SERVICE_TYPE_DUCKDB:
+				fmt.Printf("[ERROR] Consume #%d: DuckDB consumer not implemented\n", idx)
+			case SERVICE_TYPE_CLICKHOUSE:
+				fmt.Printf("[ERROR] Consume #%d: ClickHouse consumer not implemented\n", idx)
 			case SERVICE_TYPE_NATS:
 				fmt.Printf("Consume #%d: Connecting to NATS Cluster: %s\n", idx, s.Hosts)
 				gonats := NatsService{
@@ -588,7 +609,6 @@ func main() {
 				}
 				s.Session.listen()
 			case SERVICE_TYPE_FACEBOOK:
-				//TODO:
 				fmt.Printf("[ERROR] Consume #%d: Facebook consumer not implemented\n", idx)
 			default:
 				fmt.Printf("[ERROR] %s #%d Consumer not implemented\n", s.Service, idx)
@@ -1289,6 +1309,9 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	}
 	for idx := range c.Notify {
 		s := &c.Notify[idx]
+		if s.Skip {
+			continue
+		}
 		if s.Session != nil {
 			if err := s.Session.write(wargs); err != nil {
 				if c.Debug {
