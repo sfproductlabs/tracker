@@ -139,7 +139,7 @@ func (i *DuckService) auth(s *ServiceArgs) error {
 // Serve handles HTTP requests
 func (i *DuckService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error {
 	if i.Configuration.ProxyRealtimeStorageService != nil && i.Configuration.ProxyRealtimeStorageService.Session != nil {
-		i.Configuration.ProxyRealtimeStorageService.Session.serve(w, r, s)
+		return i.Configuration.ProxyRealtimeStorageService.Session.serve(w, r, s)
 	} else {
 		return fmt.Errorf("[ERROR] DuckDB proxy storage service not implemente or connection not established")
 	}
@@ -444,11 +444,6 @@ func (i *DuckService) createTables() error {
 			total INTEGER DEFAULT 0,
 			PRIMARY KEY (ip, day)
 		)`,
-		// `CREATE INDEX IF NOT EXISTS idx_agreements_vid ON agreements(vid)`,
-		// `CREATE INDEX IF NOT EXISTS idx_agreed_vid ON agreed(vid)`,
-		// `CREATE INDEX IF NOT EXISTS idx_ltv_composite ON ltv(hhash, uid)`,
-		// `CREATE INDEX IF NOT EXISTS idx_ltvu_composite ON ltvu(hhash, uid, orid)`,
-		// `CREATE INDEX IF NOT EXISTS idx_ltvv_composite ON ltvv(hhash, vid, orid)`
 	}
 
 	for _, query := range queries {
