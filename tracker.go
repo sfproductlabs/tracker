@@ -71,6 +71,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gocql/gocql"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 	"golang.org/x/crypto/acme/autocert"
@@ -287,6 +288,7 @@ type Configuration struct {
 	S3AccessKeyID            string
 	S3SecretAccessKey        string
 	HealthCheckInterval      int
+	NodeId                   string
 }
 
 // ////////////////////////////////////// Constants
@@ -386,6 +388,7 @@ func main() {
 		fmt.Println("error:", err)
 	}
 	configuration.ConfigFile = configFile
+	configuration.NodeId = uuid.New().String()
 
 	//////////////////////////////////////// OVERRIDE FACEBOOK VARIABLES
 	var fbPixel = os.Getenv(FB_PIXEL)

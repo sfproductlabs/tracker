@@ -444,6 +444,10 @@ func (i *DuckService) createTables() error {
 			total INTEGER DEFAULT 0,
 			PRIMARY KEY (ip, day)
 		)`,
+		`CREATE TABLE IF NOT EXISTS table_versions (
+			table_name VARCHAR PRIMARY KEY,
+			version INTEGER DEFAULT 0
+		)`,
 	}
 
 	for _, query := range queries {
@@ -776,40 +780,66 @@ func (i *DuckService) healthCheck() error {
 			return fmt.Errorf("failed to get last modification time for table %s: %v", tableName, err)
 		}
 
-		// Export if table is too large or inactive
-		if sizeBytes > maxSizeBytes || time.Since(lastModified) > inactivityLimit {
-			if err := i.exportAndTruncateTable(tableName); err != nil {
+		// Export based on condition
+		if sizeBytes > maxSizeBytes {
+			if err := i.exportAndTruncateTable(tableName, true); err != nil {
 				return fmt.Errorf("failed to process table %s: %v", tableName, err)
 			}
-
-			if i.AppConfig.Debug {
-				fmt.Printf("[HealthCheck] Processed table %s (size: %.2f MB, last modified: %v)\n",
-					tableName,
-					float64(sizeBytes)/(1024*1024),
-					lastModified)
+		} else if time.Since(lastModified) > inactivityLimit {
+			if err := i.exportAndTruncateTable(tableName, false); err != nil {
+				return fmt.Errorf("failed to process table %s: %v", tableName, err)
 			}
+		}
+
+		if i.AppConfig.Debug {
+			fmt.Printf("[HealthCheck] Processed table %s (size: %.2f MB, last modified: %v)\n",
+				tableName,
+				float64(sizeBytes)/(1024*1024),
+				lastModified)
 		}
 	}
 
 	return nil
 }
 
-// Helper function to handle table export and truncation
-func (i *DuckService) exportAndTruncateTable(tableName string) error {
-	// Generate export path
-	timestamp := time.Now().UTC().Format("2006-01-02-15-04-05")
-	s3Path := fmt.Sprintf("s3://%s/%s/%s_%s.parquet",
-		i.AppConfig.S3Bucket,
-		i.AppConfig.S3Prefix,
-		tableName,
-		timestamp)
-
-	// Begin transaction
+// Modified to handle different version behavior
+func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion bool) error {
 	tx, err := i.Session.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %v", err)
 	}
-	defer tx.Rollback() // Will be ignored if transaction is committed
+	defer tx.Rollback()
+
+	// Get current version or create new entry
+	var version int
+	if incrementVersion {
+		// Increment version for size-based exports
+		err = tx.QueryRow(`
+			INSERT INTO table_versions (table_name, version) 
+			VALUES (?, 1)
+			ON CONFLICT (table_name) DO UPDATE 
+			SET version = table_versions.version + 1
+			RETURNING version`, tableName).Scan(&version)
+	} else {
+		// Use existing version for inactivity-based exports
+		err = tx.QueryRow(`
+			INSERT INTO table_versions (table_name, version) 
+			VALUES (?, 1)
+			ON CONFLICT (table_name) DO UPDATE 
+			SET version = table_versions.version
+			RETURNING version`, tableName).Scan(&version)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to handle version: %v", err)
+	}
+
+	// Generate export path with version
+	s3Path := fmt.Sprintf("s3://%s/%s/%s_%s_v%d.parquet",
+		i.AppConfig.S3Bucket,
+		i.AppConfig.S3Prefix,
+		tableName,
+		i.AppConfig.NodeId,
+		version)
 
 	// Export to S3
 	_, err = tx.Exec(fmt.Sprintf(`
@@ -826,7 +856,6 @@ func (i *DuckService) exportAndTruncateTable(tableName string) error {
 		return fmt.Errorf("failed to truncate table: %v", err)
 	}
 
-	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %v", err)
 	}
