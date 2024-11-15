@@ -834,10 +834,14 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 	}
 
 	// Generate export path with version
-	s3Path := fmt.Sprintf("s3://%s/%s/%s_%s_v%d.parquet",
+	now := time.Now().UTC()
+	s3Path := fmt.Sprintf("s3://%s/%s/%s/%d/%02d/%02d/%s_v%d.parquet",
 		i.AppConfig.S3Bucket,
 		i.AppConfig.S3Prefix,
 		tableName,
+		now.Year(),
+		now.Month(),
+		now.Day(),
 		i.AppConfig.NodeId,
 		version)
 
