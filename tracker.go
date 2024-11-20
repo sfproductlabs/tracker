@@ -837,7 +837,6 @@ func main() {
 			IP:        getIP(r),
 			Browser:   r.Header.Get("user-agent"),
 			Language:  r.Header.Get("accept-language"),
-			EventID:   uuid.Must(uuid.NewUUID()),
 			URI:       r.RequestURI,
 			Host:      getHost(r),
 			IsServer:  false,
@@ -876,6 +875,7 @@ func main() {
 					continue
 				}
 			}
+			wargs.EventID = uuid.Must(uuid.NewUUID())
 			wargs.Values = &data
 			trackWithArgs(&configuration, &w, r, &wargs)
 		}
