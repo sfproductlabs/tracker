@@ -206,7 +206,7 @@ export default function track(params) {
         } else {
             request(`${getTrackerUrl()}/v1/tr/`, {
                 method: "POST",
-            body: JSON.stringify(obj),
+                body: JSON.stringify(obj),
                 ...ta
             });
         }
