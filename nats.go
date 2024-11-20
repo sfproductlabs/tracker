@@ -65,7 +65,7 @@ import (
 // Interface Implementations
 ////////////////////////////////////////
 
-//////////////////////////////////////// NATS
+// ////////////////////////////////////// NATS
 // Connect initiates the primary connection to the range of provided URLs
 func (i *NatsService) connect() error {
 	err := fmt.Errorf("Could not connect to NATS")
@@ -105,9 +105,9 @@ func (i *NatsService) connect() error {
 	return nil
 }
 
-//////////////////////////////////////// NATS
+// ////////////////////////////////////// NATS
 // Close
-//will terminate the session to the backend, returning error if an issue arises
+// will terminate the session to the backend, returning error if an issue arises
 func (i *NatsService) close() error {
 	i.ec.Drain()
 	i.ec.Close()
@@ -116,7 +116,7 @@ func (i *NatsService) close() error {
 	return nil
 }
 
-//////////////////////////////////////// NATS
+// ////////////////////////////////////// NATS
 // Write
 func (i *NatsService) write(w *WriteArgs) error {
 	// sendCh := make(chan *map[string]interface{})
@@ -136,7 +136,11 @@ func (i *NatsService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceA
 	return fmt.Errorf("[ERROR] Nats service not implemented")
 }
 
-//////////////////////////////////////// NATS
+func (i *NatsService) auth(s *ServiceArgs) error {
+	return fmt.Errorf("[ERROR] Not implemented")
+}
+
+// ////////////////////////////////////// NATS
 // Listen
 func (i *NatsService) listen() error {
 	for idx := range i.Configuration.Filter {

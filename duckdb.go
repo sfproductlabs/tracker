@@ -64,19 +64,6 @@ func (i *DuckService) connect() error {
 	// Setup rand seed (following Cassandra implementation pattern)
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	// Setup limit checker if configured
-	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_DUCKDB {
-		i.AppConfig.ProxyDailyLimitCheck = func(ip string) uint64 {
-			var total uint64
-			err := i.Session.QueryRow(`SELECT total FROM dailies WHERE ip = ? AND day = ?`,
-				ip, time.Now().UTC().Format("2006-01-02")).Scan(&total)
-			if err != nil {
-				return 0xFFFFFFFFFFFFFFFF
-			}
-			return total
-		}
-	}
-
 	// Start background health check if not already running
 	if i.HealthCheckTicker == nil {
 		interval := 5 * time.Minute //default interval
@@ -117,25 +104,10 @@ func (i *DuckService) listen() error {
 
 // Auth checks user credentials
 func (i *DuckService) auth(s *ServiceArgs) error {
-	if *s.Values == nil {
-		return fmt.Errorf("User not provided")
-	}
-	uid := (*s.Values)["uid"]
-	if uid == "" {
-		return fmt.Errorf("User ID not provided")
-	}
-	password := (*s.Values)["password"]
-	if password == "" {
-		return fmt.Errorf("User pass not provided")
-	}
-	var pwd string
-	if err := i.Session.QueryRow("SELECT pwd FROM accounts WHERE uid = ?", uid).Scan(&pwd); err == nil {
-		if pwd != sha(password) {
-			return fmt.Errorf("Bad pass")
-		}
-		return nil
+	if i.Configuration.ProxyRealtimeStorageService != nil && i.Configuration.ProxyRealtimeStorageService.Session != nil {
+		return i.Configuration.ProxyRealtimeStorageService.Session.auth(s)
 	} else {
-		return err
+		return fmt.Errorf("[ERROR] DuckDB proxy storage service not implemented or connection not established")
 	}
 }
 
@@ -144,7 +116,7 @@ func (i *DuckService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceA
 	if i.Configuration.ProxyRealtimeStorageService != nil && i.Configuration.ProxyRealtimeStorageService.Session != nil {
 		return i.Configuration.ProxyRealtimeStorageService.Session.serve(w, r, s)
 	} else {
-		return fmt.Errorf("[ERROR] DuckDB proxy storage service not implemente or connection not established")
+		return fmt.Errorf("[ERROR] DuckDB proxy storage service not implemented or connection not established")
 	}
 }
 
@@ -722,36 +694,9 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 
 // ////////////////////////////////////// DuckDB
 func (i *DuckService) write(w *WriteArgs) error {
-	if i.Configuration.ProxyRealtimeStorageService != nil && i.Configuration.ProxyRealtimeStorageServiceTypes != 0 && i.Configuration.ProxyRealtimeStorageService.Session != nil {
-		w.CallingService = i.Configuration
-		go i.Configuration.ProxyRealtimeStorageService.Session.write(w)
-	}
-	err := fmt.Errorf("Could not write to any cassandra server in cluster")
+	err := fmt.Errorf("[ERROR] Could not write to duck")
 	v := *w.Values
 	switch w.WriteType {
-	case WRITE_COUNT:
-		if i.AppConfig.Debug {
-			fmt.Printf("COUNT %s\n", w)
-		}
-		tx, err := i.Session.Begin()
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
-
-		_, err = tx.Exec(`INSERT INTO counters (id, total) 
-            VALUES (?, 1) 
-            ON CONFLICT (id) DO UPDATE 
-            SET total = total + 1`,
-			v["id"])
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[counters]:", err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return err
-		}
-		return nil
 	case WRITE_UPDATE:
 		if i.AppConfig.Debug {
 			fmt.Printf("UPDATE %s\n", w)
@@ -864,6 +809,12 @@ func (i *DuckService) write(w *WriteArgs) error {
 	case WRITE_EVENT:
 		//TODO: Commented for AWS, perhaps non-optimal, CHECK
 		//go func() {
+
+		//Write to proxy if configured
+		if i.Configuration.ProxyRealtimeStorageService != nil && i.Configuration.ProxyRealtimeStorageServiceTables != 0 && i.Configuration.ProxyRealtimeStorageService.Session != nil {
+			w.CallingService = i.Configuration
+			i.Configuration.ProxyRealtimeStorageService.Session.write(w)
+		}
 
 		//////////////////////////////////////////////
 		//FIX CASE
@@ -1145,49 +1096,6 @@ func (i *DuckService) write(w *WriteArgs) error {
 			}
 		}
 
-		var nparams *map[string]float64
-		if params != nil {
-			tparams := make(map[string]float64)
-			for npk, npv := range *params {
-				if d, ok := npv.(float64); ok {
-					tparams[npk] = d
-					(*params)[npk] = fmt.Sprintf("%f", d) //let's keep both string and numerical
-					//delete(*params, npk) //we delete the old copy
-					continue
-				}
-				if npb, ok := npv.(bool); ok {
-					if npb {
-						tparams[npk] = 1
-					} else {
-						tparams[npk] = 0
-					}
-					(*params)[npk] = fmt.Sprintf("%v", npb)
-					continue
-				}
-				if nps, ok := npv.(string); !ok {
-					//UNKNOWN TYPE
-					(*params)[npk] = fmt.Sprintf("%+v", npv) //clean up instead
-					//delete(*params, npk) //remove if not a string
-				} else {
-					if strings.TrimSpace(strings.ToLower(nps)) == "true" {
-						tparams[npk] = 1
-						continue
-					}
-					if strings.TrimSpace(strings.ToLower(nps)) == "false" {
-						tparams[npk] = 0
-						continue
-					}
-					if npf, err := strconv.ParseFloat(nps, 64); err == nil && len(nps) > 0 {
-						tparams[npk] = npf
-					}
-
-				}
-			}
-			if len(tparams) > 0 {
-				nparams = &tparams
-			}
-		}
-
 		//[culture]
 		var culture *string
 		c := strings.Split(w.Language, ",")
@@ -1241,37 +1149,37 @@ func (i *DuckService) write(w *WriteArgs) error {
 		}
 
 		//[Cell Phone]
-		var chash *string
-		if temp, ok := v["chash"].(string); ok {
-			chash = &temp
-		} else if temp, ok := v["cell"].(string); ok {
-			temp = strings.ToLower(strings.TrimSpace(temp))
-			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
-			chash = &temp
-		}
-		delete(v, "cell")
+		// var chash *string
+		// if temp, ok := v["chash"].(string); ok {
+		// 	chash = &temp
+		// } else if temp, ok := v["cell"].(string); ok {
+		// 	temp = strings.ToLower(strings.TrimSpace(temp))
+		// 	temp = sha(i.AppConfig.PrefixPrivateHash + temp)
+		// 	chash = &temp
+		// }
+		// delete(v, "cell")
 
 		//[Email]
-		var ehash *string
-		if temp, ok := v["ehash"].(string); ok {
-			ehash = &temp
-		} else if temp, ok := v["email"].(string); ok {
-			temp = strings.ToLower(strings.TrimSpace(temp))
-			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
-			ehash = &temp
-		}
-		delete(v, "email")
+		// var ehash *string
+		// if temp, ok := v["ehash"].(string); ok {
+		// 	ehash = &temp
+		// } else if temp, ok := v["email"].(string); ok {
+		// 	temp = strings.ToLower(strings.TrimSpace(temp))
+		// 	temp = sha(i.AppConfig.PrefixPrivateHash + temp)
+		// 	ehash = &temp
+		// }
+		// delete(v, "email")
 
 		//[uname]
-		var uhash *string
-		if temp, ok := v["uhash"].(string); ok {
-			uhash = &temp
-		} else if temp, ok := v["uname"].(string); ok {
-			temp = strings.ToLower(strings.TrimSpace(temp))
-			temp = sha(i.AppConfig.PrefixPrivateHash + temp)
-			uhash = &temp
-		}
-		delete(v, "uname")
+		// var uhash *string
+		// if temp, ok := v["uhash"].(string); ok {
+		// 	uhash = &temp
+		// } else if temp, ok := v["uname"].(string); ok {
+		// 	temp = strings.ToLower(strings.TrimSpace(temp))
+		// 	temp = sha(i.AppConfig.PrefixPrivateHash + temp)
+		// 	uhash = &temp
+		// }
+		// delete(v, "uname")
 
 		//EventID
 		if temp, ok := v["eid"].(string); ok {
@@ -1334,691 +1242,25 @@ func (i *DuckService) write(w *WriteArgs) error {
 		defer tx.Rollback()
 
 		w.SaveCookie = true
-		isFirst := isNew || (v["first"] != "false")
-
-		// hits table - already implemented above
-
-		// ips table
-		_, err = tx.Exec(`INSERT INTO ips (hhash, ip, total) 
-            VALUES (?, ?, 1) 
-            ON CONFLICT (hhash, ip) DO UPDATE 
-            SET total = total + 1`,
-			hhash, w.IP)
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[ips]:", err)
-		}
-
-		// routed table
-		_, err = tx.Exec(`INSERT INTO routed (hhash, ip, url) 
-            VALUES (?, ?, ?) 
-            ON CONFLICT (hhash, ip) DO UPDATE 
-            SET url = EXCLUDED.url`,
-			hhash, w.IP, v["url"])
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[routed]:", err)
-		}
-
-		// referrers table
-		if _, ok := v["last"].(string); ok {
-			_, err = tx.Exec(`INSERT INTO referrers (hhash, url, total) 
-                VALUES (?, ?, 1) 
-                ON CONFLICT (hhash, url) DO UPDATE 
-                SET total = total + 1`,
-				hhash, v["last"])
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[referrers]:", err)
-			}
-		}
-
-		// referrals table
-		if v["ref"] != nil {
-			_, err = tx.Exec(`INSERT INTO referrals (hhash, vid, ref) 
-                VALUES (?, ?, ?) 
-                ON CONFLICT (hhash, vid) DO NOTHING`,
-				hhash, v["vid"], v["ref"])
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[referrals]:", err)
-			}
-		}
-
-		// referred table
-		if v["rcode"] != nil {
-			_, err = tx.Exec(`INSERT INTO referred (hhash, vid, rcode) 
-                VALUES (?, ?, ?) 
-                ON CONFLICT (hhash, vid) DO NOTHING`,
-				hhash, v["vid"], v["rcode"])
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[referred]:", err)
-			}
-		}
-
-		// hosts table
-		if w.Host != "" {
-			_, err = tx.Exec(`INSERT INTO hosts (hhash, hostname) 
-                VALUES (?, ?) 
-                ON CONFLICT (hhash) DO NOTHING`,
-				hhash, w.Host)
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[hosts]:", err)
-			}
-		}
-
-		// browsers table
-		_, err = tx.Exec(`INSERT INTO browsers (hhash, browser, bhash, total) 
-            VALUES (?, ?, ?, 1) 
-            ON CONFLICT (hhash, browser, bhash) DO UPDATE 
-            SET total = total + 1`,
-			hhash, w.Browser, bhash)
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[browsers]:", err)
-		}
-
-		// nodes table
-		_, err = tx.Exec(`INSERT INTO nodes (hhash, vid, uid, ip, iphash, sid) 
-            VALUES (?, ?, ?, ?, ?, ?)`,
-			hhash, v["vid"], v["uid"], w.IP, iphash, v["sid"])
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[nodes]:", err)
-		}
-
-		// locations table
-		if latlon != nil {
-			_, err = tx.Exec(`INSERT INTO locations (hhash, vid, lat, lon, uid, sid) 
-                VALUES (?, ?, ?, ?, ?, ?)`,
-				hhash, v["vid"], latlon.Lat, latlon.Lon, v["uid"], v["sid"])
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[locations]:", err)
-			}
-		} else {
-			latlon = &geo_point{}
-		}
-
-		// aliases table
-		if v["uid"] != nil {
-			_, err = tx.Exec(`INSERT INTO aliases (hhash, vid, uid, sid) 
-                VALUES (?, ?, ?, ?)`,
-				hhash, v["vid"], v["uid"], v["sid"])
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[aliases]:", err)
-			}
-		}
-
-		// users table
-		if v["uid"] != nil {
-			_, err = tx.Exec(`INSERT INTO users (hhash, vid, uid, sid) 
-                VALUES (?, ?, ?, ?)`,
-				hhash, v["vid"], v["uid"], v["sid"])
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[users]:", err)
-			}
-		}
-
-		// usernames table
-		if uhash != nil {
-			_, err = tx.Exec(`INSERT INTO usernames (hhash, vid, uhash, sid) 
-                VALUES (?, ?, ?, ?)`,
-				hhash, v["vid"], uhash, v["sid"])
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[usernames]:", err)
-			}
-		}
-
-		// emails table
-		if ehash != nil {
-			_, err = tx.Exec(`INSERT INTO emails (hhash, vid, ehash, sid) 
-                VALUES (?, ?, ?, ?)`,
-				hhash, v["vid"], ehash, v["sid"])
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[emails]:", err)
-			}
-		}
-
-		// cells table
-		if chash != nil {
-			_, err = tx.Exec(`INSERT INTO cells (hhash, vid, chash, sid) 
-                VALUES (?, ?, ?, ?)`,
-				hhash, v["vid"], chash, v["sid"])
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[cells]:", err)
-			}
-		}
-
-		// reqs table
-		_, err = tx.Exec(`INSERT INTO reqs (hhash, vid, total) 
-            VALUES (?, ?, 1) 
-            ON CONFLICT (hhash, vid) DO UPDATE 
-            SET total = total + 1`,
-			hhash, v["vid"])
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[reqs]:", err)
-		}
 
 		//events table
 		_, err = tx.Exec(`INSERT INTO events 
             (eid, vid, sid, hhash, app, rel, cflags, created, updated, uid, last,
              url, ip, iphash, lat,lon, ptyp, bhash, auth, duration, xid, split,
              ename, source, medium, campaign, country, region, city, zip, term,
-             etyp, ver, sink, score, params, nparams, payment, targets, relation, rid)
+             etyp, ver, sink, score, params, payment, targets, relation, rid)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                   ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			v["eid"], v["vid"], v["sid"], hhash, v["app"], v["rel"], cflags,
 			updated, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
 			iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, duration, v["xid"],
 			v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 			country, region, city, zip, v["term"], v["etyp"], version,
-			v["sink"], score, params, nparams, v["payment"], v["targets"], v["relation"], rid)
+			v["sink"], score, params, v["payment"], v["targets"], v["relation"], rid)
 		if err != nil && i.AppConfig.Debug {
 			fmt.Println("[ERROR] DuckDB[events]:", err)
-		}
-
-		//events_recent table
-		_, err = tx.Exec(`INSERT INTO events_recent
-            (eid, vid, sid, hhash, app, rel, cflags, created, updated, uid, last,
-             url, ip, iphash, lat, lon, ptyp, bhash, auth, duration, xid, split,
-             ename, source, medium, campaign, country, region, city, zip, term,
-             etyp, ver, sink, score, params, nparams, payment, targets, relation, rid)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			v["eid"], v["vid"], v["sid"], hhash, v["app"], v["rel"], cflags,
-			updated, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
-			iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, duration, v["xid"],
-			v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
-			country, region, city, zip, v["term"], v["etyp"], version,
-			v["sink"], score, params, nparams, v["payment"], v["targets"], v["relation"], rid)
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[events_recent]:", err)
-		}
-
-		if isNew || isFirst {
-			// visitors table
-			_, err = tx.Exec(`INSERT INTO visitors 
-                (vid, did, sid, hhash, app, rel, cflags, created, uid, last,
-                 url, ip, iphash, lat, lon, ptyp, bhash, auth, xid, split, ename,
-                 etyp, ver, sink, score, params, nparams, gaid, idfa, msid, fbid,
-                 country, region, city, zip, culture, source, medium, campaign,
-                 term, ref, rcode, aff, browser, device, os, tz, vp)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                       ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (vid) DO NOTHING`,
-				v["vid"], v["did"], v["sid"], hhash, v["app"], v["rel"],
-				cflags, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
-				iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, v["xid"],
-				v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-				params, nparams, v["gaid"], v["idfa"], v["msid"], v["fbid"],
-				country, region, city, zip, culture, v["source"], v["medium"],
-				v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"],
-				w.Browser, v["device"], v["os"], v["tz"], vp)
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[visitors]:", err)
-			}
-
-			// sessions table
-			_, err = tx.Exec(`INSERT INTO sessions 
-                (vid, did, sid, hhash, app, rel, cflags, created, uid, last,
-                 url, ip, iphash, lat, lon, ptyp, bhash, auth, duration, xid,
-                 split, ename, etyp, ver, sink, score, params, nparams, gaid,
-                 idfa, msid, fbid, country, region, city, zip, culture, source,
-                 medium, campaign, term, ref, rcode, aff, browser, device, os,
-                 tz, vp)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                       ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (vid, sid) DO NOTHING`,
-				v["vid"], v["did"], v["sid"], hhash, v["app"], v["rel"],
-				cflags, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
-				iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, duration, v["xid"],
-				v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-				params, nparams, v["gaid"], v["idfa"], v["msid"], v["fbid"],
-				country, region, city, zip, culture, v["source"], v["medium"],
-				v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"],
-				w.Browser, v["device"], v["os"], v["tz"], vp)
-			if err != nil && i.AppConfig.Debug {
-				fmt.Println("[ERROR] DuckDB[sessions]:", err)
-			}
-		}
-
-		// visitors_latest table
-		_, err = tx.Exec(`INSERT INTO visitors_latest 
-            (vid, did, sid, hhash, app, rel, cflags, created, uid, last,
-             url, ip, iphash, lat, lon, ptyp, bhash, auth, xid, split, ename,
-             etyp, ver, sink, score, params, nparams, gaid, idfa, msid, fbid,
-             country, region, city, zip, culture, source, medium, campaign,
-             term, ref, rcode, aff, browser, device, os, tz, vp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (vid) DO UPDATE SET
-            did = EXCLUDED.did,
-            sid = EXCLUDED.sid,
-            hhash = EXCLUDED.hhash,
-            app = EXCLUDED.app,
-            rel = EXCLUDED.rel,
-            cflags = EXCLUDED.cflags,
-            created = EXCLUDED.created,
-            uid = EXCLUDED.uid,
-            last = EXCLUDED.last,
-            url = EXCLUDED.url,
-            ip = EXCLUDED.ip,
-            iphash = EXCLUDED.iphash,
-            lat = EXCLUDED.lat,
-            lon = EXCLUDED.lon,
-            ptyp = EXCLUDED.ptyp,
-            bhash = EXCLUDED.bhash,
-            auth = EXCLUDED.auth,
-            xid = EXCLUDED.xid,
-            split = EXCLUDED.split,
-            ename = EXCLUDED.ename,
-            etyp = EXCLUDED.etyp,
-            ver = EXCLUDED.ver,
-            sink = EXCLUDED.sink,
-            score = EXCLUDED.score,
-            params = EXCLUDED.params,
-            nparams = EXCLUDED.nparams,
-            gaid = EXCLUDED.gaid,
-            idfa = EXCLUDED.idfa,
-            msid = EXCLUDED.msid,
-            fbid = EXCLUDED.fbid,
-            country = EXCLUDED.country,
-            region = EXCLUDED.region,
-            city = EXCLUDED.city,
-            zip = EXCLUDED.zip,
-            culture = EXCLUDED.culture,
-            source = EXCLUDED.source,
-            medium = EXCLUDED.medium,
-            campaign = EXCLUDED.campaign,
-            term = EXCLUDED.term,
-            ref = EXCLUDED.ref,
-            rcode = EXCLUDED.rcode,
-            aff = EXCLUDED.aff,
-            browser = EXCLUDED.browser,
-            device = EXCLUDED.device,
-            os = EXCLUDED.os,
-            tz = EXCLUDED.tz,
-            vp = EXCLUDED.vp`,
-			v["vid"], v["did"], v["sid"], hhash, v["app"], v["rel"],
-			cflags, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
-			iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, v["xid"], v["split"],
-			v["ename"], v["etyp"], version, v["sink"], score, params,
-			nparams, v["gaid"], v["idfa"], v["msid"], v["fbid"], country,
-			region, city, zip, culture, v["source"], v["medium"],
-			v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"],
-			w.Browser, v["device"], v["os"], v["tz"], vp)
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[visitors_latest]:", err)
-		}
-
-		return tx.Commit()
-
-	case WRITE_LTV:
-		cleanString(&(w.Host))
-		//////////////////////////////////////////////
-		//FIX VARS
-		//////////////////////////////////////////////
-		//[updated]
-		updated := time.Now().UTC()
-		created := &updated
-
-		//[hhash]
-		var hhash *string
-		if w.Host != "" {
-			temp := strconv.FormatInt(int64(hash(w.Host)), 36)
-			hhash = &temp
-		}
-		//[payment]
-		var pmt *payment
-		pmt = &payment{}
-
-		//UUIDs
-		if iid, ok := v["invid"].(string); ok {
-			if temp, err := uuid.Parse(iid); err == nil {
-				pmt.InvoiceID = &temp
-			}
-		}
-		if pid, ok := v["pid"].(string); ok {
-			if temp, err := uuid.Parse(pid); err == nil {
-				pmt.ProductID = &temp
-			}
-		}
-
-		//Timestamps
-		if invoiced, ok := v["invoiced"].(string); ok {
-			millis, err := strconv.ParseInt(invoiced, 10, 64)
-			if err == nil {
-				temp := time.Unix(0, millis*int64(time.Millisecond)).Truncate(time.Millisecond)
-				pmt.Invoiced = &temp
-			}
-		} else if s, ok := v["invoiced"].(float64); ok {
-			temp := time.Unix(0, int64(s)*int64(time.Millisecond)).Truncate(time.Millisecond)
-			pmt.Invoiced = &temp
-		}
-		if starts, ok := v["starts"].(string); ok {
-			millis, err := strconv.ParseInt(starts, 10, 64)
-			if err == nil {
-				temp := time.Unix(0, millis*int64(time.Millisecond)).Truncate(time.Millisecond)
-				pmt.Starts = &temp
-			}
-		} else if s, ok := v["starts"].(float64); ok {
-			temp := time.Unix(0, int64(s)*int64(time.Millisecond)).Truncate(time.Millisecond)
-			pmt.Starts = &temp
-		}
-		if ends, ok := v["ends"].(string); ok {
-			millis, err := strconv.ParseInt(ends, 10, 64)
-			if err == nil {
-				temp := time.Unix(0, millis*int64(time.Millisecond)).Truncate(time.Millisecond)
-				pmt.Ends = &temp
-			}
-		} else if s, ok := v["ends"].(float64); ok {
-			temp := time.Unix(0, int64(s)*int64(time.Millisecond)).Truncate(time.Millisecond)
-			pmt.Ends = &temp
-		}
-		if paid, ok := v["paid"].(string); ok {
-			millis, err := strconv.ParseInt(paid, 10, 64)
-			if err == nil {
-				temp := time.Unix(0, millis*int64(time.Millisecond)).Truncate(time.Millisecond)
-				pmt.Paid = &temp
-			}
-		} else if s, ok := v["paid"].(float64); ok {
-			temp := time.Unix(0, int64(s)*int64(time.Millisecond)).Truncate(time.Millisecond)
-			pmt.Paid = &temp
-		}
-		if pmt.Paid == nil {
-			//!Force an update on row
-			pmt.Paid = &updated
-		}
-
-		//Strings
-		if temp, ok := v["product"].(string); ok {
-			pmt.Product = &temp
-		}
-		if temp, ok := v["pcat"].(string); ok {
-			pmt.ProductCategory = &temp
-		}
-		if temp, ok := v["man"].(string); ok {
-			pmt.Manufacturer = &temp
-		}
-		if temp, ok := v["model"].(string); ok {
-			pmt.Model = &temp
-		}
-		if temp, ok := v["duration"].(string); ok {
-			pmt.Duration = &temp
-		}
-
-		//Floats
-		var paid *float64
-		if s, ok := v["amt"].(string); ok {
-			if temp, err := strconv.ParseFloat(s, 64); err == nil {
-				paid = &temp
-			}
-
-		} else if s, ok := v["amt"].(float64); ok {
-			paid = &s
-		}
-
-		if qty, ok := v["qty"].(string); ok {
-			if temp, err := strconv.ParseFloat(qty, 64); err == nil {
-				pmt.Quantity = &temp
-			}
-		} else if s, ok := v["qty"].(float64); ok {
-			pmt.Quantity = &s
-		}
-
-		if price, ok := v["price"].(string); ok {
-			if temp, err := strconv.ParseFloat(price, 64); err == nil {
-				pmt.Price = &temp
-			}
-		} else if s, ok := v["price"].(float64); ok {
-			pmt.Price = &s
-		}
-
-		if discount, ok := v["discount"].(string); ok {
-			if temp, err := strconv.ParseFloat(discount, 64); err == nil {
-				pmt.Discount = &temp
-			}
-		} else if s, ok := v["discount"].(float64); ok {
-			pmt.Discount = &s
-		}
-
-		if revenue, ok := v["revenue"].(string); ok {
-			if temp, err := strconv.ParseFloat(revenue, 64); err == nil {
-				pmt.Revenue = &temp
-			}
-		} else if s, ok := v["revenue"].(float64); ok {
-			pmt.Revenue = &s
-		}
-
-		if margin, ok := v["margin"].(string); ok {
-			if temp, err := strconv.ParseFloat(margin, 64); err == nil {
-				pmt.Margin = &temp
-			}
-		} else if s, ok := v["margin"].(float64); ok {
-			pmt.Margin = &s
-		}
-
-		if cost, ok := v["cost"].(string); ok {
-			if temp, err := strconv.ParseFloat(cost, 64); err == nil {
-				pmt.Cost = &temp
-			}
-		} else if s, ok := v["cost"].(float64); ok {
-			pmt.Cost = &s
-		}
-
-		if tax, ok := v["tax"].(string); ok {
-			if temp, err := strconv.ParseFloat(tax, 64); err == nil {
-				pmt.Tax = &temp
-			}
-		} else if s, ok := v["tax"].(float64); ok {
-			pmt.Tax = &s
-		}
-
-		if taxrate, ok := v["tax_rate"].(string); ok {
-			if temp, err := strconv.ParseFloat(taxrate, 64); err == nil {
-				pmt.TaxRate = &temp
-			}
-		} else if s, ok := v["tax_rate"].(float64); ok {
-			pmt.TaxRate = &s
-		}
-
-		if commission, ok := v["commission"].(string); ok {
-			if temp, err := strconv.ParseFloat(commission, 64); err == nil {
-				pmt.Commission = &temp
-			}
-		} else if s, ok := v["commission"].(float64); ok {
-			pmt.Commission = &s
-		}
-
-		if referral, ok := v["referral"].(string); ok {
-			if temp, err := strconv.ParseFloat(referral, 64); err == nil {
-				pmt.Referral = &temp
-			}
-		} else if s, ok := v["referral"].(float64); ok {
-			pmt.Referral = &s
-		}
-
-		if fees, ok := v["fees"].(string); ok {
-			if temp, err := strconv.ParseFloat(fees, 64); err == nil {
-				pmt.Fees = &temp
-			}
-		} else if s, ok := v["fees"].(float64); ok {
-			pmt.Fees = &s
-		}
-
-		if subtotal, ok := v["subtotal"].(string); ok {
-			if temp, err := strconv.ParseFloat(subtotal, 64); err == nil {
-				pmt.Subtotal = &temp
-			}
-		} else if s, ok := v["subtotal"].(float64); ok {
-			pmt.Subtotal = &s
-		}
-
-		if total, ok := v["total"].(string); ok {
-			if temp, err := strconv.ParseFloat(total, 64); err == nil {
-				pmt.Total = &temp
-			}
-		} else if s, ok := v["total"].(float64); ok {
-			pmt.Total = &s
-		}
-
-		if payment, ok := v["payment"].(string); ok {
-			if temp, err := strconv.ParseFloat(payment, 64); err == nil {
-				pmt.Payment = &temp
-			}
-		} else if s, ok := v["payment"].(float64); ok {
-			pmt.Payment = &s
-		}
-		//!Force an amount in the payment
-		if pmt.Payment == nil {
-			pmt.Payment = paid
-		}
-
-		tx, err := i.Session.Begin()
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
-
-		var pmts []payment
-		var prevpaid *float64
-
-		// [LTV]
-		err = tx.QueryRow(`
-			SELECT payments, created, paid 
-			FROM ltv 
-			WHERE hhash = ? AND uid = ?`,
-			hhash, v["uid"]).Scan(&pmts, &created, &prevpaid)
-
-		if err != nil && err != sql.ErrNoRows && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[ltv]:", err)
-		}
-
-		if prevpaid != nil && paid != nil {
-			*prevpaid = *prevpaid + *paid
-		} else {
-			prevpaid = paid
-		}
-
-		pmts = append(pmts, *pmt)
-
-		_, err = tx.Exec(`
-			INSERT INTO ltv (
-				vid, sid, payments, paid, org, updated,
-				updater, created, owner, hhash, uid
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT (hhash, uid) DO UPDATE SET
-				vid = EXCLUDED.vid,
-				sid = EXCLUDED.sid, 
-				payments = EXCLUDED.payments,
-				paid = EXCLUDED.paid,
-				org = EXCLUDED.org,
-				updated = EXCLUDED.updated,
-				updater = EXCLUDED.updater,
-				created = EXCLUDED.created,
-				owner = EXCLUDED.owner`,
-			v["vid"], v["sid"], pmts, prevpaid, v["org"], updated,
-			v["uid"], created, v["uid"], hhash, v["uid"])
-
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[ltv]:", err)
-		}
-
-		// [LTVU]
-		pmts = pmts[:0]
-		created = &updated
-		prevpaid = nil
-
-		err = tx.QueryRow(`
-			SELECT payments, created, paid 
-			FROM ltvu 
-			WHERE hhash = ? AND uid = ? AND orid = ?`,
-			hhash, v["uid"], v["orid"]).Scan(&pmts, &created, &prevpaid)
-
-		if err != nil && err != sql.ErrNoRows && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[ltvu]:", err)
-		}
-
-		if prevpaid != nil && paid != nil {
-			*prevpaid = *prevpaid + *paid
-		} else {
-			prevpaid = paid
-		}
-
-		pmts = append(pmts, *pmt)
-
-		_, err = tx.Exec(`
-			INSERT INTO ltvu (
-				vid, sid, payments, paid, org, updated,
-				updater, created, owner, hhash, uid, orid
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT (hhash, uid, orid) DO UPDATE SET
-				vid = EXCLUDED.vid,
-				sid = EXCLUDED.sid,
-				payments = EXCLUDED.payments,
-				paid = EXCLUDED.paid,
-				org = EXCLUDED.org,
-				updated = EXCLUDED.updated,
-				updater = EXCLUDED.updater,
-				created = EXCLUDED.created,
-				owner = EXCLUDED.owner`,
-			v["vid"], v["sid"], pmts, prevpaid, v["org"], updated,
-			v["uid"], created, v["uid"], hhash, v["uid"], v["orid"])
-
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[ltvu]:", err)
-		}
-
-		// [LTVV]
-		pmts = pmts[:0]
-		created = &updated
-		prevpaid = nil
-
-		err = tx.QueryRow(`
-			SELECT payments, created, paid 
-			FROM ltvv 
-			WHERE hhash = ? AND vid = ? AND orid = ?`,
-			hhash, v["vid"], v["orid"]).Scan(&pmts, &created, &prevpaid)
-
-		if err != nil && err != sql.ErrNoRows && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[ltvv]:", err)
-		}
-
-		if prevpaid != nil && paid != nil {
-			*prevpaid = *prevpaid + *paid
-		} else {
-			prevpaid = paid
-		}
-
-		pmts = append(pmts, *pmt)
-
-		_, err = tx.Exec(`
-			INSERT INTO ltvv (
-				uid, sid, payments, paid, org, updated,
-				updater, created, owner, hhash, vid, orid
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT (hhash, vid, orid) DO UPDATE SET
-				uid = EXCLUDED.uid,
-				sid = EXCLUDED.sid,
-				payments = EXCLUDED.payments,
-				paid = EXCLUDED.paid,
-				org = EXCLUDED.org,
-				updated = EXCLUDED.updated,
-				updater = EXCLUDED.updater,
-				created = EXCLUDED.created,
-				owner = EXCLUDED.owner`,
-			v["uid"], v["sid"], pmts, prevpaid, v["org"], updated,
-			v["uid"], created, v["uid"], hhash, v["vid"], v["orid"])
-
-		if err != nil && i.AppConfig.Debug {
-			fmt.Println("[ERROR] DuckDB[ltvv]:", err)
 		}
 
 		return tx.Commit()

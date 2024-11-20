@@ -96,6 +96,7 @@ type session interface {
 	write(w *WriteArgs) error
 	listen() error
 	serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error
+	auth(s *ServiceArgs) error
 }
 
 type KeyValue struct {
@@ -159,6 +160,159 @@ type ServiceArgs struct {
 	EventID     gocql.UUID
 }
 
+type TableType uint64
+
+const (
+	// Primary Event Tables
+	TABLE_EVENTS        TableType = 1 << iota // 1 << 0  = 1
+	TABLE_EVENTS_RECENT                       // 1 << 1  = 2
+
+	// Session/Visitor Tables
+	TABLE_VISITORS        // 1 << 2  = 4
+	TABLE_VISITORS_LATEST // 1 << 3  = 8
+	TABLE_SESSIONS        // 1 << 4  = 16
+
+	// Tracking/Analytics Tables
+	TABLE_IPS       // 1 << 5  = 32
+	TABLE_ROUTED    // 1 << 6  = 64
+	TABLE_HITS      // 1 << 7  = 128
+	TABLE_DAILIES   // 1 << 8  = 256
+	TABLE_OUTCOMES  // 1 << 9  = 512
+	TABLE_REFERRERS // 1 << 10 = 1024
+	TABLE_REFERRALS // 1 << 11 = 2048
+	TABLE_REFERRED  // 1 << 12 = 4096
+	TABLE_HOSTS     // 1 << 13 = 8192
+	TABLE_BROWSERS  // 1 << 14 = 16384
+	TABLE_NODES     // 1 << 15 = 32768
+	TABLE_LOCATIONS // 1 << 16 = 65536
+	TABLE_ALIASES   // 1 << 17 = 131072
+	TABLE_USERS     // 1 << 18 = 262144
+	TABLE_USERNAMES // 1 << 19 = 524288
+	TABLE_EMAILS    // 1 << 20 = 1048576
+	TABLE_CELLS     // 1 << 21 = 2097152
+	TABLE_REQS      // 1 << 22 = 4194304
+
+	// LTV Related Tables
+	TABLE_LTV  // 1 << 23 = 8388608
+	TABLE_LTVU // 1 << 24 = 16777216
+	TABLE_LTVV // 1 << 25 = 33554432
+
+	// Other Tables
+	TABLE_AGREEMENTS       // 1 << 26 = 67108864
+	TABLE_AGREED           // 1 << 27 = 134217728
+	TABLE_JURISDICTIONS    // 1 << 28 = 268435456
+	TABLE_REDIRECTS        // 1 << 29 = 536870912
+	TABLE_REDIRECT_HISTORY // 1 << 30 = 1073741824
+	TABLE_COUNTERS         // 1 << 31 = 2147483648
+	TABLE_UPDATES          // 1 << 32 = 4294967296
+	TABLE_LOGS             // 1 << 33 = 8589934592
+
+	// Common Table Groups
+	TABLE_ALL_EVENTS    = TABLE_EVENTS | TABLE_EVENTS_RECENT
+	TABLE_ALL_VISITORS  = TABLE_VISITORS | TABLE_VISITORS_LATEST | TABLE_SESSIONS
+	TABLE_ALL_LTV       = TABLE_LTV | TABLE_LTVU | TABLE_LTVV
+	TABLE_ALL_REDIRECTS = TABLE_REDIRECTS | TABLE_REDIRECT_HISTORY
+	TABLE_ALL           = ^uint64(0)
+)
+
+// Helper methods for bitwise operations
+func (t TableType) Has(table TableType) bool {
+	return t&table != 0
+}
+
+func (t TableType) Add(table TableType) TableType {
+	return t | table
+}
+
+func (t TableType) Remove(table TableType) TableType {
+	return t &^ table
+}
+
+// String returns the string representation of the table name
+func (t TableType) String() string {
+	switch t {
+	// Primary Event Tables
+	case TABLE_EVENTS:
+		return "events"
+	case TABLE_EVENTS_RECENT:
+		return "events_recent"
+
+	// Session/Visitor Tables
+	case TABLE_VISITORS:
+		return "visitors"
+	case TABLE_VISITORS_LATEST:
+		return "visitors_latest"
+	case TABLE_SESSIONS:
+		return "sessions"
+
+	// Tracking/Analytics Tables
+	case TABLE_IPS:
+		return "ips"
+	case TABLE_ROUTED:
+		return "routed"
+	case TABLE_HITS:
+		return "hits"
+	case TABLE_DAILIES:
+		return "dailies"
+	case TABLE_OUTCOMES:
+		return "outcomes"
+	case TABLE_REFERRERS:
+		return "referrers"
+	case TABLE_REFERRALS:
+		return "referrals"
+	case TABLE_REFERRED:
+		return "referred"
+	case TABLE_HOSTS:
+		return "hosts"
+	case TABLE_BROWSERS:
+		return "browsers"
+	case TABLE_NODES:
+		return "nodes"
+	case TABLE_LOCATIONS:
+		return "locations"
+	case TABLE_ALIASES:
+		return "aliases"
+	case TABLE_USERS:
+		return "users"
+	case TABLE_USERNAMES:
+		return "usernames"
+	case TABLE_EMAILS:
+		return "emails"
+	case TABLE_CELLS:
+		return "cells"
+	case TABLE_REQS:
+		return "reqs"
+
+	// LTV Related Tables
+	case TABLE_LTV:
+		return "ltv"
+	case TABLE_LTVU:
+		return "ltvu"
+	case TABLE_LTVV:
+		return "ltvv"
+
+	// Other Tables
+	case TABLE_AGREEMENTS:
+		return "agreements"
+	case TABLE_AGREED:
+		return "agreed"
+	case TABLE_JURISDICTIONS:
+		return "jurisdictions"
+	case TABLE_REDIRECTS:
+		return "redirects"
+	case TABLE_REDIRECT_HISTORY:
+		return "redirect_history"
+	case TABLE_COUNTERS:
+		return "counters"
+	case TABLE_UPDATES:
+		return "updates"
+	case TABLE_LOGS:
+		return "logs"
+	default:
+		return "unknown"
+	}
+}
+
 type Service struct {
 	Service  string
 	Hosts    []string
@@ -185,10 +339,10 @@ type Service struct {
 
 	Session session
 
-	Skip                             bool
-	ProxyRealtimeStorageService      *Service
-	ProxyRealtimeStorageServiceName  string
-	ProxyRealtimeStorageServiceTypes uint64
+	Skip                              bool
+	ProxyRealtimeStorageService       *Service
+	ProxyRealtimeStorageServiceName   string
+	ProxyRealtimeStorageServiceTables uint64
 }
 
 type ClickhouseService struct { //Implements 'session'

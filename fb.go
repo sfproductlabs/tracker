@@ -83,6 +83,10 @@ func (i *FacebookService) close() error {
 	return nil
 }
 
+func (i *FacebookService) auth(s *ServiceArgs) error {
+	return fmt.Errorf("[ERROR] Not implemented")
+}
+
 // ////////////////////////////////////// Facebook
 // Write
 func (i *FacebookService) write(w *WriteArgs) error {
