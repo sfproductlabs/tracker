@@ -15,28 +15,37 @@ import { getHostRoot } from './network';
 import config from '../../../config.yaml';
 import { compress } from '../../../../../public/lz4'
 
+// Initial WebSocket setup
+let socket;
+const wsurl = path(["Tracker", "WS", process.env.TARGET || path(["Application", "Target"], config) || "Development"], config);
+// Define WebSocket event handlers
+const wsHandlers = {
+    onopen: () => {
+        console.debug('WS TR connected');
+    },
+    onmessage: (event) => {
+        const data = JSON.parse(event.data);
+        console.debug('WS TR Received:', data);
+    },
+    onerror: (event) => {
+        console.error('WS TR error:', event);
+    },
+    onclose: () => {
+        console.debug('WS TR Disconnected from server');
+        // Attempt to reconnect after a delay
+        setTimeout(setupWebSocket, 1000);
+    }
+};
 
-const ws = new WebSocket(path(["Tracker", "WS", process.env.TARGET || path(["Application", "Target"], config) || "Development"], config));
-// Connection opened
-socket.addEventListener('open', (event) => {
-    console.debug('Connected to WebSocket server');
-});
-
-// Listen for messages
-socket.addEventListener('message', (event) => {
-    const data = JSON.parse(event.data);
-    console.debug('Received:', data);
-});
-
-// Handle errors
-socket.addEventListener('error', (event) => {
-    console.error('WebSocket error:', event);
-});
-
-// Handle connection close
-socket.addEventListener('close', (event) => {
-    console.debug('Disconnected from WebSocket server');
-});
+// Function to setup WebSocket with event handlers
+function setupWebSocket() {
+    socket = new WebSocket(wsurl);
+    socket.addEventListener('open', wsHandlers.onopen);
+    socket.addEventListener('message', wsHandlers.onmessage);
+    socket.addEventListener('error', wsHandlers.onerror);
+    socket.addEventListener('close', wsHandlers.onclose);
+}
+setupWebSocket();
 
 /**
  * @param {object} params - event parameters
