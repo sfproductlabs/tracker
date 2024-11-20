@@ -157,7 +157,7 @@ type ServiceArgs struct {
 	Browser     string
 	Language    string
 	URI         string
-	EventID     gocql.UUID
+	EventID     uuid.UUID
 }
 
 type TableType uint64
