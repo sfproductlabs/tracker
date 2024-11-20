@@ -73,9 +73,18 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
+	"github.com/pierrec/lz4/v4"
 	"golang.org/x/crypto/acme/autocert"
 )
+
+var upgrader = websocket.Upgrader{
+	// Allow all connections for simplicity
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
 
 // //////////////////////////////////////
 // Get the system setup from the config.json file:
@@ -654,6 +663,53 @@ func main() {
 	for i := 0; i < configuration.MaximumConnections; i++ {
 		connc <- struct{}{}
 	}
+
+	//////////////////////////////////////// WEBSOCKET
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			fmt.Println("Error upgrading to WebSocket:", err)
+			return
+		}
+		defer conn.Close()
+
+		fmt.Println("Client connected!")
+
+		for {
+			// Read message
+			messageType, msg, err := conn.ReadMessage()
+			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					fmt.Printf("WebSocket error: %v\n", err)
+				}
+				break
+			}
+
+			var data map[string]interface{}
+			// Handle different message types
+			switch messageType {
+			case websocket.TextMessage:
+				// Handle uncompressed JSON
+				if err := json.Unmarshal(msg, &data); err != nil {
+					fmt.Printf("Error parsing JSON: %v\n", err)
+					continue
+				}
+			case websocket.BinaryMessage:
+				// Decompress LZ4 data
+				dst := make([]byte, len(msg)*3)
+				decompressed, err := lz4.UncompressBlock(msg, dst)
+				if err != nil {
+					fmt.Printf("Error decompressing message: %v\n", err)
+					continue
+				}
+				// Parse JSON
+				if err := json.Unmarshal(dst[:decompressed], &data); err != nil {
+					fmt.Printf("Error parsing JSON: %v\n", err)
+					continue
+				}
+			}
+		}
+	})
 
 	//////////////////////////////////////// REDIRECT URL & SHORTENER
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
