@@ -95,7 +95,8 @@
             "Secure": false,
             "Service": "duckdb",
             "Timeout": 300,
-            "ProxyRealtimeStorageServiceName" : "cassandra"
+            "ProxyRealtimeStorageServiceName" : "cassandra",
+            "ProxyRealtimeStorageServiceTypes" : -1
         },
         {
             "CACert": null,

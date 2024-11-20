@@ -135,16 +135,17 @@ type Prune struct {
 }
 
 type WriteArgs struct {
-	WriteType  int
-	Values     *map[string]interface{}
-	IsServer   bool
-	SaveCookie bool
-	IP         string
-	Browser    string
-	Language   string
-	URI        string
-	Host       string
-	EventID    gocql.UUID
+	WriteType      int
+	Values         *map[string]interface{}
+	IsServer       bool
+	SaveCookie     bool
+	IP             string
+	Browser        string
+	Language       string
+	URI            string
+	Host           string
+	EventID        gocql.UUID
+	CallingService *Service
 }
 
 type ServiceArgs struct {
@@ -184,9 +185,10 @@ type Service struct {
 
 	Session session
 
-	Skip                            bool
-	ProxyRealtimeStorageService     *Service
-	ProxyRealtimeStorageServiceName string
+	Skip                             bool
+	ProxyRealtimeStorageService      *Service
+	ProxyRealtimeStorageServiceName  string
+	ProxyRealtimeStorageServiceTypes uint64
 }
 
 type ClickhouseService struct { //Implements 'session'
@@ -325,6 +327,7 @@ const (
 	WRITE_COUNT  = 1 << iota
 	WRITE_EVENT  = 1 << iota
 	WRITE_LTV    = 1 << iota
+	WRITE_ALL    = ^uint64(0)
 
 	WRITE_DESC_LOG    = "log"
 	WRITE_DESC_UPDATE = "update"

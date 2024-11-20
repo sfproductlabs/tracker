@@ -169,6 +169,66 @@ create table visitors (
   vp frozen<viewport>,
   PRIMARY KEY ((vid))
 );
+--index on uid for visitors
+CREATE INDEX uid_visitors ON visitors ( uid );
+
+
+--This should only be written to once a user first visits (vid==sid), AKA acquisitions
+create table visitors_latest (
+  vid timeuuid, --visitor-id
+  did text, --device-id
+  sid timeuuid, --session-id
+  hhash text, --host-hash
+  app text, --app
+  rel text, --app release/version
+  cflags bigint, --compliances represented via N notation == 1001110101111
+  created timestamp, --time.Now().UTC() on server
+  updated timestamp, --time.Now().UTC() on server 
+  uid timeuuid, --user-id
+  last text, --last action/slug/url/referrer_url (what i just clicked on)
+  url text, --this should always be url slug of **current** url
+  ip inet, --client ip
+  iphash text, 
+  latlon frozen<geo_point>, --location
+  ptyp text, --page category/type 
+  bhash text, --browser-hash
+  auth timeuuid, --author of **destination** content
+  --Experiment Fields
+  xid text, --primary experiment id, hypothesis
+  split text, --primary experiment split A/B
+  ename text, ----event name e.g. "signup_attempt", event-id/event-name, AKA utm_content, AKA action in params ex. Clicked button A, joined-experiment-now
+  etyp text, --event-type, category of events (views, category, component)
+  ver int, --experiment/sink version/variation
+  sink text, --local-optimum/intention, Ex. want user to sign up for offer X
+  score double, --score (where user is in sink/intention)
+  params map<text,text>, --all additional experiment params,passive multivariate experiments (xid,split), (include global-optimum-experimentid[outcome], a/b[type], etc)
+  nparams map<text,double>, --numerical version of params
+  --Landing Fields
+  gaid text, --google advertising id
+  idfa text, --apple advertising id
+  msid text, --microsoft advertising id
+  fbid text, --facebook advertising id
+  country text, --ISO-2
+  region text, --state/region name
+  city text, --city
+  zip text, --zip/postal code
+  culture text, --EN-US
+  source text, --referring domain, user, service [sms] AKA utm_source
+  medium text, --email,sms,ad,etc [invite] AKA utm_medium
+  campaign text, --marketing campaign name [chat_invite] AKA utm_campaign
+  term text, --seo search query term AKA utm_term
+  ref timeuuid, --referrer vid
+  rcode text, --referrer code
+  aff text, --affiliate id, promo-code
+  browser text,
+  device text, 
+  os text,  
+  tz text,
+  vp frozen<viewport>,
+  PRIMARY KEY ((vid))
+);
+--index on uid for visitors_latest
+CREATE INDEX uid_visitors_latest_idx ON visitors_latest ( uid );
 
 --Session-starts written to once a user first starts a session, AKA session-starts
 create table sessions (
