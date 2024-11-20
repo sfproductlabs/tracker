@@ -1275,33 +1275,34 @@ func (i *DuckService) write(w *WriteArgs) error {
 
 		//EventID
 		if temp, ok := v["eid"].(string); ok {
-			evt, _ := gocql.ParseUUID(temp)
-			if evt.Timestamp() != 0 {
+			evt, _ := uuid.Parse(temp)
+			// Check if valid UUID and specifically a v1 UUID
+			if evt != uuid.Nil && evt.Version() == uuid.Version(1) {
 				w.EventID = evt
 			}
 		}
-		//Double check
-		if w.EventID.Timestamp() == 0 {
-			w.EventID = gocql.TimeUUID()
+		//If not set or not a valid v1 UUID, generate new v1 UUID
+		if w.EventID == uuid.Nil || w.EventID.Version() != uuid.Version(1) {
+			w.EventID = uuid.Must(uuid.NewUUID())
 		}
 
 		//[vid] - default
 		isNew := false
 		if vidstring, ok := v["vid"].(string); !ok {
-			v["vid"] = gocql.TimeUUID()
+			v["vid"] = uuid.Must(uuid.NewUUID())
 			isNew = true
 		} else {
 			//Let's override the event id too
 			tempvid, _ := gocql.ParseUUID(vidstring)
 			if tempvid.Timestamp() == 0 {
-				v["vid"] = gocql.TimeUUID()
+				v["vid"] = uuid.Must(uuid.NewUUID())
 				isNew = true
 			}
 		}
 		//[uid] - let's overwrite the vid if we have a uid
 		if uidstring, ok := v["uid"].(string); ok {
-			tempuid, _ := gocql.ParseUUID(uidstring)
-			if tempuid.Timestamp() != 0 {
+			tempuid, _ := uuid.Parse(uidstring)
+			if tempuid != uuid.Nil && tempuid.Version() == uuid.Version(1) {
 				v["vid"] = v["uid"]
 				isNew = false
 			}
@@ -1311,14 +1312,14 @@ func (i *DuckService) write(w *WriteArgs) error {
 			if isNew {
 				v["sid"] = v["vid"]
 			} else {
-				v["sid"] = gocql.TimeUUID()
+				v["sid"] = uuid.Must(uuid.NewUUID())
 			}
 		} else {
-			tempuuid, _ := gocql.ParseUUID(sidstring)
-			if tempuuid.Timestamp() == 0 {
-				v["sid"] = gocql.TimeUUID()
-			} else {
+			tempuuid, _ := uuid.Parse(sidstring)
+			if tempuuid != uuid.Nil && tempuuid.Version() == uuid.Version(1) {
 				v["sid"] = tempuuid
+			} else {
+				v["sid"] = uuid.Must(uuid.NewUUID())
 			}
 		}
 
@@ -1428,6 +1429,8 @@ func (i *DuckService) write(w *WriteArgs) error {
 			if err != nil && i.AppConfig.Debug {
 				fmt.Println("[ERROR] DuckDB[locations]:", err)
 			}
+		} else {
+			latlon = &geo_point{}
 		}
 
 		// aliases table
@@ -1495,17 +1498,17 @@ func (i *DuckService) write(w *WriteArgs) error {
             (eid, vid, sid, hhash, app, rel, cflags, created, updated, uid, last,
              url, ip, iphash, lat,lon, ptyp, bhash, auth, duration, xid, split,
              ename, source, medium, campaign, country, region, city, zip, term,
-             etyp, ver, sink, score, params, nparams)
+             etyp, ver, sink, score, params, nparams, payment, targets, relation, rid)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?)`,
+                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			v["eid"], v["vid"], v["sid"], hhash, v["app"], v["rel"], cflags,
-			created, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
+			updated, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
 			iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, duration, v["xid"],
 			v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 			country, region, city, zip, v["term"], v["etyp"], version,
-			v["sink"], score, params, nparams)
+			v["sink"], score, params, nparams, v["payment"], v["targets"], v["relation"], rid)
 		if err != nil && i.AppConfig.Debug {
 			fmt.Println("[ERROR] DuckDB[events]:", err)
 		}
@@ -1515,17 +1518,17 @@ func (i *DuckService) write(w *WriteArgs) error {
             (eid, vid, sid, hhash, app, rel, cflags, created, updated, uid, last,
              url, ip, iphash, lat, lon, ptyp, bhash, auth, duration, xid, split,
              ename, source, medium, campaign, country, region, city, zip, term,
-             etyp, ver, sink, score, params, nparams)
+             etyp, ver, sink, score, params, nparams, payment, targets, relation, rid)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?)`,
+                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			v["eid"], v["vid"], v["sid"], hhash, v["app"], v["rel"], cflags,
-			created, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
+			updated, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
 			iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, duration, v["xid"],
 			v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 			country, region, city, zip, v["term"], v["etyp"], version,
-			v["sink"], score, params, nparams)
+			v["sink"], score, params, nparams, v["payment"], v["targets"], v["relation"], rid)
 		if err != nil && i.AppConfig.Debug {
 			fmt.Println("[ERROR] DuckDB[events_recent]:", err)
 		}

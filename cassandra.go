@@ -1364,12 +1364,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if temp, ok := v["eid"].(string); ok {
 			evt, _ := gocql.ParseUUID(temp)
 			if evt.Timestamp() != 0 {
-				w.EventID = evt
+				w.EventID = uuid.Must(uuid.Parse(evt.String()))
 			}
 		}
 		//Double check
-		if w.EventID.Timestamp() == 0 {
-			w.EventID = gocql.TimeUUID()
+		if w.EventID == uuid.Nil || w.EventID.Version() != uuid.Version(1) {
+			w.EventID = uuid.Must(uuid.NewUUID())
 		}
 
 		//[vid] - default

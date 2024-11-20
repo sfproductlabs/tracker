@@ -61,6 +61,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+	"github.com/google/uuid"
 )
 
 ////////////////////////////////////////
@@ -75,14 +76,14 @@ func (i *FacebookService) connect() error {
 	return nil
 }
 
-//////////////////////////////////////// Facebook
+// ////////////////////////////////////// Facebook
 // Close
-//will terminate the session to the backend, returning error if an issue arises
+// will terminate the session to the backend, returning error if an issue arises
 func (i *FacebookService) close() error {
 	return nil
 }
 
-//////////////////////////////////////// Facebook
+// ////////////////////////////////////// Facebook
 // Write
 func (i *FacebookService) write(w *WriteArgs) error {
 	//TODO: Facebook services
@@ -204,18 +205,17 @@ func (i *FacebookService) write(w *WriteArgs) error {
 			cleanString(region)
 			cleanString(city)
 
-			//EventID
+			// EventID
 			if temp, ok := v["eid"].(string); ok {
 				evt, _ := gocql.ParseUUID(temp)
 				if evt.Timestamp() != 0 {
-					w.EventID = evt
+					w.EventID = uuid.Must(uuid.Parse(evt.String()))
 				}
 			}
-			//Double check
-			if w.EventID.Timestamp() == 0 {
-				w.EventID = gocql.TimeUUID()
+			// Double check
+			if w.EventID == uuid.Nil || w.EventID.Version() != uuid.Version(1) {
+				w.EventID = uuid.Must(uuid.NewUUID())
 			}
-
 			//[vid] - default
 			isNew := false
 			if vidstring, ok := v["vid"].(string); !ok {
@@ -390,7 +390,7 @@ func (i *FacebookService) serve(w *http.ResponseWriter, r *http.Request, s *Serv
 	return nil
 }
 
-//////////////////////////////////////// Facebook
+// ////////////////////////////////////// Facebook
 // Listen
 func (i *FacebookService) listen() error {
 	return nil

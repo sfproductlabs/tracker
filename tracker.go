@@ -144,7 +144,7 @@ type WriteArgs struct {
 	Language       string
 	URI            string
 	Host           string
-	EventID        gocql.UUID
+	EventID        uuid.UUID
 	CallingService *Service
 }
 
@@ -734,7 +734,7 @@ func main() {
 					IP:        getIP(r),
 					Browser:   r.Header.Get("user-agent"),
 					Language:  r.Header.Get("accept-language"),
-					EventID:   gocql.TimeUUID(),
+					EventID:   uuid.Must(uuid.NewUUID()),
 					URI:       r.RequestURI,
 					Host:      getHost(r),
 					IsServer:  false,
@@ -922,7 +922,7 @@ func main() {
 				wargs := WriteArgs{
 					WriteType: WRITE_EVENT,
 					IP:        getIP(r),
-					EventID:   gocql.TimeUUID(),
+					EventID:   uuid.Must(uuid.NewUUID()),
 					URI:       r.RequestURI,
 					Host:      getHost(r),
 					IsServer:  true,
@@ -1215,7 +1215,7 @@ func ltv(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 		Language:  r.Header.Get("accept-language"),
 		URI:       r.RequestURI,
 		Host:      getHost(r),
-		EventID:   gocql.TimeUUID(),
+		EventID:   uuid.Must(uuid.NewUUID()),
 	}
 	return trackWithArgs(c, w, r, &wargs)
 }
@@ -1232,7 +1232,7 @@ func track(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 		Language:  r.Header.Get("accept-language"),
 		URI:       r.RequestURI,
 		Host:      getHost(r),
-		EventID:   gocql.TimeUUID(),
+		EventID:   uuid.Must(uuid.NewUUID()),
 	}
 	return trackWithArgs(c, w, r, &wargs)
 }
