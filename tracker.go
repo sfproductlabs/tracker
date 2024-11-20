@@ -992,7 +992,7 @@ func main() {
 	//////////////////////////////////////// STATIC CONTENT ROUTE
 	fmt.Println("Serving static content in:", configuration.StaticDirectory)
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
-	pubSlug := "/pub/" + apiVersion + "/"
+	pubSlug := "/" + apiVersion + "/pub/"
 	http.HandleFunc(pubSlug, func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
@@ -1006,7 +1006,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// 1x1 PIXEL ROUTE
-	http.HandleFunc("/img/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/img/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			track(&configuration, &w, r)
@@ -1024,7 +1024,7 @@ func main() {
 	// Ex. https://localhost:8443/tr/v1/vid/accad/ROCK/ON/lat/5/lon/6/first/true/score/6
 	// OR
 	// {"last":"https://localhost:5001/maps","next":"https://localhost:5001/error/maps/request/unauthorized","params":{"type":"b","origin":"maps","error":"unauthorized","method":"request"},"created":1539072857869,"duration":1959,"vid":"4883a4c0-cb96-11e8-afac-bb666b9727ed","first":"false","sid":"4883cbd0-cb96-11e8-afac-bb666b9727ed"}
-	http.HandleFunc("/tr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/tr/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -1049,7 +1049,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// Track Lifetime Value
-	http.HandleFunc("/ltv/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/ltv/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -1074,7 +1074,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// Server Tracking Route
-	http.HandleFunc("/str/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/str/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -1110,7 +1110,7 @@ func main() {
 
 	//////////////////////////////////////// Redirect Route
 	// Ex. https://localhost:8443/rdr/v1/?r=https%3A%2F%2Fx.com
-	http.HandleFunc("/rdr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/rdr/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			track(&configuration, &w, r)
@@ -1219,7 +1219,7 @@ func main() {
 
 	/// Privacy program interface (cookies)
 	ctr := mux.NewRouter()
-	ctr.HandleFunc("/ppi/"+apiVersion+"/{action}", func(w http.ResponseWriter, r *http.Request) {
+	ctr.HandleFunc("/"+apiVersion+"/ppi/{action}", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -1262,11 +1262,11 @@ func main() {
 			}
 		}
 	})
-	http.Handle("/ppi/"+apiVersion+"/", ctr)
+	http.Handle("/"+apiVersion+"/ppi/", ctr)
 
 	//////////////////////////////////////// Redirect API Route & Functions
 	rtr := mux.NewRouter()
-	rtr.HandleFunc("/rpi/"+apiVersion+"{_dummy:.*}", func(w http.ResponseWriter, r *http.Request) {
+	rtr.HandleFunc("/"+apiVersion+"/rpi/{_dummy:.*}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 		w.Header().Set("access-control-allow-credentials", "true")
 		w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
@@ -1274,7 +1274,7 @@ func main() {
 		w.Header().Set("access-control-max-age", "1728000")
 		w.WriteHeader(http.StatusOK)
 	}).Methods("OPTIONS")
-	rtr.HandleFunc("/rpi/"+apiVersion+"/redirects/{uid}/{password}/{host}", func(w http.ResponseWriter, r *http.Request) {
+	rtr.HandleFunc("/"+apiVersion+"/rpi/redirects/{uid}/{password}/{host}", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			params := mux.Vars(r)
@@ -1293,7 +1293,7 @@ func main() {
 			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 		}
 	}).Methods("GET")
-	rtr.HandleFunc("/rpi/"+apiVersion+"/redirect/{uid}/{password}", func(w http.ResponseWriter, r *http.Request) {
+	rtr.HandleFunc("/"+apiVersion+"/rpi/redirect/{uid}/{password}", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			params := mux.Vars(r)
@@ -1312,7 +1312,7 @@ func main() {
 			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 		}
 	}).Methods("POST")
-	http.Handle("/rpi/"+apiVersion+"/", rtr)
+	http.Handle("/"+apiVersion+"/rpi/", rtr)
 
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
 	go func() {

@@ -1,4 +1,3 @@
-
 /* From https://github.com/sfproductlabs/tracker (this is v1 - keep an eye on current v2 updates!)
  * https://github.com/keithws/browser-report
  * Report browser settings like whatsmybrowseorg
@@ -12,7 +11,7 @@ import { v1 as uuidv1 } from 'uuid';
 import report from './report';
 import request from './request';
 import device from './device';
-import {getHostRoot} from './network';
+import { getHostRoot } from './network';
 import config from '../../../config.yaml';
 
 /**
@@ -23,7 +22,7 @@ import config from '../../../config.yaml';
  * @returns {null|undefined}
  */
 export default function track(params) {
-    if (!config || !config.Tracker || !config.Tracker.Track) {        
+    if (!config || !config.Tracker || !config.Tracker.Track) {
         return;
     }
     params = defaultTo({})(params);
@@ -68,7 +67,7 @@ export default function track(params) {
     if (email) {
         json.email = email;
     }
-    
+
     if (!json.eid) {
         json.eid = uuidv1()
     }
@@ -128,10 +127,10 @@ export default function track(params) {
         json.params.fbc = fbc;
     }
     json.now = now / 1000
-    json.ehash = json.ehash || cookies.get(config.Cookies.Names.COOKIE_EMAIL_HASH) || undefined;    
+    json.ehash = json.ehash || cookies.get(config.Cookies.Names.COOKIE_EMAIL_HASH) || undefined;
     json.cflags = json.cflags || cookies.get(config.Cookies.Names.COOKIE_CONSENT) || undefined;
     json.uri = window.location.origin + window.location.pathname;
-    
+
     //Existing Query Params
     //Ex. http://localhost:3003/?gu=1&ptyp=blog&utm_source=news_service&utm_medium=email&utm_campaign=campaign&aff=promo&ref=60c59df0ed0811e8a766de1a241fb011&uname=admin
     try {
@@ -165,7 +164,7 @@ export default function track(params) {
     json.params = { ...json, ...temp }
 
     let tr = function (obj) {
-        request(`${getTrackerUrl()}/tr/v1/`, {
+        request(`${getTrackerUrl()}/v1/tr/`, {
             method: "POST",
             body: JSON.stringify(obj),
             ...ta
@@ -205,7 +204,7 @@ export const getPageType = () => {
         }
     }
     return null;
-} 
+}
 
 export function getTrackerUrl() {
     return path(["Tracker", "Url", process.env.TARGET || path(["Application", "Target"], config) || "Development"], config);
@@ -216,21 +215,129 @@ export function resetUserCookies() {
     let vid = cookies.get(config.Cookies.Names.COOKIE_VISITOR);
     let found = true;
     if (!vid) {
-      vid = uuidv1();
-      found = false;
+        vid = uuidv1();
+        found = false;
     }
     const sid = cookies.get(config.Cookies.Names.COOKIE_SESSION) || vid;
-    cookies.setLax(config.Cookies.Names.COOKIE_VISITOR, vid, { 
-      sameSite: 'lax', 
-      domain
+    cookies.setLax(config.Cookies.Names.COOKIE_VISITOR, vid, {
+        sameSite: 'lax',
+        domain
     });
-    cookies.setLax(config.Cookies.Names.COOKIE_SESSION, sid, { 
-      sameSite: 'lax', 
-      domain
+    cookies.setLax(config.Cookies.Names.COOKIE_SESSION, sid, {
+        sameSite: 'lax',
+        domain
     });
     if (!found) {
-      try { track({ename:'visited', eid: vid, sid: vid, vid:vid, etyp: "cookie"}); } catch {};
+        try { track({ ename: 'visited', eid: vid, sid: vid, vid: vid, etyp: "cookie" }); } catch { };
     }
-  }
+}
 
-  resetUserCookies();
+resetUserCookies();
+
+// Track mouse position, scroll position and click events
+// Events are batched and sent every 100ms to reduce server load and improve performance
+// Click events include target element information (id, class, tag) for better analytics
+let mouseEvents = [];
+let scrollEvents = [];
+let clickEvents = [];
+let trackingTimeout;
+
+const sensitiveClasses = ['password', 'credit-card', 'ssn'];
+const sensitiveAttributes = ['data-sensitive', 'data-private'];
+
+const shouldMaskElement = (element) => {
+    return sensitiveClasses.some(cls => element.className.includes(cls)) ||
+        sensitiveAttributes.some(attr => element.hasAttribute(attr));
+};
+const getElementDetails = (element) => {
+    return {
+        id: element.id || null,
+        className: element.className || null,
+        tagName: element.tagName?.toLowerCase() || null,
+        text: shouldMaskElement(element) ? '***' : element.textContent?.trim() || null,
+        type: element.type || null,
+        href: element.href || null,
+        // Get closest parent with data-track attribute if exists
+        trackingData: element.closest('[data-track]')?.dataset?.track || null
+    };
+};
+
+const trackClickEvent = (e) => {
+    const target = e.target;
+    clickEvents.push({
+        timestamp: Date.now(),
+        x: e.clientX,
+        y: e.clientY,
+        element: getElementDetails(target)
+    });
+    scheduleTracking();
+};
+
+const trackMouseMovement = (e) => {
+    mouseEvents.push({
+        x: e.clientX,
+        y: e.clientY,
+        timestamp: Date.now()
+    });
+    scheduleTracking();
+};
+
+const trackScrollMovement = () => {
+    scrollEvents.push({
+        x: window.scrollX,
+        y: window.scrollY,
+        timestamp: Date.now()
+    });
+    scheduleTracking();
+};
+
+const scheduleTracking = () => {
+    if (trackingTimeout) {
+        clearTimeout(trackingTimeout);
+    }
+    trackingTimeout = setTimeout(sendTrackingEvents, 100);
+};
+
+const sendTrackingEvents = () => {
+    if (mouseEvents.length > 0) {
+        track({
+            ename: "mouse_move",
+            values: mouseEvents
+        });
+        mouseEvents = [];
+    }
+    if (scrollEvents.length > 0) {
+        track({
+            ename: "scroll_move",
+            values: scrollEvents
+        });
+        scrollEvents = [];
+    }
+    if (clickEvents.length > 0) {
+        track({
+            ename: "element_click",
+            values: clickEvents
+        });
+        clickEvents = [];
+    }
+};
+
+const trackPerformance = () => {
+    if (window.performance && window.performance.timing) {
+        const timing = performance.timing;
+        track({
+            ename: "page_performance",
+            values: [{
+                loadTime: timing.loadEventEnd - timing.navigationStart,
+                domReady: timing.domContentLoadedEventEnd - timing.navigationStart,
+                firstPaint: performance.getEntriesByType('paint')[0]?.startTime,
+                timestamp: Date.now()
+            }]
+        });
+    }
+};
+
+window.addEventListener('mousemove', trackMouseMovement);
+window.addEventListener('scroll', trackScrollMovement);
+window.addEventListener('click', trackClickEvent);
+window.addEventListener('load', trackPerformance);

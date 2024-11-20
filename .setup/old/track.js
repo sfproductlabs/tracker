@@ -125,7 +125,7 @@ export default function track(params, force) {
         json.uid = path(["sfpl", "pub", "uid"], user)
         json.uname = path(["sfpl", "pub", "uname"], user)
     }
-    request(`${URL_TRACK}/tr/v1/`, {
+    request(`${URL_TRACK}/v1/tr/`, {
         method: "POST",
         body: JSON.stringify(json),
         ...ta

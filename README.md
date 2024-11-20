@@ -64,7 +64,7 @@ Send the server something to track (replace tr with str if its from an internal 
 #### REST Payload Example
 In the following example, we use tuplets to persist what's needed to track (Ex. {"tr":"v1"})
 ```
-https://localhost:8443/tr/v1/vid/14fb0860-b4bf-11e9-8971-7b80435315ac/ROCK/ON/lat/37.232332/lon/6.32233223/first/true/score/6/ref/14fb0860-b4bf-11e9-8971-7b80435315ac
+https://localhost:8443/v1/tr/vid/14fb0860-b4bf-11e9-8971-7b80435315ac/ROCK/ON/lat/37.232332/lon/6.32233223/first/true/score/6/ref/14fb0860-b4bf-11e9-8971-7b80435315ac
 ```
 #### JSON Payload Example (Method:POST, Body)
 Descriptions of the columns we send are in the schema file above. (Ex. vid = visitorId)
@@ -76,7 +76,7 @@ Descriptions of the columns we send are in the schema file above. (Ex. vid = vis
 curl -k --header "Content-Type: application/json" \
   --request POST \
   --data '{"app":"native","email":"lalala@aaa.com","uid":"179ea090-6e8c-11ea-bb89-1d0ba023ecf8","uname":null,"tz":"Europe/Warsaw","device":"Handset","os":"iOS 13.4","did":"758152C1-278C-4C80-84A0-CF771B000835","w":375,"h":667,"rel":1,"sid":"c1dcf340-6eaa-11ea-a0b8-6120e9776df7","time":1585149028377,"ename":"filter_results","etyp":"filter","ptyp":"own_rooms","page":1,"vid":"016f2740-6e8c-11ea-9f0b-5d70c66851be"}' \
-  https://localhost:443/tr/v1/ -vvv
+  https://localhost:443/v1/tr/ -vvv
 ```
 #### Good Example
 * Notice the additional param "page" needed to be a string
@@ -85,20 +85,20 @@ curl -k --header "Content-Type: application/json" \
 curl -k --header "Content-Type: application/json" \
   --request POST \
   --data '{"app":"native","email":"lalala@aaa.com","uid":"179ea090-6e8c-11ea-bb89-1d0ba023ecf8","uname":null,"tz":"Europe/Warsaw","device":"Handset","os":"iOS 13.4","did":"758152C1-278C-4C80-84A0-CF771B000835","w":375,"h":667,"rel":"1","sid":"c1dcf340-6eaa-11ea-a0b8-6120e9776df7","time":1585149028377,"ename":"filter_results","etyp":"filter","ptyp":"own_rooms","page":"1","vid":"016f2740-6e8c-11ea-9f0b-5d70c66851be"}' \
-  https://localhost:443/tr/v1/ -vvv
+  https://localhost:443/v1/tr/ -vvv
 ```
 
 ### Shortened URLs
 
 #### List Shortened URLs for a site
 ```
-curl -k --request GET https://localhost:8443/rpi/v1/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yoursitename.com
+curl -k --request GET https://localhost:8443/v1/rpi/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yoursitename.com
 ```
 #### Create a Shortened URL
 ```
 curl -k --request POST \
   --data '{"urlfrom":"https://yoursitename.com/test","hostfrom":"yoursrcsitename.com","slugfrom":"/test","urlto":"https://yoursitename.com/pathtourl?gu=1&ptyp=ad&utm_source=fb&utm_medium=content&utm_campaign=test_campaign&utm_content=clicked_ad&etype=user_click&ref=b7c551b2-857a-11ea-8eb7-de2e3c44e03d","hostto":"yourdestsitename.com","pathto":"/pathtourl","searchto":"?gu=1&ptyp=ad&utm_source=fb&utm_medium=content&utm_campaign=test_campaign&utm_content=clicked_ad&etype=user_click&ref=b7c551b2-857a-11ea-8eb7-de2e3c44e03d"}' \
-  https://localhost:8443/rpi/v1/redirect/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yoursitename.com
+  https://localhost:8443/v1/rpi/redirect/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yoursitename.com
 ```
 
 
@@ -210,11 +210,11 @@ ps waux | grep tracker
 #Do this QUICKLY before the machine is swapped out due to excessive downtime 
 
 #Run your test in another terminal... ssh -l ec2-user 172.18.99.1 (from ecs service) and docker exec -it aa bash
-curl -w "\n" -k -H 'Content-Type: application/json'  -XPOST  "https://localhost:8443/tr/v1/" -d '{"hideFreePlan":"false","name":"Bewusstsein in Aufruhr","newsletter":"bewusstsein-in-aufruhr","static":"%2Fkurs%2Fbewusstsein-in-aufruhr","umleitung":"%2Fkurs%2Fbewusstsein-in-aufruhr","ename":"visited_site","etyp":"session","last":"/einloggen","url":"/registrieren","ptyp":"logged_out_ancillary","sid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","first":"true","tz":"America/Los_Angeles","device":"Mac","os":"macOS","w":1331,"h":459,"vid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","rel":"1.0.179","app":"hd","params":{"hideFreePlan":"false","name":"Bewusstsein in Aufruhr","newsletter":"bewusstsein-in-aufruhr","static":"%2Fkurs%2Fbewusstsein-in-aufruhr","umleitung":"%2Fkurs%2Fbewusstsein-in-aufruhr","ename":"viewed_page","etyp":"view","last":"/einloggen","url":"/registrieren","ptyp":"logged_out_ancillary","sid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","first":"true","tz":"America/Los_Angeles","device":"Mac","os":"macOS","w":1331,"h":459,"vid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","rel":"1.0.179","app":"hd","homepageSlogan":"B","homepagePricePlans":"A"}}'
+curl -w "\n" -k -H 'Content-Type: application/json'  -XPOST  "https://localhost:8443/v1/tr/" -d '{"hideFreePlan":"false","name":"Bewusstsein in Aufruhr","newsletter":"bewusstsein-in-aufruhr","static":"%2Fkurs%2Fbewusstsein-in-aufruhr","umleitung":"%2Fkurs%2Fbewusstsein-in-aufruhr","ename":"visited_site","etyp":"session","last":"/einloggen","url":"/registrieren","ptyp":"logged_out_ancillary","sid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","first":"true","tz":"America/Los_Angeles","device":"Mac","os":"macOS","w":1331,"h":459,"vid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","rel":"1.0.179","app":"hd","params":{"hideFreePlan":"false","name":"Bewusstsein in Aufruhr","newsletter":"bewusstsein-in-aufruhr","static":"%2Fkurs%2Fbewusstsein-in-aufruhr","umleitung":"%2Fkurs%2Fbewusstsein-in-aufruhr","ename":"viewed_page","etyp":"view","last":"/einloggen","url":"/registrieren","ptyp":"logged_out_ancillary","sid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","first":"true","tz":"America/Los_Angeles","device":"Mac","os":"macOS","w":1331,"h":459,"vid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","rel":"1.0.179","app":"hd","homepageSlogan":"B","homepagePricePlans":"A"}}'
 
 #or check ltv
-curl -w "\n" -k -H 'Content-Type: application/json'  -XPOST  "https://localhost:8443/ltv/v1/" -d '{"vid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","uid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","sid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c", "orid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c", "amt" : 35}'
+curl -w "\n" -k -H 'Content-Type: application/json'  -XPOST  "https://localhost:8443/v1/ltv/" -d '{"vid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","uid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c","sid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c", "orid":"627f7c80-0d7c-11eb-9767-93f1d9c02a9c", "amt" : 35}'
 
 #or privacy
-curl -w "\n" -k -H 'Content-Type: application/json' -XPOST  "https://localhost:8443/ppi/v1/agree" -d '{"vid": "5ae3c890-5e55-11ea-9283-4fa18a847130", "cflags": 1024}'
+curl -w "\n" -k -H 'Content-Type: application/json' -XPOST  "https://localhost:8443/v1/ppi/agree" -d '{"vid": "5ae3c890-5e55-11ea-9283-4fa18a847130", "cflags": 1024}'
 ```
