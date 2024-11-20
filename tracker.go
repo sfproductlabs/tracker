@@ -822,7 +822,7 @@ func main() {
 	}
 
 	//////////////////////////////////////// WEBSOCKET
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/ws", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			fmt.Println("Error upgrading to WebSocket:", err)

@@ -13,6 +13,30 @@ import request from './request';
 import device from './device';
 import { getHostRoot } from './network';
 import config from '../../../config.yaml';
+import { compress } from '../../../../../public/lz4'
+
+
+const ws = new WebSocket(path(["Tracker", "WS", process.env.TARGET || path(["Application", "Target"], config) || "Development"], config));
+// Connection opened
+socket.addEventListener('open', (event) => {
+    console.debug('Connected to WebSocket server');
+});
+
+// Listen for messages
+socket.addEventListener('message', (event) => {
+    const data = JSON.parse(event.data);
+    console.debug('Received:', data);
+});
+
+// Handle errors
+socket.addEventListener('error', (event) => {
+    console.error('WebSocket error:', event);
+});
+
+// Handle connection close
+socket.addEventListener('close', (event) => {
+    console.debug('Disconnected from WebSocket server');
+});
 
 /**
  * @param {object} params - event parameters
@@ -164,11 +188,19 @@ export default function track(params) {
     json.params = { ...json, ...temp }
 
     let tr = function (obj) {
-        request(`${getTrackerUrl()}/v1/tr/`, {
-            method: "POST",
+        if (config.Tracker.WebSocket && socket.readyState === WebSocket.OPEN) {
+            const str = JSON.stringify(obj);
+            const bytes = new TextEncoder().encode(str);
+            compress(bytes, true).then(compressed => {
+                socket.send(compressed);
+            });
+        } else {
+            request(`${getTrackerUrl()}/v1/tr/`, {
+                method: "POST",
             body: JSON.stringify(obj),
-            ...ta
-        });
+                ...ta
+            });
+        }
     };
 
     if (json.first) {
@@ -240,7 +272,9 @@ resetUserCookies();
 let mouseEvents = [];
 let scrollEvents = [];
 let clickEvents = [];
+let keyboardEvents = [];
 let trackingTimeout;
+let keyboardTrackingTimeout;
 
 const sensitiveClasses = ['password', 'credit-card', 'ssn'];
 const sensitiveAttributes = ['data-sensitive', 'data-private'];
@@ -289,6 +323,35 @@ const trackScrollMovement = () => {
         timestamp: Date.now()
     });
     scheduleTracking();
+};
+
+const trackKeyboardEvent = (e) => {
+    // Don't track actual key values from sensitive fields
+    const isSensitiveField = shouldMaskElement(e.target);
+    keyboardEvents.push({
+        timestamp: Date.now(),
+        key: isSensitiveField ? '***' : e.key,
+        type: e.type, // 'keydown', 'keyup', etc.
+        element: getElementDetails(e.target)
+    });
+    scheduleKeyboardTracking();
+};
+
+const scheduleKeyboardTracking = () => {
+    if (keyboardTrackingTimeout) {
+        clearTimeout(keyboardTrackingTimeout);
+    }
+    keyboardTrackingTimeout = setTimeout(sendKeyboardEvents, 2000);
+};
+
+const sendKeyboardEvents = () => {
+    if (keyboardEvents.length > 0) {
+        track({
+            ename: "keyboard_input",
+            values: keyboardEvents
+        });
+        keyboardEvents = [];
+    }
 };
 
 const scheduleTracking = () => {
@@ -341,3 +404,4 @@ window.addEventListener('mousemove', trackMouseMovement);
 window.addEventListener('scroll', trackScrollMovement);
 window.addEventListener('click', trackClickEvent);
 window.addEventListener('load', trackPerformance);
+window.addEventListener('keydown', trackKeyboardEvent);

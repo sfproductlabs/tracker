@@ -31,6 +31,13 @@ Routes:
         PageType: settings
 Tracker:
     Track: true
+    ApiVersion: v1
+    WebSocket: true
+    WS:
+        Development: ws://localhost:8880/v1/ws
+        Staging: ws://tr.sfpl.io/v1/ws
+        Production: wss://tr.sfpl.io/v1/ws
+
     Url: 
         Development: http://localhost:8880
         Staging: https://tr.sfpl.io
