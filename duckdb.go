@@ -8,10 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"math/rand"
 	"strconv"
 
@@ -406,118 +404,120 @@ func (i *DuckService) createTables() error {
 }
 
 func (i *DuckService) prune() error {
-	if !i.AppConfig.PruneLogsOnly {
-		// Prune old records from main tables
-		tables := []string{"visitors", "sessions", "events", "events_recent"}
+	return fmt.Errorf("[ERROR] Not implemented pruning in duck")
 
-		// Default TTL of 30 days if not specified
-		ttl := 2592000
-		if i.AppConfig.PruneLogsTTL > 0 {
-			ttl = i.AppConfig.PruneLogsTTL
-		}
-		pruneTime := time.Now().Add(-time.Duration(ttl) * time.Second)
+	// if !i.AppConfig.PruneLogsOnly {
+	// 	// Prune old records from main tables
+	// 	tables := []string{"visitors", "sessions", "events", "events_recent"}
 
-		for _, table := range tables {
-			var total, pruned int64
+	// 	// Default TTL of 30 days if not specified
+	// 	ttl := 2592000
+	// 	if i.AppConfig.PruneLogsTTL > 0 {
+	// 		ttl = i.AppConfig.PruneLogsTTL
+	// 	}
+	// 	pruneTime := time.Now().Add(-time.Duration(ttl) * time.Second)
 
-			// First count total records
-			err := i.Session.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&total)
-			if err != nil {
-				fmt.Printf("Error counting records in %s: %v\n", table, err)
-				continue
-			}
+	// 	for _, table := range tables {
+	// 		var total, pruned int64
 
-			if i.AppConfig.PruneUpdateConfig {
-				// Update approach - set fields to null
-				result, err := i.Session.Exec(fmt.Sprintf(`
-					UPDATE %s 
-					SET updated = ?,
-						params = NULL
-					WHERE created < ?`, table),
-					time.Now().UTC(), pruneTime)
+	// 		// First count total records
+	// 		err := i.Session.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&total)
+	// 		if err != nil {
+	// 			fmt.Printf("Error counting records in %s: %v\n", table, err)
+	// 			continue
+	// 		}
 
-				if err != nil {
-					fmt.Printf("Error updating records in %s: %v\n", table, err)
-					continue
-				}
+	// 		if i.AppConfig.PruneUpdateConfig {
+	// 			// Update approach - set fields to null
+	// 			result, err := i.Session.Exec(fmt.Sprintf(`
+	// 				UPDATE %s
+	// 				SET updated = ?,
+	// 					params = NULL
+	// 				WHERE created < ?`, table),
+	// 				time.Now().UTC(), pruneTime)
 
-				pruned, _ = result.RowsAffected()
+	// 			if err != nil {
+	// 				fmt.Printf("Error updating records in %s: %v\n", table, err)
+	// 				continue
+	// 			}
 
-			} else {
-				// Delete approach
-				result, err := i.Session.Exec(fmt.Sprintf("DELETE FROM %s WHERE created < ?", table), pruneTime)
-				if err != nil {
-					fmt.Printf("Error deleting from %s: %v\n", table, err)
-					continue
-				}
+	// 			pruned, _ = result.RowsAffected()
 
-				pruned, _ = result.RowsAffected()
-			}
+	// 		} else {
+	// 			// Delete approach
+	// 			result, err := i.Session.Exec(fmt.Sprintf("DELETE FROM %s WHERE created < ?", table), pruneTime)
+	// 			if err != nil {
+	// 				fmt.Printf("Error deleting from %s: %v\n", table, err)
+	// 				continue
+	// 			}
 
-			if i.AppConfig.Debug {
-				fmt.Printf("Pruned [DuckDB].[%s]: %d/%d rows\n", table, pruned, total)
-			}
-		}
-	}
+	// 			pruned, _ = result.RowsAffected()
+	// 		}
 
-	// Prune logs table if enabled
-	if !i.AppConfig.PruneLogsSkip {
-		var total, pruned int64
+	// 		if i.AppConfig.Debug {
+	// 			fmt.Printf("Pruned [DuckDB].[%s]: %d/%d rows\n", table, pruned, total)
+	// 		}
+	// 	}
+	// }
 
-		// Get total count
-		err := i.Session.QueryRow("SELECT COUNT(*) FROM logs").Scan(&total)
-		if err != nil {
-			fmt.Printf("Error counting logs: %v\n", err)
-			return err
-		}
+	// // Prune logs table if enabled
+	// if !i.AppConfig.PruneLogsSkip {
+	// 	var total, pruned int64
 
-		// Use logs TTL from config
-		ttl := 2592000 // Default 30 days
-		if i.AppConfig.PruneLogsTTL > 0 {
-			ttl = i.AppConfig.PruneLogsTTL
-		}
-		cutoffTime := time.Now().Add(-time.Duration(ttl) * time.Second)
+	// 	// Get total count
+	// 	err := i.Session.QueryRow("SELECT COUNT(*) FROM logs").Scan(&total)
+	// 	if err != nil {
+	// 		fmt.Printf("Error counting logs: %v\n", err)
+	// 		return err
+	// 	}
 
-		// Delete old logs
-		result, err := i.Session.Exec("DELETE FROM logs WHERE created < ?", cutoffTime)
-		if err != nil {
-			fmt.Printf("Error pruning logs: %v\n", err)
-			return err
-		}
+	// 	// Use logs TTL from config
+	// 	ttl := 2592000 // Default 30 days
+	// 	if i.AppConfig.PruneLogsTTL > 0 {
+	// 		ttl = i.AppConfig.PruneLogsTTL
+	// 	}
+	// 	cutoffTime := time.Now().Add(-time.Duration(ttl) * time.Second)
 
-		pruned, _ = result.RowsAffected()
+	// 	// Delete old logs
+	// 	result, err := i.Session.Exec("DELETE FROM logs WHERE created < ?", cutoffTime)
+	// 	if err != nil {
+	// 		fmt.Printf("Error pruning logs: %v\n", err)
+	// 		return err
+	// 	}
 
-		if i.AppConfig.Debug {
-			fmt.Printf("Pruned [DuckDB].[logs]: %d/%d rows\n", pruned, total)
-		}
-	}
+	// 	pruned, _ = result.RowsAffected()
 
-	// Update config file if needed
-	if i.AppConfig.PruneUpdateConfig {
-		s, err := ioutil.ReadFile(i.AppConfig.ConfigFile)
-		if err != nil {
-			return err
-		}
+	// 	if i.AppConfig.Debug {
+	// 		fmt.Printf("Pruned [DuckDB].[logs]: %d/%d rows\n", pruned, total)
+	// 	}
+	// }
 
-		var j interface{}
-		if err := json.Unmarshal(s, &j); err != nil {
-			return err
-		}
+	// // Update config file if needed
+	// if i.AppConfig.PruneUpdateConfig {
+	// 	s, err := ioutil.ReadFile(i.AppConfig.ConfigFile)
+	// 	if err != nil {
+	// 		return err
+	// 	}
 
-		SetValueInJSON(j, "PruneSkipToTimestamp", time.Now().Unix())
+	// 	var j interface{}
+	// 	if err := json.Unmarshal(s, &j); err != nil {
+	// 		return err
+	// 	}
 
-		s, _ = json.Marshal(j)
-		var prettyJSON bytes.Buffer
-		if err := json.Indent(&prettyJSON, s, "", "    "); err != nil {
-			return err
-		}
+	// 	SetValueInJSON(j, "PruneSkipToTimestamp", time.Now().Unix())
 
-		if err := ioutil.WriteFile(i.AppConfig.ConfigFile, prettyJSON.Bytes(), 0644); err != nil {
-			return err
-		}
-	}
+	// 	s, _ = json.Marshal(j)
+	// 	var prettyJSON bytes.Buffer
+	// 	if err := json.Indent(&prettyJSON, s, "", "    "); err != nil {
+	// 		return err
+	// 	}
 
-	return nil
+	// 	if err := ioutil.WriteFile(i.AppConfig.ConfigFile, prettyJSON.Bytes(), 0644); err != nil {
+	// 		return err
+	// 	}
+	// }
+
+	// return nil
 }
 
 // Add this method to handle the background health check
