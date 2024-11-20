@@ -832,6 +832,17 @@ func main() {
 
 		fmt.Println("Client connected!")
 
+		wargs := WriteArgs{
+			WriteType: WRITE_EVENT,
+			IP:        getIP(r),
+			Browser:   r.Header.Get("user-agent"),
+			Language:  r.Header.Get("accept-language"),
+			EventID:   uuid.Must(uuid.NewUUID()),
+			URI:       r.RequestURI,
+			Host:      getHost(r),
+			IsServer:  false,
+		}
+
 		for {
 			// Read message
 			messageType, msg, err := conn.ReadMessage()
@@ -865,6 +876,8 @@ func main() {
 					continue
 				}
 			}
+			wargs.Values = &data
+			trackWithArgs(&configuration, &w, r, &wargs)
 		}
 	})
 
