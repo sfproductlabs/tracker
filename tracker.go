@@ -342,7 +342,7 @@ type Service struct {
 	Skip                              bool
 	ProxyRealtimeStorageService       *Service
 	ProxyRealtimeStorageServiceName   string
-	ProxyRealtimeStorageServiceTables uint64
+	ProxyRealtimeStorageServiceTables TableType
 }
 
 type ClickhouseService struct { //Implements 'session'

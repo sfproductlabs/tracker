@@ -1425,8 +1425,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			fmt.Println("C*[routed]:", xerr)
 		}
 
-		if xerr := i.Session.Query(`INSERT into events_recent 
-			 (
+		//events_recent
+		//TODO: Add other table type checks
+		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS_RECENT)) {
+			if xerr := i.Session.Query(`INSERT into events_recent 
+				 (
 				 eid,
 				 vid, 
 				 sid,
@@ -1467,45 +1470,46 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 relation
 			 ) 
 			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
-			w.EventID,
-			v["vid"],
-			v["sid"],
-			hhash,
-			v["app"],
-			v["rel"],
-			cflags,
-			updated,
-			v["uid"],
-			v["last"],
-			v["url"],
-			w.IP,
-			iphash,
-			latlon,
-			v["ptyp"],
-			bhash,
-			auth,
-			duration,
-			v["xid"],
-			v["split"],
-			v["ename"],
-			v["source"],
-			v["medium"],
-			v["campaign"],
-			country,
-			region,
-			city,
-			zip,
-			v["term"],
-			v["etyp"],
-			version,
-			v["sink"],
-			score,
-			params,
-			nparams,
-			v["targets"],
-			rid,
-			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[events_recent]:", xerr)
+				w.EventID,
+				v["vid"],
+				v["sid"],
+				hhash,
+				v["app"],
+				v["rel"],
+				cflags,
+				updated,
+				v["uid"],
+				v["last"],
+				v["url"],
+				w.IP,
+				iphash,
+				latlon,
+				v["ptyp"],
+				bhash,
+				auth,
+				duration,
+				v["xid"],
+				v["split"],
+				v["ename"],
+				v["source"],
+				v["medium"],
+				v["campaign"],
+				country,
+				region,
+				city,
+				zip,
+				v["term"],
+				v["etyp"],
+				version,
+				v["sink"],
+				score,
+				params,
+				nparams,
+				v["targets"],
+				rid,
+				v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[events_recent]:", xerr)
+			}
 		}
 
 		if !i.AppConfig.UseRemoveIP {
@@ -1513,7 +1517,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 
 		//events
-		if xerr := i.Session.Query(`INSERT into events 
+		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS)) {
+			if xerr := i.Session.Query(`INSERT into events 
 			 (
 				 eid,
 				 vid, 
@@ -1555,45 +1560,46 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 relation
 			 ) 
 			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
-			w.EventID,
-			v["vid"],
-			v["sid"],
-			hhash,
-			v["app"],
-			v["rel"],
-			cflags,
-			updated,
-			v["uid"],
-			v["last"],
-			v["url"],
-			v["cleanIP"],
-			iphash,
-			latlon,
-			v["ptyp"],
-			bhash,
-			auth,
-			duration,
-			v["xid"],
-			v["split"],
-			v["ename"],
-			v["source"],
-			v["medium"],
-			v["campaign"],
-			country,
-			region,
-			city,
-			zip,
-			v["term"],
-			v["etyp"],
-			version,
-			v["sink"],
-			score,
-			params,
-			nparams,
-			v["targets"],
-			rid,
-			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[events]:", xerr)
+				w.EventID,
+				v["vid"],
+				v["sid"],
+				hhash,
+				v["app"],
+				v["rel"],
+				cflags,
+				updated,
+				v["uid"],
+				v["last"],
+				v["url"],
+				v["cleanIP"],
+				iphash,
+				latlon,
+				v["ptyp"],
+				bhash,
+				auth,
+				duration,
+				v["xid"],
+				v["split"],
+				v["ename"],
+				v["source"],
+				v["medium"],
+				v["campaign"],
+				country,
+				region,
+				city,
+				zip,
+				v["term"],
+				v["etyp"],
+				version,
+				v["sink"],
+				score,
+				params,
+				nparams,
+				v["targets"],
+				rid,
+				v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[events]:", xerr)
+			}
 		}
 
 		//Exclude from params in sessions and visitors. Note: more above.
