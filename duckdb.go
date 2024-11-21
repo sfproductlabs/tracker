@@ -28,10 +28,13 @@ func (i *DuckService) connect() error {
 	}
 
 	// Open DuckDB connection with configuration
-	i.Session, err = sql.Open("duckdb", ":memory:?access_mode=READ_WRITE&threads=4&memory_limit=4GB")
+	i.Session, err = sql.Open("duckdb", "")
 	if err != nil {
 		fmt.Println("[ERROR] Connecting to DuckDB:", err)
 		return err
+	} else {
+		_, err = i.Session.Exec("SET threads=4")
+		_, err = i.Session.Exec("SET memory_limit='4GB'")
 	}
 
 	// Configure connection pool settings
