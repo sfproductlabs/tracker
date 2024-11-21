@@ -644,11 +644,11 @@ func (i *DuckService) healthCheck() error {
 		}
 		// Export based on condition
 		if sizeBytes > i.AppConfig.MaxShardSizeBytes {
-			if err := i.exportAndTruncateTable(tableName, true, sizeBytes); err != nil {
+			if err := i.exportAndTruncateTable(tableName, true, sizeBytes, lastModified); err != nil {
 				return fmt.Errorf("failed to process table %s: %v", tableName, err)
 			}
 		} else if time.Since(lastModified) > inactivityLimit {
-			if err := i.exportAndTruncateTable(tableName, false, sizeBytes); err != nil {
+			if err := i.exportAndTruncateTable(tableName, false, sizeBytes, lastModified); err != nil {
 				return fmt.Errorf("failed to process table %s: %v", tableName, err)
 			}
 		}
@@ -665,7 +665,7 @@ func (i *DuckService) healthCheck() error {
 }
 
 // Modified to handle different version behavior
-func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion bool, sizeBytes int64) error {
+func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion bool, sizeBytes int64, lastModified time.Time) error {
 	tx, err := i.Session.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %v", err)
@@ -675,6 +675,10 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 	// Get current version or create new entry
 	var version int
 	currentTime := time.Now().UTC()
+	// Force version increment if we've ticked over to a new day
+	if lastModified.Day() != currentTime.Day() {
+		incrementVersion = true
+	}
 	if incrementVersion {
 		// Increment version for size-based exports
 		err = tx.QueryRow(`
