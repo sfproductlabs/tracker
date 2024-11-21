@@ -26,3 +26,6 @@ config.*.json
 .DS_Store
 
 config.homodea.json
+pdb/
+pdbwal/
+tmp/
