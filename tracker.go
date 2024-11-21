@@ -50,6 +50,7 @@ package main
 
 import (
 	"crypto/tls"
+	"database/sql"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -68,11 +69,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gocql/gocql"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
+	"github.com/pierrec/lz4/v4"
 	"golang.org/x/crypto/acme/autocert"
 )
+
+var upgrader = websocket.Upgrader{
+	// Allow all connections for simplicity
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
 
 // //////////////////////////////////////
 // Get the system setup from the config.json file:
@@ -84,6 +96,7 @@ type session interface {
 	write(w *WriteArgs) error
 	listen() error
 	serve(w *http.ResponseWriter, r *http.Request, s *ServiceArgs) error
+	auth(s *ServiceArgs) error
 }
 
 type KeyValue struct {
@@ -123,16 +136,17 @@ type Prune struct {
 }
 
 type WriteArgs struct {
-	WriteType  int
-	Values     *map[string]interface{}
-	IsServer   bool
-	SaveCookie bool
-	IP         string
-	Browser    string
-	Language   string
-	URI        string
-	Host       string
-	EventID    gocql.UUID
+	WriteType      int
+	Values         *map[string]interface{}
+	IsServer       bool
+	SaveCookie     bool
+	IP             string
+	Browser        string
+	Language       string
+	URI            string
+	Host           string
+	EventID        uuid.UUID
+	CallingService *Service
 }
 
 type ServiceArgs struct {
@@ -143,7 +157,160 @@ type ServiceArgs struct {
 	Browser     string
 	Language    string
 	URI         string
-	EventID     gocql.UUID
+	EventID     uuid.UUID
+}
+
+type TableType uint64
+
+const (
+	// Primary Event Tables
+	TABLE_EVENTS        TableType = 1 << iota // 1 << 0  = 1
+	TABLE_EVENTS_RECENT                       // 1 << 1  = 2
+
+	// Session/Visitor Tables
+	TABLE_VISITORS        // 1 << 2  = 4
+	TABLE_VISITORS_LATEST // 1 << 3  = 8
+	TABLE_SESSIONS        // 1 << 4  = 16
+
+	// Tracking/Analytics Tables
+	TABLE_IPS       // 1 << 5  = 32
+	TABLE_ROUTED    // 1 << 6  = 64
+	TABLE_HITS      // 1 << 7  = 128
+	TABLE_DAILIES   // 1 << 8  = 256
+	TABLE_OUTCOMES  // 1 << 9  = 512
+	TABLE_REFERRERS // 1 << 10 = 1024
+	TABLE_REFERRALS // 1 << 11 = 2048
+	TABLE_REFERRED  // 1 << 12 = 4096
+	TABLE_HOSTS     // 1 << 13 = 8192
+	TABLE_BROWSERS  // 1 << 14 = 16384
+	TABLE_NODES     // 1 << 15 = 32768
+	TABLE_LOCATIONS // 1 << 16 = 65536
+	TABLE_ALIASES   // 1 << 17 = 131072
+	TABLE_USERS     // 1 << 18 = 262144
+	TABLE_USERNAMES // 1 << 19 = 524288
+	TABLE_EMAILS    // 1 << 20 = 1048576
+	TABLE_CELLS     // 1 << 21 = 2097152
+	TABLE_REQS      // 1 << 22 = 4194304
+
+	// LTV Related Tables
+	TABLE_LTV  // 1 << 23 = 8388608
+	TABLE_LTVU // 1 << 24 = 16777216
+	TABLE_LTVV // 1 << 25 = 33554432
+
+	// Other Tables
+	TABLE_AGREEMENTS       // 1 << 26 = 67108864
+	TABLE_AGREED           // 1 << 27 = 134217728
+	TABLE_JURISDICTIONS    // 1 << 28 = 268435456
+	TABLE_REDIRECTS        // 1 << 29 = 536870912
+	TABLE_REDIRECT_HISTORY // 1 << 30 = 1073741824
+	TABLE_COUNTERS         // 1 << 31 = 2147483648
+	TABLE_UPDATES          // 1 << 32 = 4294967296
+	TABLE_LOGS             // 1 << 33 = 8589934592
+
+	// Common Table Groups
+	TABLE_ALL_EVENTS    = TABLE_EVENTS | TABLE_EVENTS_RECENT
+	TABLE_ALL_VISITORS  = TABLE_VISITORS | TABLE_VISITORS_LATEST | TABLE_SESSIONS
+	TABLE_ALL_LTV       = TABLE_LTV | TABLE_LTVU | TABLE_LTVV
+	TABLE_ALL_REDIRECTS = TABLE_REDIRECTS | TABLE_REDIRECT_HISTORY
+	TABLE_ALL           = ^uint64(0)
+)
+
+// Helper methods for bitwise operations
+func (t TableType) Has(table TableType) bool {
+	return t&table != 0
+}
+
+func (t TableType) Add(table TableType) TableType {
+	return t | table
+}
+
+func (t TableType) Remove(table TableType) TableType {
+	return t &^ table
+}
+
+// String returns the string representation of the table name
+func (t TableType) String() string {
+	switch t {
+	// Primary Event Tables
+	case TABLE_EVENTS:
+		return "events"
+	case TABLE_EVENTS_RECENT:
+		return "events_recent"
+
+	// Session/Visitor Tables
+	case TABLE_VISITORS:
+		return "visitors"
+	case TABLE_VISITORS_LATEST:
+		return "visitors_latest"
+	case TABLE_SESSIONS:
+		return "sessions"
+
+	// Tracking/Analytics Tables
+	case TABLE_IPS:
+		return "ips"
+	case TABLE_ROUTED:
+		return "routed"
+	case TABLE_HITS:
+		return "hits"
+	case TABLE_DAILIES:
+		return "dailies"
+	case TABLE_OUTCOMES:
+		return "outcomes"
+	case TABLE_REFERRERS:
+		return "referrers"
+	case TABLE_REFERRALS:
+		return "referrals"
+	case TABLE_REFERRED:
+		return "referred"
+	case TABLE_HOSTS:
+		return "hosts"
+	case TABLE_BROWSERS:
+		return "browsers"
+	case TABLE_NODES:
+		return "nodes"
+	case TABLE_LOCATIONS:
+		return "locations"
+	case TABLE_ALIASES:
+		return "aliases"
+	case TABLE_USERS:
+		return "users"
+	case TABLE_USERNAMES:
+		return "usernames"
+	case TABLE_EMAILS:
+		return "emails"
+	case TABLE_CELLS:
+		return "cells"
+	case TABLE_REQS:
+		return "reqs"
+
+	// LTV Related Tables
+	case TABLE_LTV:
+		return "ltv"
+	case TABLE_LTVU:
+		return "ltvu"
+	case TABLE_LTVV:
+		return "ltvv"
+
+	// Other Tables
+	case TABLE_AGREEMENTS:
+		return "agreements"
+	case TABLE_AGREED:
+		return "agreed"
+	case TABLE_JURISDICTIONS:
+		return "jurisdictions"
+	case TABLE_REDIRECTS:
+		return "redirects"
+	case TABLE_REDIRECT_HISTORY:
+		return "redirect_history"
+	case TABLE_COUNTERS:
+		return "counters"
+	case TABLE_UPDATES:
+		return "updates"
+	case TABLE_LOGS:
+		return "logs"
+	default:
+		return "unknown"
+	}
 }
 
 type Service struct {
@@ -171,6 +338,25 @@ type Service struct {
 	Note      string
 
 	Session session
+
+	Skip                              bool
+	ProxyRealtimeStorageService       *Service
+	ProxyRealtimeStorageServiceName   string
+	ProxyRealtimeStorageServiceTables TableType
+}
+
+type ClickhouseService struct { //Implements 'session'
+	Configuration *Service
+	Session       *clickhouse.Conn
+	AppConfig     *Configuration
+}
+
+type DuckService struct { //Implements 'session'
+	Configuration     *Service
+	Session           *sql.DB
+	AppConfig         *Configuration
+	HealthCheckTicker *time.Ticker
+	HealthCheckDone   chan bool
 }
 
 type CassandraService struct { //Implements 'session'
@@ -261,6 +447,13 @@ type Configuration struct {
 	PruneUpdateConfig        bool
 	PruneLimit               int
 	PruneSkipToTimestamp     int64
+	S3Bucket                 string
+	S3Prefix                 string
+	S3Region                 string
+	S3AccessKeyID            string
+	S3SecretAccessKey        string
+	HealthCheckInterval      int
+	NodeId                   string
 }
 
 // ////////////////////////////////////// Constants
@@ -268,9 +461,11 @@ const (
 	PONG              string = "pong"
 	API_LIMIT_REACHED string = "API Limit Reached"
 
-	SERVICE_TYPE_CASSANDRA string = "cassandra"
-	SERVICE_TYPE_NATS      string = "nats"
-	SERVICE_TYPE_FACEBOOK  string = "facebook"
+	SERVICE_TYPE_CLICKHOUSE string = "clickhouse"
+	SERVICE_TYPE_NATS       string = "nats"
+	SERVICE_TYPE_FACEBOOK   string = "facebook"
+	SERVICE_TYPE_DUCKDB     string = "duckdb"
+	SERVICE_TYPE_CASSANDRA  string = "cassandra"
 
 	FB_PIXEL string = "FB_PIXEL"
 	FB_TOKEN string = "FB_TOKEN"
@@ -286,6 +481,7 @@ const (
 	WRITE_COUNT  = 1 << iota
 	WRITE_EVENT  = 1 << iota
 	WRITE_LTV    = 1 << iota
+	WRITE_ALL    = ^uint64(0)
 
 	WRITE_DESC_LOG    = "log"
 	WRITE_DESC_UPDATE = "update"
@@ -358,6 +554,7 @@ func main() {
 		fmt.Println("error:", err)
 	}
 	configuration.ConfigFile = configFile
+	configuration.NodeId = uuid.New().String()
 
 	//////////////////////////////////////// OVERRIDE FACEBOOK VARIABLES
 	var fbPixel = os.Getenv(FB_PIXEL)
@@ -435,9 +632,49 @@ func main() {
 		proxyPortRedirect = configuration.ProxyPortRedirect
 	}
 	//////////////////////////////////////// LOAD NOTIFIERS
+	notification_services := make(map[string]*Service)
 	for idx := range configuration.Notify {
 		s := &configuration.Notify[idx]
+		notification_services[s.Service] = s
 		switch s.Service {
+		case SERVICE_TYPE_CLICKHOUSE:
+			fmt.Printf("Notify #%d: Connecting to ClickHouse: %s\n", idx, s.Hosts)
+			clickhouse := ClickhouseService{
+				Configuration: s,
+				AppConfig:     &configuration,
+			}
+			err = clickhouse.connect()
+			if err != nil || s.Session == nil {
+				if s.Critical {
+					log.Fatalf("[CRITICAL] Notify #%d. Could not connect to ClickHouse. %s\n", idx, err)
+				} else {
+					fmt.Printf("[ERROR] Notify #%d. Could not connect to ClickHouse. %s\n", idx, err)
+					continue
+				}
+			}
+			//Now attach the one and only API service, replace if multiple
+			if !s.Skip {
+				configuration.API = *s
+			}
+		case SERVICE_TYPE_DUCKDB:
+			fmt.Printf("Notify #%d: Connecting to DuckDB: %s\n", idx, s.Hosts)
+			duck := DuckService{
+				Configuration: s,
+				AppConfig:     &configuration,
+			}
+			err = duck.connect()
+			if err != nil || s.Session == nil {
+				if s.Critical {
+					log.Fatalf("[CRITICAL] Notify #%d. Could not connect to duck. %s\n", idx, err)
+				} else {
+					fmt.Printf("[ERROR] Notify #%d. Could not connect to duck. %s\n", idx, err)
+					continue
+				}
+			}
+			//Now attach the one and only API service, replace if multiple
+			if !s.Skip {
+				configuration.API = *s
+			}
 		case SERVICE_TYPE_CASSANDRA:
 			fmt.Printf("Notify #%d: Connecting to Cassandra Cluster: %s\n", idx, s.Hosts)
 			cassandra := CassandraService{
@@ -460,7 +697,9 @@ func main() {
 				fmt.Printf("Notify #%d: Connected to Cassandra: DB_VER %d\n", idx, seq)
 			}
 			//Now attach the one and only API service, replace if multiple
-			configuration.API = *s
+			if !s.Skip {
+				configuration.API = *s
+			}
 		case SERVICE_TYPE_NATS:
 			//TODO:
 			fmt.Printf("[ERROR] Notify #%d: NATS notifier not implemented\n", idx)
@@ -473,10 +712,18 @@ func main() {
 			if s.Critical && (s.Context == "" || s.Key == "" || err != nil) {
 				log.Fatalf("[CRITICAL] Notify #%d. Could not setup connection to Facebook CAPI.\n", idx)
 			}
-			configuration.API = *s
+			if !s.Skip {
+				configuration.API = *s
+			}
 			fmt.Printf("Notify #%d: Facebook CAPI configured for events\n", idx)
 		default:
 			fmt.Printf("[ERROR] %s #%d Notifier not implemented\n", s.Service, idx)
+		}
+	}
+	//////////////////////////////////////// SETUP NOTIFICATION PROXIES
+	for _, s := range notification_services {
+		if s.ProxyRealtimeStorageServiceName != "" {
+			s.ProxyRealtimeStorageService = notification_services[s.ProxyRealtimeStorageServiceName]
 		}
 	}
 
@@ -506,8 +753,11 @@ func main() {
 			s := &configuration.Consume[idx]
 			switch s.Service {
 			case SERVICE_TYPE_CASSANDRA:
-				//TODO:
 				fmt.Printf("[ERROR] Consume #%d: Cassandra consumer not implemented\n", idx)
+			case SERVICE_TYPE_DUCKDB:
+				fmt.Printf("[ERROR] Consume #%d: DuckDB consumer not implemented\n", idx)
+			case SERVICE_TYPE_CLICKHOUSE:
+				fmt.Printf("[ERROR] Consume #%d: ClickHouse consumer not implemented\n", idx)
 			case SERVICE_TYPE_NATS:
 				fmt.Printf("Consume #%d: Connecting to NATS Cluster: %s\n", idx, s.Hosts)
 				gonats := NatsService{
@@ -528,7 +778,6 @@ func main() {
 				}
 				s.Session.listen()
 			case SERVICE_TYPE_FACEBOOK:
-				//TODO:
 				fmt.Printf("[ERROR] Consume #%d: Facebook consumer not implemented\n", idx)
 			default:
 				fmt.Printf("[ERROR] %s #%d Consumer not implemented\n", s.Service, idx)
@@ -572,6 +821,66 @@ func main() {
 		connc <- struct{}{}
 	}
 
+	//////////////////////////////////////// WEBSOCKET
+	http.HandleFunc("/"+apiVersion+"/ws", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			fmt.Println("Error upgrading to WebSocket:", err)
+			return
+		}
+		defer conn.Close()
+
+		fmt.Println("Client connected!")
+
+		wargs := WriteArgs{
+			WriteType: WRITE_EVENT,
+			IP:        getIP(r),
+			Browser:   r.Header.Get("user-agent"),
+			Language:  r.Header.Get("accept-language"),
+			URI:       r.RequestURI,
+			Host:      getHost(r),
+			IsServer:  false,
+		}
+
+		for {
+			// Read message
+			messageType, msg, err := conn.ReadMessage()
+			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					fmt.Printf("WebSocket error: %v\n", err)
+				}
+				break
+			}
+
+			var data map[string]interface{}
+			// Handle different message types
+			switch messageType {
+			case websocket.TextMessage:
+				// Handle uncompressed JSON
+				if err := json.Unmarshal(msg, &data); err != nil {
+					fmt.Printf("Error parsing JSON: %v\n", err)
+					continue
+				}
+			case websocket.BinaryMessage:
+				// Decompress LZ4 data
+				dst := make([]byte, len(msg)*3)
+				decompressed, err := lz4.UncompressBlock(msg, dst)
+				if err != nil {
+					fmt.Printf("Error decompressing message: %v\n", err)
+					continue
+				}
+				// Parse JSON
+				if err := json.Unmarshal(dst[:decompressed], &data); err != nil {
+					fmt.Printf("Error parsing JSON: %v\n", err)
+					continue
+				}
+			}
+			wargs.EventID = uuid.Must(uuid.NewUUID())
+			wargs.Values = &data
+			trackWithArgs(&configuration, &w, r, &wargs)
+		}
+	})
+
 	//////////////////////////////////////// REDIRECT URL & SHORTENER
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		select {
@@ -592,7 +901,7 @@ func main() {
 					IP:        getIP(r),
 					Browser:   r.Header.Get("user-agent"),
 					Language:  r.Header.Get("accept-language"),
-					EventID:   gocql.TimeUUID(),
+					EventID:   uuid.Must(uuid.NewUUID()),
 					URI:       r.RequestURI,
 					Host:      getHost(r),
 					IsServer:  false,
@@ -683,7 +992,7 @@ func main() {
 	//////////////////////////////////////// STATIC CONTENT ROUTE
 	fmt.Println("Serving static content in:", configuration.StaticDirectory)
 	fs := http.FileServer(http.Dir(configuration.StaticDirectory))
-	pubSlug := "/pub/" + apiVersion + "/"
+	pubSlug := "/" + apiVersion + "/pub/"
 	http.HandleFunc(pubSlug, func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
@@ -697,7 +1006,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// 1x1 PIXEL ROUTE
-	http.HandleFunc("/img/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/img/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			track(&configuration, &w, r)
@@ -715,7 +1024,7 @@ func main() {
 	// Ex. https://localhost:8443/tr/v1/vid/accad/ROCK/ON/lat/5/lon/6/first/true/score/6
 	// OR
 	// {"last":"https://localhost:5001/maps","next":"https://localhost:5001/error/maps/request/unauthorized","params":{"type":"b","origin":"maps","error":"unauthorized","method":"request"},"created":1539072857869,"duration":1959,"vid":"4883a4c0-cb96-11e8-afac-bb666b9727ed","first":"false","sid":"4883cbd0-cb96-11e8-afac-bb666b9727ed"}
-	http.HandleFunc("/tr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/tr/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -740,7 +1049,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// Track Lifetime Value
-	http.HandleFunc("/ltv/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/ltv/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -765,7 +1074,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// Server Tracking Route
-	http.HandleFunc("/str/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/str/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -780,7 +1089,7 @@ func main() {
 				wargs := WriteArgs{
 					WriteType: WRITE_EVENT,
 					IP:        getIP(r),
-					EventID:   gocql.TimeUUID(),
+					EventID:   uuid.Must(uuid.NewUUID()),
 					URI:       r.RequestURI,
 					Host:      getHost(r),
 					IsServer:  true,
@@ -801,7 +1110,7 @@ func main() {
 
 	//////////////////////////////////////// Redirect Route
 	// Ex. https://localhost:8443/rdr/v1/?r=https%3A%2F%2Fx.com
-	http.HandleFunc("/rdr/"+apiVersion+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/"+apiVersion+"/rdr/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			track(&configuration, &w, r)
@@ -910,7 +1219,7 @@ func main() {
 
 	/// Privacy program interface (cookies)
 	ctr := mux.NewRouter()
-	ctr.HandleFunc("/ppi/"+apiVersion+"/{action}", func(w http.ResponseWriter, r *http.Request) {
+	ctr.HandleFunc("/"+apiVersion+"/ppi/{action}", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
@@ -953,11 +1262,11 @@ func main() {
 			}
 		}
 	})
-	http.Handle("/ppi/"+apiVersion+"/", ctr)
+	http.Handle("/"+apiVersion+"/ppi/", ctr)
 
 	//////////////////////////////////////// Redirect API Route & Functions
 	rtr := mux.NewRouter()
-	rtr.HandleFunc("/rpi/"+apiVersion+"{_dummy:.*}", func(w http.ResponseWriter, r *http.Request) {
+	rtr.HandleFunc("/"+apiVersion+"/rpi/{_dummy:.*}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 		w.Header().Set("access-control-allow-credentials", "true")
 		w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
@@ -965,7 +1274,7 @@ func main() {
 		w.Header().Set("access-control-max-age", "1728000")
 		w.WriteHeader(http.StatusOK)
 	}).Methods("OPTIONS")
-	rtr.HandleFunc("/rpi/"+apiVersion+"/redirects/{uid}/{password}/{host}", func(w http.ResponseWriter, r *http.Request) {
+	rtr.HandleFunc("/"+apiVersion+"/rpi/redirects/{uid}/{password}/{host}", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			params := mux.Vars(r)
@@ -984,7 +1293,7 @@ func main() {
 			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 		}
 	}).Methods("GET")
-	rtr.HandleFunc("/rpi/"+apiVersion+"/redirect/{uid}/{password}", func(w http.ResponseWriter, r *http.Request) {
+	rtr.HandleFunc("/"+apiVersion+"/rpi/redirect/{uid}/{password}", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			params := mux.Vars(r)
@@ -1003,7 +1312,7 @@ func main() {
 			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 		}
 	}).Methods("POST")
-	http.Handle("/rpi/"+apiVersion+"/", rtr)
+	http.Handle("/"+apiVersion+"/rpi/", rtr)
 
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
 	go func() {
@@ -1073,7 +1382,7 @@ func ltv(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 		Language:  r.Header.Get("accept-language"),
 		URI:       r.RequestURI,
 		Host:      getHost(r),
-		EventID:   gocql.TimeUUID(),
+		EventID:   uuid.Must(uuid.NewUUID()),
 	}
 	return trackWithArgs(c, w, r, &wargs)
 }
@@ -1090,7 +1399,7 @@ func track(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 		Language:  r.Header.Get("accept-language"),
 		URI:       r.RequestURI,
 		Host:      getHost(r),
-		EventID:   gocql.TimeUUID(),
+		EventID:   uuid.Must(uuid.NewUUID()),
 	}
 	return trackWithArgs(c, w, r, &wargs)
 }
@@ -1229,6 +1538,9 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	}
 	for idx := range c.Notify {
 		s := &c.Notify[idx]
+		if s.Skip {
+			continue
+		}
 		if s.Session != nil {
 			if err := s.Session.write(wargs); err != nil {
 				if c.Debug {

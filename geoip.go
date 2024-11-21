@@ -17,7 +17,7 @@ func GetGeoIP(pip net.IP) ([]byte, error) {
 		return nil, fmt.Errorf("Service Unavailable")
 	}
 	if pip.To4() != nil {
-		//Test, Google DNS - https://localhost:8443/ppi/v1/geoip?ip=8.8.8.8
+		//Test, Google DNS - https://localhost:8443/v1/ppi/geoip?ip=8.8.8.8
 		ips := strconv.FormatInt(int64(binary.BigEndian.Uint32(pip.To4())), 10)
 		ipp := FixedLengthNumberString(10, ips)
 		key := IDX_PREFIX_IPV4 + ipp
@@ -46,14 +46,13 @@ func GetGeoIP(pip net.IP) ([]byte, error) {
 							return fmt.Errorf("Not Found (IP)")
 						}
 					}
-					break
 				}
 			}
 			return fmt.Errorf("Not Found (IP)")
 		}
 		return value, kv.GetValue([]byte(key), find)
 	} else if pip.To16() != nil {
-		//Test, Google DNS - https://localhost:8443/ppi/v1/geoip?ip=2001:4860:4860::8888
+		//Test, Google DNS - https://localhost:8443/v1/ppi/geoip?ip=2001:4860:4860::8888
 		var hi uint64
 		var lo uint64
 		buf := bytes.NewReader(pip)
@@ -87,7 +86,6 @@ func GetGeoIP(pip net.IP) ([]byte, error) {
 							return fmt.Errorf("Not Found (IP)")
 						}
 					}
-					break
 				}
 
 			}

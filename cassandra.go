@@ -63,6 +63,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+	"github.com/google/uuid"
 )
 
 ////////////////////////////////////////
@@ -1363,12 +1364,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		if temp, ok := v["eid"].(string); ok {
 			evt, _ := gocql.ParseUUID(temp)
 			if evt.Timestamp() != 0 {
-				w.EventID = evt
+				w.EventID = uuid.Must(uuid.Parse(evt.String()))
 			}
 		}
 		//Double check
-		if w.EventID.Timestamp() == 0 {
-			w.EventID = gocql.TimeUUID()
+		if w.EventID == uuid.Nil || w.EventID.Version() != uuid.Version(1) {
+			w.EventID = uuid.Must(uuid.NewUUID())
 		}
 
 		//[vid] - default
@@ -1424,8 +1425,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			fmt.Println("C*[routed]:", xerr)
 		}
 
-		if xerr := i.Session.Query(`INSERT into events_recent 
-			 (
+		//events_recent
+		//TODO: Add other table type checks
+		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS_RECENT)) {
+			if xerr := i.Session.Query(`INSERT into events_recent 
+				 (
 				 eid,
 				 vid, 
 				 sid,
@@ -1466,45 +1470,46 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 relation
 			 ) 
 			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
-			w.EventID,
-			v["vid"],
-			v["sid"],
-			hhash,
-			v["app"],
-			v["rel"],
-			cflags,
-			updated,
-			v["uid"],
-			v["last"],
-			v["url"],
-			w.IP,
-			iphash,
-			latlon,
-			v["ptyp"],
-			bhash,
-			auth,
-			duration,
-			v["xid"],
-			v["split"],
-			v["ename"],
-			v["source"],
-			v["medium"],
-			v["campaign"],
-			country,
-			region,
-			city,
-			zip,
-			v["term"],
-			v["etyp"],
-			version,
-			v["sink"],
-			score,
-			params,
-			nparams,
-			v["targets"],
-			rid,
-			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[events_recent]:", xerr)
+				w.EventID,
+				v["vid"],
+				v["sid"],
+				hhash,
+				v["app"],
+				v["rel"],
+				cflags,
+				updated,
+				v["uid"],
+				v["last"],
+				v["url"],
+				w.IP,
+				iphash,
+				latlon,
+				v["ptyp"],
+				bhash,
+				auth,
+				duration,
+				v["xid"],
+				v["split"],
+				v["ename"],
+				v["source"],
+				v["medium"],
+				v["campaign"],
+				country,
+				region,
+				city,
+				zip,
+				v["term"],
+				v["etyp"],
+				version,
+				v["sink"],
+				score,
+				params,
+				nparams,
+				v["targets"],
+				rid,
+				v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[events_recent]:", xerr)
+			}
 		}
 
 		if !i.AppConfig.UseRemoveIP {
@@ -1512,7 +1517,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 
 		//events
-		if xerr := i.Session.Query(`INSERT into events 
+		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS)) {
+			if xerr := i.Session.Query(`INSERT into events 
 			 (
 				 eid,
 				 vid, 
@@ -1554,45 +1560,46 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				 relation
 			 ) 
 			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
-			w.EventID,
-			v["vid"],
-			v["sid"],
-			hhash,
-			v["app"],
-			v["rel"],
-			cflags,
-			updated,
-			v["uid"],
-			v["last"],
-			v["url"],
-			v["cleanIP"],
-			iphash,
-			latlon,
-			v["ptyp"],
-			bhash,
-			auth,
-			duration,
-			v["xid"],
-			v["split"],
-			v["ename"],
-			v["source"],
-			v["medium"],
-			v["campaign"],
-			country,
-			region,
-			city,
-			zip,
-			v["term"],
-			v["etyp"],
-			version,
-			v["sink"],
-			score,
-			params,
-			nparams,
-			v["targets"],
-			rid,
-			v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("C*[events]:", xerr)
+				w.EventID,
+				v["vid"],
+				v["sid"],
+				hhash,
+				v["app"],
+				v["rel"],
+				cflags,
+				updated,
+				v["uid"],
+				v["last"],
+				v["url"],
+				v["cleanIP"],
+				iphash,
+				latlon,
+				v["ptyp"],
+				bhash,
+				auth,
+				duration,
+				v["xid"],
+				v["split"],
+				v["ename"],
+				v["source"],
+				v["medium"],
+				v["campaign"],
+				country,
+				region,
+				city,
+				zip,
+				v["term"],
+				v["etyp"],
+				version,
+				v["sink"],
+				score,
+				params,
+				nparams,
+				v["targets"],
+				rid,
+				v["relation"]).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[events]:", xerr)
+			}
 		}
 
 		//Exclude from params in sessions and visitors. Note: more above.
@@ -2046,6 +2053,103 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 
 			}
+
+			if xerr := i.Session.Query(`UPDATE visitors_latest SET 
+							did = ?,
+							sid = ?, 
+							hhash = ?,
+							app = ?,
+							rel = ?,
+							cflags = ?,
+							created = ?,
+							uid = ?,
+							last = ?,
+							url = ?,
+							ip = ?,
+							iphash = ?,
+							latlon = ?,
+							ptyp = ?,
+							bhash = ?,
+							auth = ?,
+							xid = ?,
+							split = ?,
+							ename = ?,
+							etyp = ?,
+							ver = ?,
+							sink = ?,
+							score = ?,							
+							params = ?,
+							nparams = ?,
+							gaid = ?,
+							idfa = ?,
+							msid = ?,
+							fbid = ?,
+							country = ?,
+							region = ?,
+							city = ?,
+							zip = ?,
+							culture = ?,
+							source = ?,
+							medium = ?,
+							campaign = ?,
+							term = ?,
+							ref = ?,
+							rcode = ?,
+							aff = ?,
+							browser = ?,
+							device = ?,
+							os = ?,
+							tz = ?,
+							vp = ?
+						WHERE vid = ?`, //47
+				v["did"],
+				v["sid"],
+				hhash,
+				v["app"],
+				v["rel"],
+				cflags,
+				updated,
+				v["uid"],
+				v["last"],
+				v["url"],
+				v["cleanIP"],
+				iphash,
+				latlon,
+				v["ptyp"],
+				bhash,
+				auth,
+				v["xid"],
+				v["split"],
+				v["ename"],
+				v["etyp"],
+				version,
+				v["sink"],
+				score,
+				params,
+				nparams,
+				v["gaid"],
+				v["idfa"],
+				v["msid"],
+				v["fbid"],
+				country,
+				region,
+				city,
+				zip,
+				culture,
+				v["source"],
+				v["medium"],
+				v["campaign"],
+				v["term"],
+				v["ref"],
+				v["rcode"],
+				v["aff"],
+				w.Browser,
+				v["device"],
+				v["os"],
+				v["tz"],
+				vp).Exec(); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("C*[visitors_latest]:", xerr)
+			}
 		}
 
 		return nil
@@ -2071,12 +2175,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		//UUIDs
 		if iid, ok := v["invid"].(string); ok {
-			if temp, err := gocql.ParseUUID(iid); err == nil {
+			if temp, err := uuid.Parse(iid); err == nil {
 				pmt.InvoiceID = &temp
 			}
 		}
 		if pid, ok := v["pid"].(string); ok {
-			if temp, err := gocql.ParseUUID(pid); err == nil {
+			if temp, err := uuid.Parse(pid); err == nil {
 				pmt.ProductID = &temp
 			}
 		}

@@ -7,7 +7,7 @@
     "Consume": [
         {
             "Note": "Not implemented",
-            "Service": "http"
+            "Service": "http_"
         },
         {
             "ByteLimit": 67108864,
@@ -38,7 +38,7 @@
             "Key": "./.setup/keys/nats-client.key",
             "MessageLimit": 65536,
             "Secure": true,
-            "Service": "nats"
+            "Service": "nats_"
         }
     ],
     "Debug": true,
@@ -54,6 +54,7 @@
         "chat.sfpl.io"
     ],
     "GeoIPVersion": 1,
+    "HealthCheckInterval": 300,
     "IPv4GeoIPCSVDest": "IP2LOCATION-LITE-DB11.CSV",
     "IPv4GeoIPZip": "./.setup/geoip/IP2LOCATION-LITE-DB11.CSV.ZIP",
     "IPv6GeoIPCSVDest": "IP2LOCATION-LITE-DB11.IPV6.CSV",
@@ -65,6 +66,71 @@
     "MaxHeaderBytes": 1048576,
     "MaximumConnections": 150000,
     "Notify": [
+        {
+            "Connections": 1,
+            "Context": "default", 
+            "Critical": true,
+            "Hosts": [
+                "127.0.0.1"
+            ],
+            "Prune": [
+                {
+                    "ClearAll": false,
+                    "ClearNumericParams": false,
+                    "ClearParams": false,
+                    "Fields": [
+                        {
+                            "DestParamHash": "iphash",
+                            "Id": "ip",
+                            "Type": "ip4"
+                        }
+                    ],
+                    "CFlagsIgnore": [],
+                    "PageSize": 10000,
+                    "TTL": 2592000,
+                    "Table": "events"
+                }
+            ],
+            "Retries": 3,
+            "Secure": false,
+            "Service": "duckdb",
+            "Timeout": 300,
+            "ProxyRealtimeStorageServiceName" : "cassandra",
+            "ProxyRealtimeStorageServiceTables" : 18446744073709551612
+        },
+        {
+            "CACert": null,
+            "Cert": null,
+            "Key": null,
+            "Connections": 2,
+            "Context": "default",
+            "Critical": true,
+            "Hosts": [
+                "127.0.0.1"
+            ],            
+            "Prune": [
+                {
+                    "ClearAll": false,
+                    "ClearNumericParams": false,
+                    "ClearParams": false,
+                    "Fields": [
+                        {
+                            "DestParamHash": "iphash",
+                            "Id": "ip",
+                            "Type": "ip4"
+                        }
+                    ],
+                    "CFlagsIgnore": [],
+                    "PageSize": 10000,
+                    "TTL": 2592000,
+                    "Table": "events"
+                }
+            ],
+            "Retries": 3,
+            "Secure": false,
+            "Service": "clickhouse_",
+            "Timeout": 300
+        },
         {
             "CACert": "./.setup/keys/rootCa.crt",
             "Cert": "./.setup/keys/cassandra-client.crt",
@@ -184,6 +250,7 @@
             ],
             "Retries": 3,
             "Secure": false,
+            "Skip": true,
             "Service": "cassandra",
             "Timeout": 300
         },
@@ -197,13 +264,13 @@
             ],
             "Key": "./.setup/keys/nats-client.key",
             "Secure": true,
-            "Service": "nats"
+            "Service": "nats_"
         },
         {
-            "Critical": true,
+            "Critical": false,
             "Context": "417425153222226",
             "Key": "lkjasflkjasd",
-            "Service": "facebook",
+            "Service": "facebook_",
             "AttemptAll" : false
         }
     ],
@@ -226,6 +293,11 @@
     "PruneUpdateConfig": false,
     "ReadHeaderTimeoutSeconds": 20,
     "ReadTimeoutSeconds": 20,
+    "S3Bucket": "sfpl-data",
+    "S3Prefix": "track",    
+    "S3Region": "us-east-1",
+    "S3AccessKeyID": "{S3_ACCESS_KEY_ID}",
+    "S3SecretAccessKey": "{S3_SECRET_ACCESS_KEY}",
     "SchemaVersion": 3,
     "StaticDirectory": "public",
     "TLSCert": "./.setup/keys/nginx.crt",

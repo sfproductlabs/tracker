@@ -15,7 +15,7 @@ const api = create({
 const tr = function(obj) {
     try {
         api
-            .post('/tr/v1/', obj, { headers: { 'x-gigawatts': '1.21' } })
+            .post('/v1/tr/', obj, { headers: { 'x-gigawatts': '1.21' } })
             //.then(response => response)
             //.then(console.log)
     } catch (ex) {
