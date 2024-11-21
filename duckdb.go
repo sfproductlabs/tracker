@@ -1,3 +1,6 @@
+//TO ACCESS:
+//SELECT * FROM read_parquet('s3://bucket/v1/tracker/events/*/*/*/*.parquet', hive_partitioning=true) where year=2025;
+
 package main
 
 import (
@@ -699,7 +702,7 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 
 	// Generate export path with version
 	now := time.Now().UTC()
-	s3Path := fmt.Sprintf("s3://%s/%s/%s/%d/%02d/%02d/%s_v%d.parquet",
+	s3Path := fmt.Sprintf("s3://%s/%s/%s/year=%d/month=%d/day=%d/%s_v%d.parquet",
 		i.AppConfig.S3Bucket,
 		i.AppConfig.S3Prefix,
 		tableName,
