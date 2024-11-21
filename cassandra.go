@@ -2147,7 +2147,8 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				v["device"],
 				v["os"],
 				v["tz"],
-				vp).Exec(); xerr != nil && i.AppConfig.Debug {
+				vp,
+				v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[visitors_latest]:", xerr)
 			}
 		}

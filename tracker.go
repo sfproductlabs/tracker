@@ -454,6 +454,8 @@ type Configuration struct {
 	S3SecretAccessKey        string
 	HealthCheckInterval      int
 	NodeId                   string
+	InactivityTimeoutSeconds int
+	MaxShardSizeBytes        int64
 }
 
 // ////////////////////////////////////// Constants
@@ -608,6 +610,10 @@ func main() {
 	////////////////////////////////////////SETUP ORIGIN
 	if configuration.AllowOrigin == "" {
 		configuration.AllowOrigin = "*"
+	}
+
+	if configuration.MaxShardSizeBytes == 0 {
+		configuration.MaxShardSizeBytes = 100 * 1024 * 1024 //100MB
 	}
 
 	//////////////////////////////////////// SETUP CONFIG VARIABLES

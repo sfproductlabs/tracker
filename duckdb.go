@@ -28,17 +28,43 @@ func (i *DuckService) connect() error {
 	}
 
 	// Open DuckDB connection with configuration
-	i.Session, err = sql.Open("duckdb", ":memory:?access_mode=READ_WRITE&threads=4&memory_limit=4GB")
+	i.Session, err = sql.Open("duckdb", "")
 	if err != nil {
 		fmt.Println("[ERROR] Connecting to DuckDB:", err)
 		return err
+	} else {
+		_, err = i.Session.Exec("SET threads=4")
+		if err != nil {
+			fmt.Println("[ERROR] Setting threads:", err)
+		}
+		_, err = i.Session.Exec("SET memory_limit='4GB'")
+		if err != nil {
+			fmt.Println("[ERROR] Setting memory_limit:", err)
+		}
+		_, err = i.Session.Exec("SET timezone='UTC'")
+		if err != nil {
+			fmt.Println("[ERROR] Setting timezone:", err)
+		}
+		_, err = i.Session.Exec(`INSTALL httpfs; LOAD httpfs;`)
+		if err != nil {
+			fmt.Println("[ERROR] Installing httpfs:", err)
+		}
+		_, err = i.Session.Exec(fmt.Sprintf(`CREATE SECRET IF NOT EXISTS secret_tracker (
+			TYPE S3,
+			KEY_ID '%s',
+			SECRET '%s',
+			REGION '%s'
+		)`, i.AppConfig.S3AccessKeyID, i.AppConfig.S3SecretAccessKey, i.AppConfig.S3Region))
+		if err != nil {
+			fmt.Println("[ERROR] Creating secret_tracker:", err)
+		}
 	}
 
 	// Configure connection pool settings
-	i.Session.SetMaxOpenConns(i.Configuration.Connections)
+	i.Session.SetMaxOpenConns(30) //(i.Configuration.Connections)
 	i.Session.SetMaxIdleConns(5)
-	i.Session.SetConnMaxLifetime(time.Second * time.Duration(i.Configuration.Timeout/1000))
-	i.Session.SetConnMaxIdleTime(time.Millisecond * 500)
+	//i.Session.SetConnMaxLifetime(time.Second * time.Duration(i.Configuration.Timeout/1000))
+	//i.Session.SetConnMaxIdleTime(time.Millisecond * 500)
 
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(i.Configuration.Timeout)*time.Millisecond)
@@ -121,6 +147,12 @@ func (i *DuckService) serve(w *http.ResponseWriter, r *http.Request, s *ServiceA
 // Helper function to create required tables
 func (i *DuckService) createTables() error {
 	queries := []string{
+		`CREATE TABLE IF NOT EXISTS table_versions (
+			table_name VARCHAR PRIMARY KEY,
+			version INTEGER,
+			modified TIMESTAMP,
+			estimated_size INTEGER
+		)`,
 		`CREATE TABLE IF NOT EXISTS events (
 			eid UUID PRIMARY KEY,
 			vid UUID,
@@ -164,84 +196,84 @@ func (i *DuckService) createTables() error {
 			relation VARCHAR,
 			rid UUID
 		)`,
-		`CREATE TABLE IF NOT EXISTS events_recent (
-			eid UUID PRIMARY KEY,
-			vid UUID,
-			sid UUID,
-			hhash VARCHAR,
-			app VARCHAR,
-			rel VARCHAR,
-			cflags INTEGER,
-			created TIMESTAMP,
-			updated TIMESTAMP,
-			uid UUID,
-			last VARCHAR,
-			url VARCHAR,
-			ip VARCHAR,
-			iphash VARCHAR,
-			lat DOUBLE,
-			lon DOUBLE,
-			ptyp VARCHAR,
-			bhash VARCHAR,
-			auth UUID,
-			duration INTEGER,
-			xid VARCHAR,
-			split VARCHAR,
-			ename VARCHAR,
-			source VARCHAR,
-			medium VARCHAR,
-			campaign VARCHAR,
-			country VARCHAR,
-			region VARCHAR,
-			city VARCHAR,
-			zip VARCHAR,
-			term VARCHAR,
-			etyp VARCHAR,
-			ver INTEGER,
-			sink VARCHAR,
-			score DOUBLE,
-			params JSON,
-			nparams JSON,
-			payment JSON,
-			targets JSON,
-			relation VARCHAR,
-			rid UUID
-		)`,
-		`CREATE TABLE IF NOT EXISTS nodes (
-			hhash VARCHAR,
-			vid UUID,
-			uid UUID,
-			iphash VARCHAR,
-			ip VARCHAR,
-			sid UUID,
-			PRIMARY KEY (hhash, vid, iphash)
-		)`,
-		`CREATE TABLE IF NOT EXISTS locations (
-			hhash VARCHAR,
-			vid UUID,
-			lat DOUBLE,
-			lon DOUBLE,
-			uid UUID,
-			sid UUID,
-			PRIMARY KEY (hhash, vid, lat, lon)
-		)`,
-		`CREATE TABLE IF NOT EXISTS aliases (
-			hhash VARCHAR,
-			vid UUID,
-			uid UUID,
-			sid UUID,
-			PRIMARY KEY (hhash, vid, uid)
-		)`,
-		`CREATE TABLE IF NOT EXISTS hits (
-			hhash VARCHAR,
-			url VARCHAR,
-			total INTEGER DEFAULT 0,
-			PRIMARY KEY (hhash, url)
-		)`,
-		`CREATE TABLE IF NOT EXISTS counters (
-			id VARCHAR PRIMARY KEY,
-			total INTEGER DEFAULT 0
-		)`,
+		// `CREATE TABLE IF NOT EXISTS events_recent (
+		// 	eid UUID PRIMARY KEY,
+		// 	vid UUID,
+		// 	sid UUID,
+		// 	hhash VARCHAR,
+		// 	app VARCHAR,
+		// 	rel VARCHAR,
+		// 	cflags INTEGER,
+		// 	created TIMESTAMP,
+		// 	updated TIMESTAMP,
+		// 	uid UUID,
+		// 	last VARCHAR,
+		// 	url VARCHAR,
+		// 	ip VARCHAR,
+		// 	iphash VARCHAR,
+		// 	lat DOUBLE,
+		// 	lon DOUBLE,
+		// 	ptyp VARCHAR,
+		// 	bhash VARCHAR,
+		// 	auth UUID,
+		// 	duration INTEGER,
+		// 	xid VARCHAR,
+		// 	split VARCHAR,
+		// 	ename VARCHAR,
+		// 	source VARCHAR,
+		// 	medium VARCHAR,
+		// 	campaign VARCHAR,
+		// 	country VARCHAR,
+		// 	region VARCHAR,
+		// 	city VARCHAR,
+		// 	zip VARCHAR,
+		// 	term VARCHAR,
+		// 	etyp VARCHAR,
+		// 	ver INTEGER,
+		// 	sink VARCHAR,
+		// 	score DOUBLE,
+		// 	params JSON,
+		// 	nparams JSON,
+		// 	payment JSON,
+		// 	targets JSON,
+		// 	relation VARCHAR,
+		// 	rid UUID
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS nodes (
+		// 	hhash VARCHAR,
+		// 	vid UUID,
+		// 	uid UUID,
+		// 	iphash VARCHAR,
+		// 	ip VARCHAR,
+		// 	sid UUID,
+		// 	PRIMARY KEY (hhash, vid, iphash)
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS locations (
+		// 	hhash VARCHAR,
+		// 	vid UUID,
+		// 	lat DOUBLE,
+		// 	lon DOUBLE,
+		// 	uid UUID,
+		// 	sid UUID,
+		// 	PRIMARY KEY (hhash, vid, lat, lon)
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS aliases (
+		// 	hhash VARCHAR,
+		// 	vid UUID,
+		// 	uid UUID,
+		// 	sid UUID,
+		// 	PRIMARY KEY (hhash, vid, uid)
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS hits (
+		// 	hhash VARCHAR,
+		// 	url VARCHAR,
+		// 	total INTEGER DEFAULT 0,
+		// 	PRIMARY KEY (hhash, url)
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS counters (
+		// 	id VARCHAR PRIMARY KEY,
+		// 	total INTEGER DEFAULT 0
+		// )`,
 		`CREATE TABLE IF NOT EXISTS logs (
 			id UUID PRIMARY KEY,
 			ldate DATE,
@@ -263,135 +295,135 @@ func (i *DuckService) createTables() error {
 			updated TIMESTAMP,
 			msg VARCHAR
 		)`,
-		`CREATE TABLE IF NOT EXISTS zips (
-			country VARCHAR,
-			zip VARCHAR,
-			region VARCHAR,
-			rcode VARCHAR,
-			county VARCHAR,
-			city VARCHAR,
-			culture VARCHAR,
-			population INTEGER,
-			men INTEGER,
-			women INTEGER,
-			hispanic DOUBLE,
-			white DOUBLE,
-			black DOUBLE,
-			native DOUBLE,
-			asian DOUBLE,
-			pacific DOUBLE,
-			voters INTEGER,
-			income DOUBLE,
-			incomeerr DOUBLE,
-			incomepercap DOUBLE,
-			incomepercaperr DOUBLE,
-			poverty DOUBLE,
-			childpoverty DOUBLE,
-			professional DOUBLE,
-			service DOUBLE,
-			office DOUBLE,
-			construction DOUBLE,
-			production DOUBLE,
-			drive DOUBLE,
-			carpool DOUBLE,
-			transit DOUBLE,
-			walk DOUBLE,
-			othertransport DOUBLE,
-			workathome DOUBLE,
-			meancommute DOUBLE,
-			employed INTEGER,
-			privatework DOUBLE,
-			publicwork DOUBLE,
-			selfemployed DOUBLE,
-			familywork DOUBLE,
-			PRIMARY KEY (country, zip)
-		)`,
-		`CREATE TABLE IF NOT EXISTS accounts (
-			uid UUID PRIMARY KEY,
-			pwd VARCHAR NOT NULL
-		)`,
-		`CREATE TABLE IF NOT EXISTS queues (
-			id UUID PRIMARY KEY,
-			src VARCHAR,
-			sid UUID,
-			skey VARCHAR,
-			ip VARCHAR,
-			host VARCHAR,
-			schedule TIMESTAMP,
-			started TIMESTAMP,
-			completed TIMESTAMP,
-			updated TIMESTAMP,
-			updater UUID,
-			created TIMESTAMP,
-			owner UUID
-		)`,
-		`CREATE TABLE IF NOT EXISTS action_names (
-			name VARCHAR PRIMARY KEY
-		)`,
-		`CREATE TABLE IF NOT EXISTS actions (
-			sid UUID,
-			src VARCHAR,
-			did UUID,
-			dsrc VARCHAR,
-			meta JSON,
-			exqid UUID,
-			created TIMESTAMP,
-			started TIMESTAMP,
-			completed TIMESTAMP,
-			PRIMARY KEY (sid, did)
-		)`,
-		`CREATE TABLE IF NOT EXISTS actions_ext (
-			sid VARCHAR,
-			svc VARCHAR,
-			iid UUID,
-			uid UUID,
-			created TIMESTAMP,
-			updated TIMESTAMP,
-			meta JSON,
-			PRIMARY KEY (sid, svc)
-		)`,
-		`CREATE TABLE IF NOT EXISTS cohorts (
-			name VARCHAR PRIMARY KEY,
-			uids_url VARCHAR,
-			imported INTEGER,
-			started TIMESTAMP,
-			completed TIMESTAMP,
-			created TIMESTAMP,
-			owner UUID
-		)`,
-		`CREATE TABLE IF NOT EXISTS messages (
-			id UUID PRIMARY KEY,
-			subject VARCHAR,
-			template VARCHAR,
-			app VARCHAR,
-			rel VARCHAR,
-			ver INTEGER,
-			schedule TIMESTAMP,
-			started TIMESTAMP,
-			completed TIMESTAMP,
-			ptyp VARCHAR,
-			auth VARCHAR,
-			xid VARCHAR,
-			cohorts JSON,
-			ehashes JSON,
-			chashes JSON,
-			split DOUBLE,
-			splitn VARCHAR,
-			source VARCHAR,
-			medium VARCHAR,
-			campaign VARCHAR,
-			term VARCHAR,
-			sink VARCHAR,
-			score DOUBLE,
-			promo VARCHAR,
-			ref UUID,
-			aff VARCHAR,
-			repl JSON,
-			created TIMESTAMP,
-			owner UUID,
-			updated TIMESTAMP,
-			updater UUID
-		)`,
+		// `CREATE TABLE IF NOT EXISTS zips (
+		// 	country VARCHAR,
+		// 	zip VARCHAR,
+		// 	region VARCHAR,
+		// 	rcode VARCHAR,
+		// 	county VARCHAR,
+		// 	city VARCHAR,
+		// 	culture VARCHAR,
+		// 	population INTEGER,
+		// 	men INTEGER,
+		// 	women INTEGER,
+		// 	hispanic DOUBLE,
+		// 	white DOUBLE,
+		// 	black DOUBLE,
+		// 	native DOUBLE,
+		// 	asian DOUBLE,
+		// 	pacific DOUBLE,
+		// 	voters INTEGER,
+		// 	income DOUBLE,
+		// 	incomeerr DOUBLE,
+		// 	incomepercap DOUBLE,
+		// 	incomepercaperr DOUBLE,
+		// 	poverty DOUBLE,
+		// 	childpoverty DOUBLE,
+		// 	professional DOUBLE,
+		// 	service DOUBLE,
+		// 	office DOUBLE,
+		// 	construction DOUBLE,
+		// 	production DOUBLE,
+		// 	drive DOUBLE,
+		// 	carpool DOUBLE,
+		// 	transit DOUBLE,
+		// 	walk DOUBLE,
+		// 	othertransport DOUBLE,
+		// 	workathome DOUBLE,
+		// 	meancommute DOUBLE,
+		// 	employed INTEGER,
+		// 	privatework DOUBLE,
+		// 	publicwork DOUBLE,
+		// 	selfemployed DOUBLE,
+		// 	familywork DOUBLE,
+		// 	PRIMARY KEY (country, zip)
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS accounts (
+		// 	uid UUID PRIMARY KEY,
+		// 	pwd VARCHAR NOT NULL
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS queues (
+		// 	id UUID PRIMARY KEY,
+		// 	src VARCHAR,
+		// 	sid UUID,
+		// 	skey VARCHAR,
+		// 	ip VARCHAR,
+		// 	host VARCHAR,
+		// 	schedule TIMESTAMP,
+		// 	started TIMESTAMP,
+		// 	completed TIMESTAMP,
+		// 	updated TIMESTAMP,
+		// 	updater UUID,
+		// 	created TIMESTAMP,
+		// 	owner UUID
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS action_names (
+		// 	name VARCHAR PRIMARY KEY
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS actions (
+		// 	sid UUID,
+		// 	src VARCHAR,
+		// 	did UUID,
+		// 	dsrc VARCHAR,
+		// 	meta JSON,
+		// 	exqid UUID,
+		// 	created TIMESTAMP,
+		// 	started TIMESTAMP,
+		// 	completed TIMESTAMP,
+		// 	PRIMARY KEY (sid, did)
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS actions_ext (
+		// 	sid VARCHAR,
+		// 	svc VARCHAR,
+		// 	iid UUID,
+		// 	uid UUID,
+		// 	created TIMESTAMP,
+		// 	updated TIMESTAMP,
+		// 	meta JSON,
+		// 	PRIMARY KEY (sid, svc)
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS cohorts (
+		// 	name VARCHAR PRIMARY KEY,
+		// 	uids_url VARCHAR,
+		// 	imported INTEGER,
+		// 	started TIMESTAMP,
+		// 	completed TIMESTAMP,
+		// 	created TIMESTAMP,
+		// 	owner UUID
+		// )`,
+		// `CREATE TABLE IF NOT EXISTS messages (
+		// 	id UUID PRIMARY KEY,
+		// 	subject VARCHAR,
+		// 	template VARCHAR,
+		// 	app VARCHAR,
+		// 	rel VARCHAR,
+		// 	ver INTEGER,
+		// 	schedule TIMESTAMP,
+		// 	started TIMESTAMP,
+		// 	completed TIMESTAMP,
+		// 	ptyp VARCHAR,
+		// 	auth VARCHAR,
+		// 	xid VARCHAR,
+		// 	cohorts JSON,
+		// 	ehashes JSON,
+		// 	chashes JSON,
+		// 	split DOUBLE,
+		// 	splitn VARCHAR,
+		// 	source VARCHAR,
+		// 	medium VARCHAR,
+		// 	campaign VARCHAR,
+		// 	term VARCHAR,
+		// 	sink VARCHAR,
+		// 	score DOUBLE,
+		// 	promo VARCHAR,
+		// 	ref UUID,
+		// 	aff VARCHAR,
+		// 	repl JSON,
+		// 	created TIMESTAMP,
+		// 	owner UUID,
+		// 	updated TIMESTAMP,
+		// 	updater UUID
+		// )`,
 	}
 
 	for _, query := range queries {
@@ -556,7 +588,7 @@ func (i *DuckService) healthCheck() error {
 		return fmt.Errorf("S3 configuration missing for table exports")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(i.AppConfig.WriteTimeoutSeconds)*time.Second)
 	defer cancel()
 
 	// Test connection
@@ -575,43 +607,45 @@ func (i *DuckService) healthCheck() error {
 	}
 	defer tables.Close()
 
-	const (
-		maxSizeBytes    = 100 * 1024 * 1024 // 100MB
-		inactivityLimit = 15 * time.Minute
-	)
+	inactivityLimit := time.Duration(i.AppConfig.InactivityTimeoutSeconds) * time.Second
 
 	for tables.Next() {
+
 		var tableName string
 		if err := tables.Scan(&tableName); err != nil {
 			return fmt.Errorf("failed to scan table name: %v", err)
 		}
 
+		if tableName == "table_versions" {
+			continue
+		}
+
 		// Check table size
 		var sizeBytes int64
-		err := i.Session.QueryRow(`
-			SELECT sum(estimated_size)
-			FROM pragma_table_info(?)
-		`, tableName).Scan(&sizeBytes)
+		row := i.Session.QueryRow(`select estimated_size from duckdb_tables() where internal=false and table_name=?`, tableName)
+		err = row.Scan(&sizeBytes)
 		if err != nil {
 			return fmt.Errorf("failed to get size for table %s: %v", tableName, err)
 		}
-
-		// Check last modification time
-		var lastModified time.Time
-		err = i.Session.QueryRow(`
-			SELECT COALESCE(MAX(created), '1970-01-01') 
-			FROM ` + tableName).Scan(&lastModified)
-		if err != nil {
-			return fmt.Errorf("failed to get last modification time for table %s: %v", tableName, err)
+		if sizeBytes == 0 {
+			continue
 		}
-
+		// Check last modification time
+		lastModified, _ := time.Parse("2006-01-02", "1970-01-01")
+		lastSize := int64(-1)
+		err = i.Session.QueryRow(`
+			SELECT COALESCE(modified, '1970-01-01'), COALESCE(estimated_size, 0) 
+			FROM table_versions where table_name=?`, tableName).Scan(&lastModified, &lastSize)
+		if lastSize == sizeBytes {
+			continue
+		}
 		// Export based on condition
-		if sizeBytes > maxSizeBytes {
-			if err := i.exportAndTruncateTable(tableName, true); err != nil {
+		if sizeBytes > i.AppConfig.MaxShardSizeBytes {
+			if err := i.exportAndTruncateTable(tableName, true, sizeBytes); err != nil {
 				return fmt.Errorf("failed to process table %s: %v", tableName, err)
 			}
 		} else if time.Since(lastModified) > inactivityLimit {
-			if err := i.exportAndTruncateTable(tableName, false); err != nil {
+			if err := i.exportAndTruncateTable(tableName, false, sizeBytes); err != nil {
 				return fmt.Errorf("failed to process table %s: %v", tableName, err)
 			}
 		}
@@ -628,7 +662,7 @@ func (i *DuckService) healthCheck() error {
 }
 
 // Modified to handle different version behavior
-func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion bool) error {
+func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion bool, sizeBytes int64) error {
 	tx, err := i.Session.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %v", err)
@@ -637,22 +671,27 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 
 	// Get current version or create new entry
 	var version int
+	currentTime := time.Now().UTC()
 	if incrementVersion {
 		// Increment version for size-based exports
 		err = tx.QueryRow(`
-			INSERT INTO table_versions (table_name, version) 
-			VALUES (?, 1)
+			INSERT INTO table_versions (table_name, version, modified, estimated_size) 
+			VALUES (?, 1, CURRENT_TIMESTAMP, ?)
 			ON CONFLICT (table_name) DO UPDATE 
-			SET version = table_versions.version + 1
-			RETURNING version`, tableName).Scan(&version)
+			SET version = table_versions.version + 1,
+			    modified = ?,
+				estimated_size = ?
+			RETURNING version`, tableName, sizeBytes, currentTime, sizeBytes).Scan(&version)
 	} else {
 		// Use existing version for inactivity-based exports
 		err = tx.QueryRow(`
-			INSERT INTO table_versions (table_name, version) 
-			VALUES (?, 1)
+			INSERT INTO table_versions (table_name, version, modified, estimated_size) 
+			VALUES (?, 1, CURRENT_TIMESTAMP, ?)
 			ON CONFLICT (table_name) DO UPDATE 
-			SET version = table_versions.version
-			RETURNING version`, tableName).Scan(&version)
+			SET version = table_versions.version,
+			    modified = ?,
+				estimated_size = ?
+			RETURNING version`, tableName, sizeBytes, currentTime, sizeBytes).Scan(&version)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to handle version: %v", err)
@@ -1231,6 +1270,44 @@ func (i *DuckService) write(w *WriteArgs) error {
 			}
 		}
 
+		if params != nil {
+
+			for npk, npv := range *params {
+				if d, ok := npv.(float64); ok {
+					(*params)[npk] = d
+					continue
+				}
+				if npb, ok := npv.(bool); ok {
+					if npb {
+						(*params)[npk] = true
+					} else {
+						(*params)[npk] = false
+					}
+					continue
+				}
+				if nps, ok := npv.(string); !ok {
+					//UNKNOWN TYPE
+					(*params)[npk] = fmt.Sprintf("%+v", npv) //clean up instead
+					//delete(*params, npk) //remove if not a string
+				} else {
+					if strings.TrimSpace(strings.ToLower(nps)) == "true" {
+						(*params)[npk] = true
+						continue
+					}
+					if strings.TrimSpace(strings.ToLower(nps)) == "false" {
+						(*params)[npk] = false
+						continue
+					}
+					if npf, err := strconv.ParseFloat(nps, 64); err == nil && len(nps) > 0 {
+						(*params)[npk] = npf
+					}
+
+				}
+			}
+		}
+
+		jsparams, err := json.Marshal(params)
+
 		//////////////////////////////////////////////
 		//Persist
 		//////////////////////////////////////////////
@@ -1252,13 +1329,13 @@ func (i *DuckService) write(w *WriteArgs) error {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			v["eid"], v["vid"], v["sid"], hhash, v["app"], v["rel"], cflags,
+                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			w.EventID, v["vid"], v["sid"], hhash, v["app"], v["rel"], cflags,
 			updated, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
 			iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, duration, v["xid"],
 			v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 			country, region, city, zip, v["term"], v["etyp"], version,
-			v["sink"], score, params, v["payment"], v["targets"], v["relation"], rid)
+			v["sink"], score, jsparams, v["payment"], v["targets"], v["relation"], rid)
 		if err != nil && i.AppConfig.Debug {
 			fmt.Println("[ERROR] DuckDB[events]:", err)
 		}
