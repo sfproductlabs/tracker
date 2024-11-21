@@ -357,7 +357,6 @@ type DuckService struct { //Implements 'session'
 	AppConfig         *Configuration
 	HealthCheckTicker *time.Ticker
 	HealthCheckDone   chan bool
-	MaxSizeBytes      int64 `default:"100000000"` //100MB
 }
 
 type CassandraService struct { //Implements 'session'
@@ -456,6 +455,7 @@ type Configuration struct {
 	HealthCheckInterval      int
 	NodeId                   string
 	InactivityTimeoutSeconds int
+	MaxShardSizeBytes        int64
 }
 
 // ////////////////////////////////////// Constants
@@ -610,6 +610,10 @@ func main() {
 	////////////////////////////////////////SETUP ORIGIN
 	if configuration.AllowOrigin == "" {
 		configuration.AllowOrigin = "*"
+	}
+
+	if configuration.MaxShardSizeBytes == 0 {
+		configuration.MaxShardSizeBytes = 100 * 1024 * 1024 //100MB
 	}
 
 	//////////////////////////////////////// SETUP CONFIG VARIABLES
