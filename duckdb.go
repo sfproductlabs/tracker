@@ -1234,6 +1234,8 @@ func (i *DuckService) write(w *WriteArgs) error {
 			}
 		}
 
+		jsparams, err := json.Marshal(params)
+
 		//////////////////////////////////////////////
 		//Persist
 		//////////////////////////////////////////////
@@ -1255,13 +1257,13 @@ func (i *DuckService) write(w *WriteArgs) error {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			v["eid"], v["vid"], v["sid"], hhash, v["app"], v["rel"], cflags,
+                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			w.EventID, v["vid"], v["sid"], hhash, v["app"], v["rel"], cflags,
 			updated, updated, v["uid"], v["last"], v["url"], v["cleanIP"],
 			iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, duration, v["xid"],
 			v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 			country, region, city, zip, v["term"], v["etyp"], version,
-			v["sink"], score, params, v["payment"], v["targets"], v["relation"], rid)
+			v["sink"], score, jsparams, v["payment"], v["targets"], v["relation"], rid)
 		if err != nil && i.AppConfig.Debug {
 			fmt.Println("[ERROR] DuckDB[events]:", err)
 		}
