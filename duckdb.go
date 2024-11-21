@@ -1,5 +1,6 @@
 //TO ACCESS:
-//SELECT * FROM read_parquet('s3://bucket/v1/tracker/events/*/*/*/*.parquet', hive_partitioning=true) where year=2025;
+//SELECT json_extract_scalar(params::json, '$.rock') FROM read_parquet('s3://bucket/v1/tracker/events/*/*/*/*.parquet', hive_partitioning=true) where year=2025;
+//SELECT params::json->'$.rock' FROM read_parquet('s3://bucket/v1/tracker/events/*/*/*/*.parquet', hive_partitioning=true) where year=2024
 
 package main
 
@@ -51,6 +52,10 @@ func (i *DuckService) connect() error {
 		_, err = i.Session.Exec(`INSTALL httpfs; LOAD httpfs;`)
 		if err != nil {
 			fmt.Println("[ERROR] Installing httpfs:", err)
+		}
+		_, err = i.Session.Exec(`INSTALL json; LOAD json;`)
+		if err != nil {
+			fmt.Println("[ERROR] Installing json:", err)
 		}
 		_, err = i.Session.Exec(fmt.Sprintf(`CREATE SECRET IF NOT EXISTS secret_tracker (
 			TYPE S3,
@@ -725,10 +730,12 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 		return fmt.Errorf("failed to export to S3: %v", err)
 	}
 
-	// Truncate table after successful export
-	_, err = tx.Exec(fmt.Sprintf("TRUNCATE TABLE %s", tableName))
-	if err != nil {
-		return fmt.Errorf("failed to truncate table: %v", err)
+	if incrementVersion {
+		// Truncate table after successful export
+		_, err = tx.Exec(fmt.Sprintf("TRUNCATE TABLE %s", tableName))
+		if err != nil {
+			return fmt.Errorf("failed to truncate table: %v", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -1313,7 +1320,7 @@ func (i *DuckService) write(w *WriteArgs) error {
 			}
 		}
 
-		jsparams, err := json.Marshal(params)
+		jsparams, err := json.Marshal(*params)
 
 		//////////////////////////////////////////////
 		//Persist
@@ -1342,7 +1349,7 @@ func (i *DuckService) write(w *WriteArgs) error {
 			iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, duration, v["xid"],
 			v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 			country, region, city, zip, v["term"], v["etyp"], version,
-			v["sink"], score, jsparams, v["payment"], v["targets"], v["relation"], rid)
+			v["sink"], score, string(jsparams), v["payment"], v["targets"], v["relation"], rid)
 		if err != nil && i.AppConfig.Debug {
 			fmt.Println("[ERROR] DuckDB[events]:", err)
 		}
