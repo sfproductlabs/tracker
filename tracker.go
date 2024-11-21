@@ -357,6 +357,7 @@ type DuckService struct { //Implements 'session'
 	AppConfig         *Configuration
 	HealthCheckTicker *time.Ticker
 	HealthCheckDone   chan bool
+	MaxSizeBytes      int64 `default:"100000000"` //100MB
 }
 
 type CassandraService struct { //Implements 'session'
@@ -454,6 +455,7 @@ type Configuration struct {
 	S3SecretAccessKey        string
 	HealthCheckInterval      int
 	NodeId                   string
+	InactivityTimeoutSeconds int
 }
 
 // ////////////////////////////////////// Constants
@@ -724,6 +726,7 @@ func main() {
 	for _, s := range notification_services {
 		if s.ProxyRealtimeStorageServiceName != "" {
 			s.ProxyRealtimeStorageService = notification_services[s.ProxyRealtimeStorageServiceName]
+			configuration.API = *s.ProxyRealtimeStorageService
 		}
 	}
 

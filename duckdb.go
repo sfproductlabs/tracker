@@ -559,7 +559,7 @@ func (i *DuckService) healthCheck() error {
 		return fmt.Errorf("S3 configuration missing for table exports")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(i.AppConfig.WriteTimeoutSeconds)*time.Second)
 	defer cancel()
 
 	// Test connection
@@ -578,10 +578,7 @@ func (i *DuckService) healthCheck() error {
 	}
 	defer tables.Close()
 
-	const (
-		maxSizeBytes    = 100 * 1024 * 1024 // 100MB
-		inactivityLimit = 15 * time.Minute
-	)
+	inactivityLimit := time.Duration(i.AppConfig.InactivityTimeoutSeconds) * time.Second
 
 	for tables.Next() {
 		var tableName string
@@ -609,7 +606,8 @@ func (i *DuckService) healthCheck() error {
 		}
 
 		// Export based on condition
-		if sizeBytes > maxSizeBytes {
+		fmt.Println("updating", tableName, sizeBytes, i.MaxSizeBytes)
+		if sizeBytes > i.MaxSizeBytes {
 			if err := i.exportAndTruncateTable(tableName, true); err != nil {
 				return fmt.Errorf("failed to process table %s: %v", tableName, err)
 			}
@@ -1231,6 +1229,42 @@ func (i *DuckService) write(w *WriteArgs) error {
 				v["sid"] = tempuuid
 			} else {
 				v["sid"] = uuid.Must(uuid.NewUUID())
+			}
+		}
+
+		if params != nil {
+
+			for npk, npv := range *params {
+				if d, ok := npv.(float64); ok {
+					(*params)[npk] = d
+					continue
+				}
+				if npb, ok := npv.(bool); ok {
+					if npb {
+						(*params)[npk] = true
+					} else {
+						(*params)[npk] = false
+					}
+					continue
+				}
+				if nps, ok := npv.(string); !ok {
+					//UNKNOWN TYPE
+					(*params)[npk] = fmt.Sprintf("%+v", npv) //clean up instead
+					//delete(*params, npk) //remove if not a string
+				} else {
+					if strings.TrimSpace(strings.ToLower(nps)) == "true" {
+						(*params)[npk] = true
+						continue
+					}
+					if strings.TrimSpace(strings.ToLower(nps)) == "false" {
+						(*params)[npk] = false
+						continue
+					}
+					if npf, err := strconv.ParseFloat(nps, 64); err == nil && len(nps) > 0 {
+						(*params)[npk] = npf
+					}
+
+				}
 			}
 		}
 
