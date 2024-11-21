@@ -514,7 +514,7 @@ var (
 	regexCount       = regexp.MustCompile(`\.count\.(.*)`)
 	regexUpdate      = regexp.MustCompile(`\.update\.(.*)`)
 	regexFilterUrl   = regexp.MustCompile(`(.*)`)
-	regexInternalURI = regexp.MustCompile(`.*(/tr/|/img/|/pub/|/str/|/rdr/).*`) //TODO: MUST FILTER INTERNAL ROUTES, UPDATE IF ADDING A NEW ROUTE, PROXY OK!!!
+	regexInternalURI = regexp.MustCompile(`.*(/tr/|/img/|/pub/|/str/|/rdr/)v[0-9]+.*`) //TODO: MUST FILTER INTERNAL ROUTES, UPDATE IF ADDING A NEW ROUTE, PROXY OK!!!
 	regexUtmPrefix   = regexp.MustCompile(`utm_`)
 )
 
@@ -1454,7 +1454,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	//Path
 	p := strings.Split(r.URL.Path, "/")
 	pmax := (len(p) - 2)
-	for i := 1; i <= pmax; i += 2 {
+	for i := 2; i <= pmax; i += 2 {
 		p[i] = strings.ToLower(p[i])
 		switch p[i] {
 		case "ehash", "bhash":
