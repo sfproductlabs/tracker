@@ -1,7 +1,7 @@
 let wasm = undefined;
 function loadWasmModuleSynchronously() {
   const xhr = new XMLHttpRequest();
-  xhr.open('GET', "/v1/pub/lz4.wasm", false); // false makes it synchronous
+  xhr.open('GET', "/tr/v1/pub/lz4.wasm", false); // false makes it synchronous
   xhr.overrideMimeType('text/plain; charset=x-user-defined');
   xhr.send();
 

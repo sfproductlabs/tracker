@@ -395,7 +395,7 @@
                 else 
                     link += `&url=${encodeURIComponent(document.getElementById("url").value + (document.getElementById("hideqp").checked ? "" : "?gu=1" + link))}`;
                 
-                link = `https://${document.getElementById("tracker").value}/v1/${linktype}/?gu=1` + link; //added gu for generated_url = 1 = true
+                link = `https://${document.getElementById("tracker").value}/tr/v1/${linktype}/?gu=1` + link; //added gu for generated_url = 1 = true
             }
             document.getElementById("linkText").innerHTML = link;
             document.getElementById("link").innerHTML = link;

@@ -6,7 +6,7 @@ chrome.contextMenus.create({
   onclick: function (word,tab) {
     var link = word.linkUrl || tab.url || word.selectionText;
     if (link) {      
-      chrome.tabs.create({ url: "https://tr.sfpl.io/v1/pub/track_url.html?tu=1&url=" + encodeURIComponent(link) });
+      chrome.tabs.create({ url: "https://tr.sfpl.io/tr/v1/pub/track_url.html?tu=1&url=" + encodeURIComponent(link) });
     } else {
       console.log("Couldn't determine link");
       alert("Couldn't determine link");
