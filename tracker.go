@@ -724,6 +724,7 @@ func main() {
 	for _, s := range notification_services {
 		if s.ProxyRealtimeStorageServiceName != "" {
 			s.ProxyRealtimeStorageService = notification_services[s.ProxyRealtimeStorageServiceName]
+			configuration.API = *s.ProxyRealtimeStorageService
 		}
 	}
 
