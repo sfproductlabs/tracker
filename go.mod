@@ -6,6 +6,7 @@ toolchain go1.23.3
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.30.0
+	github.com/aws/aws-sdk-go v1.55.5
 	github.com/cockroachdb/pebble v0.0.0-20230307175142-1c38c4cb89d4
 	github.com/coreos/pkg v0.0.0-20230209195159-6f3db454fdf8
 	github.com/gocql/gocql v1.3.1
@@ -39,6 +40,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v24.3.25+incompatible // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
 	github.com/kr/pretty v0.3.1 // indirect

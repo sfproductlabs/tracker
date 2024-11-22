@@ -69,6 +69,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/service/s3"
+
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gocql/gocql"
 	"github.com/google/uuid"
@@ -357,6 +359,7 @@ type DuckService struct { //Implements 'session'
 	AppConfig         *Configuration
 	HealthCheckTicker *time.Ticker
 	HealthCheckDone   chan bool
+	S3Client          *s3.S3
 }
 
 type CassandraService struct { //Implements 'session'
@@ -1357,7 +1360,7 @@ func serveWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, ar
 	if s != nil && s.Session != nil {
 		if err := s.Session.serve(w, r, args); err != nil {
 			if c.Debug {
-				fmt.Printf("[ERROR] Serving to %s: %s\n", s.Service, err)
+				fmt.Printf("[ERROR] Serving to %s: %s %s\n", s.Service, err, r.RequestURI)
 			}
 			return err
 		}

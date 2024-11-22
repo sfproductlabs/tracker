@@ -7,6 +7,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -17,6 +18,9 @@ import (
 	"math/rand"
 	"strconv"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	awsSession "github.com/aws/aws-sdk-go/aws/session" // Add alias here
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gocql/gocql"
 	"github.com/google/uuid"
@@ -26,6 +30,21 @@ import (
 // Connect initiates the primary connection to DuckDB
 func (i *DuckService) connect() error {
 	err := fmt.Errorf("Could not connect to DuckDB")
+
+	i.S3Client = s3.New(awsSession.Must(awsSession.NewSession(&aws.Config{
+		Region:      &i.AppConfig.S3Region,
+		Credentials: credentials.NewStaticCredentials(i.AppConfig.S3AccessKeyID, i.AppConfig.S3SecretAccessKey, ""),
+	})))
+
+	//Delete old version
+	testKey := "x/y/z/test/this/key/for/testing/delete/object"
+	_, err = i.S3Client.DeleteObject(&s3.DeleteObjectInput{
+		Bucket: &i.AppConfig.S3Bucket,
+		Key:    &testKey,
+	})
+	if err != nil {
+		log.Fatal("[ERROR] Could not connect to S3:", err)
+	}
 
 	// Check if connection already exists
 	if i.Session != nil {
@@ -640,11 +659,17 @@ func (i *DuckService) healthCheck() error {
 			continue
 		}
 		// Check last modification time
-		lastModified, _ := time.Now().UTC()
+		lastModified := time.Now().UTC()
 		lastSize := int64(-1)
+		isNew := false
 		err = i.Session.QueryRow(`
 			SELECT COALESCE(modified, ?), COALESCE(estimated_size, 0) 
 			FROM table_versions where table_name=?`, lastModified, tableName).Scan(&lastModified, &lastSize)
+
+		if err != nil {
+			isNew = true
+		}
+
 		if lastSize == sizeBytes {
 			continue
 		}
@@ -653,14 +678,14 @@ func (i *DuckService) healthCheck() error {
 			if err := i.exportAndTruncateTable(tableName, true, sizeBytes, lastModified); err != nil {
 				return fmt.Errorf("failed to process table %s: %v", tableName, err)
 			}
-		} else if time.Since(lastModified) > inactivityLimit {
+		} else if time.Since(lastModified) > inactivityLimit || isNew {
 			if err := i.exportAndTruncateTable(tableName, false, sizeBytes, lastModified); err != nil {
 				return fmt.Errorf("failed to process table %s: %v", tableName, err)
 			}
 		}
 
 		if i.AppConfig.Debug {
-			fmt.Printf("[HealthCheck] Processed table %s (size: %.2f MB, last modified: %v)\n",
+			fmt.Printf("[HealthCheck] Processed table %s (size: %.2f, last modified: %v)\n",
 				tableName,
 				float64(sizeBytes)/(1024*1024),
 				lastModified)
@@ -743,10 +768,11 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 			lastModified.Day(),
 			i.AppConfig.NodeId,
 			existingVersion)
-		//Delete old version from s3 using the s3 library
-		s3.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-			Bucket: aws.String(i.AppConfig.S3Bucket),
-			Key:    aws.String(oldKey),
+
+		//Delete old version
+		_, err = i.S3Client.DeleteObject(&s3.DeleteObjectInput{
+			Bucket: &i.AppConfig.S3Bucket,
+			Key:    &oldKey,
 		})
 	}
 
