@@ -17,6 +17,7 @@ import (
 	"math/rand"
 	"strconv"
 
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gocql/gocql"
 	"github.com/google/uuid"
 	_ "github.com/marcboeker/go-duckdb" // Import DuckDB driver
@@ -639,11 +640,11 @@ func (i *DuckService) healthCheck() error {
 			continue
 		}
 		// Check last modification time
-		lastModified, _ := time.Parse("2006-01-02", "1970-01-01")
+		lastModified, _ := time.Now().UTC()
 		lastSize := int64(-1)
 		err = i.Session.QueryRow(`
-			SELECT COALESCE(modified, '1970-01-01'), COALESCE(estimated_size, 0) 
-			FROM table_versions where table_name=?`, tableName).Scan(&lastModified, &lastSize)
+			SELECT COALESCE(modified, ?), COALESCE(estimated_size, 0) 
+			FROM table_versions where table_name=?`, lastModified, tableName).Scan(&lastModified, &lastSize)
 		if lastSize == sizeBytes {
 			continue
 		}
@@ -681,9 +682,6 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 	var version int
 	currentTime := time.Now().UTC()
 	// Force version increment if we've ticked over to a new day
-	if lastModified.Day() != currentTime.Day() {
-		incrementVersion = true
-	}
 	if incrementVersion {
 		// Increment version for size-based exports
 		err = tx.QueryRow(`
@@ -709,17 +707,21 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 		return fmt.Errorf("failed to handle version: %v", err)
 	}
 
-	// Generate export path with version
-	now := time.Now().UTC()
+	existingVersion := version
+	if incrementVersion {
+		existingVersion = version - 1
+	}
+
+	// Generate export path with the existing version
 	s3Path := fmt.Sprintf("s3://%s/%s/%s/year=%d/month=%d/day=%d/%s_v%d.parquet",
 		i.AppConfig.S3Bucket,
 		i.AppConfig.S3Prefix,
 		tableName,
-		now.Year(),
-		now.Month(),
-		now.Day(),
+		currentTime.Year(),
+		currentTime.Month(),
+		currentTime.Day(),
 		i.AppConfig.NodeId,
-		version)
+		existingVersion)
 
 	// Export to S3
 	_, err = tx.Exec(fmt.Sprintf(`
@@ -728,6 +730,24 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 	`, tableName, s3Path))
 	if err != nil {
 		return fmt.Errorf("failed to export to S3: %v", err)
+	}
+
+	//Remove the old version if we've ticked over to a new day
+	if lastModified.Day() != currentTime.Day() {
+		oldKey := fmt.Sprintf("%s/%s/year=%d/month=%d/day=%d/%s_v%d.parquet",
+			i.AppConfig.S3Bucket,
+			i.AppConfig.S3Prefix,
+			tableName,
+			lastModified.Year(),
+			lastModified.Month(),
+			lastModified.Day(),
+			i.AppConfig.NodeId,
+			existingVersion)
+		//Delete old version from s3 using the s3 library
+		s3.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+			Bucket: aws.String(i.AppConfig.S3Bucket),
+			Key:    aws.String(oldKey),
+		})
 	}
 
 	if incrementVersion {
