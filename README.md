@@ -33,11 +33,14 @@ Don't want to give your user data to people you don't trust? Maybe save a GDPR l
 * Elassandra
 * NATS.io
 * Jupyter
+* Clickhouse
+* DuckDB
 
 ![image](https://user-images.githubusercontent.com/760216/48519797-180ffb00-e823-11e8-9bae-ed21e169d6e2.png)
 
 
 ## Todo
+* Apache Pulsar
 * Kafka plugin
 * NATS/Kafka converter/repeater
 * Flink plugin
