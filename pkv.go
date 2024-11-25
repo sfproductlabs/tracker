@@ -123,13 +123,16 @@ func (l *eventListener) onWALCreated(pebble.WALCreateInfo) {
 }
 
 type pebbleWriteBatch struct {
-	wb *pebble.Batch
-	db *pebble.DB
-	wo *pebble.WriteOptions
+	wb      *pebble.Batch
+	db      *pebble.DB
+	wo      *pebble.WriteOptions
+	applied bool
 }
 
 func (w *pebbleWriteBatch) Destroy() {
-	w.wb.Close()
+	if !w.applied {
+		w.wb.Close()
+	}
 }
 
 func (w *pebbleWriteBatch) Put(key []byte, val []byte) {
@@ -360,7 +363,14 @@ func (r *KV) GetWriteBatch() *pebbleWriteBatch {
 
 // CommitWriteBatch ...
 func (r *KV) CommitWriteBatch(pwb *pebbleWriteBatch) error {
-	return r.db.Apply(pwb.wb, r.wo)
+	if pwb.applied {
+		return fmt.Errorf("batch already applied")
+	}
+	err := r.db.Apply(pwb.wb, r.wo)
+	if err == nil {
+		pwb.applied = true
+	}
+	return err
 }
 
 // BulkRemoveEntries ...
