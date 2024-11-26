@@ -251,48 +251,48 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				upperString(country)
 				cleanString(region)
 				if /* results, */ err := i.Session.Query(`INSERT into agreements (
-					vid, 
-					created,  
-					-- compliances,
-					cflags,
-					sid, 
-					uid, 
-					avid,
-					hhash, 
-					app, 
-					rel, 
-
-					url, 
-					ip,
-					iphash, 
-					gaid,
-					idfa,
-					msid,
-					fbid,
-					country, 
-					region,
-					culture, 
-					
-					source,
-					medium,
-					campaign,
-					term, 
-					ref, 
-					rcode, 
-					aff,
-					browser,
-					bhash,
-					device, 
-					
-					os, 
-					tz,
-					--vp,
-					--loc frozen<geo_pol>,
-					latlon,
-					zip,
-					owner,
-					org
-				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+					 vid, 
+					 created,  
+					 -- compliances,
+					 cflags,
+					 sid, 
+					 uid, 
+					 avid,
+					 hhash, 
+					 app, 
+					 rel, 
+ 
+					 url, 
+					 ip,
+					 iphash, 
+					 gaid,
+					 idfa,
+					 msid,
+					 fbid,
+					 country, 
+					 region,
+					 culture, 
+					 
+					 source,
+					 medium,
+					 campaign,
+					 term, 
+					 ref, 
+					 rcode, 
+					 aff,
+					 browser,
+					 bhash,
+					 device, 
+					 
+					 os, 
+					 tz,
+					 --vp,
+					 --loc frozen<geo_pol>,
+					 latlon,
+					 zip,
+					 owner,
+					 org
+				  ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
 					b["vid"],
 					created,
 					//compliances map<text,frozen<set<text>>>,
@@ -339,48 +339,48 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				}
 
 				i.Session.Query(`INSERT into agreed (
-					vid, 
-					created,  
-					-- compliances,
-					cflags,
-					sid, 
-					uid, 
-					avid,
-					hhash, 
-					app, 
-					rel, 
-
-					url, 
-					ip,
-					iphash, 
-					gaid,
-					idfa,
-					msid,
-					fbid,
-					country, 
-					region,
-					culture, 
-					
-					source,
-					medium,
-					campaign,
-					term, 
-					ref, 
-					rcode, 
-					aff,
-					browser,
-					bhash,
-					device, 
-					
-					os, 
-					tz,
-					--vp,
-					--loc frozen<geo_pol>,
-					latlon,
-					zip,
-					owner,
-					org
-				 ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+					 vid, 
+					 created,  
+					 -- compliances,
+					 cflags,
+					 sid, 
+					 uid, 
+					 avid,
+					 hhash, 
+					 app, 
+					 rel, 
+ 
+					 url, 
+					 ip,
+					 iphash, 
+					 gaid,
+					 idfa,
+					 msid,
+					 fbid,
+					 country, 
+					 region,
+					 culture, 
+					 
+					 source,
+					 medium,
+					 campaign,
+					 term, 
+					 ref, 
+					 rcode, 
+					 aff,
+					 browser,
+					 bhash,
+					 device, 
+					 
+					 os, 
+					 tz,
+					 --vp,
+					 --loc frozen<geo_pol>,
+					 latlon,
+					 zip,
+					 owner,
+					 org
+				  ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
 					b["vid"],
 					created,
 					//compliances map<text,frozen<set<text>>>,
@@ -553,12 +553,12 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				}
 
 				if /* results, */ err := i.Session.Query(`INSERT into redirects (
-					 hhash,
-					 urlfrom, 					
-					 urlto,
-					 updated, 
-					 updater 
-				 ) values (?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
+					  hhash,
+					  urlfrom, 					
+					  urlto,
+					  updated, 
+					  updater 
+				  ) values (?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
 					hhash,
 					strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path),
 					urlto,
@@ -573,16 +573,16 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				// 	return fmt.Errorf("URL exists")
 				// }
 				if err := i.Session.Query(`INSERT into redirect_history (
-					 urlfrom, 
-					 hostfrom,
-					 slugfrom, 
-					 urlto, 
-					 hostto, 
-					 pathto, 
-					 searchto, 
-					 updated, 
-					 updater
-				 ) values (?,?,?,?,?,?,?,?,?)`,
+					  urlfrom, 
+					  hostfrom,
+					  slugfrom, 
+					  urlto, 
+					  hostto, 
+					  pathto, 
+					  searchto, 
+					  updated, 
+					  updater
+				  ) values (?,?,?,?,?,?,?,?,?)`,
 					urlfrom,
 					strings.ToLower(urlfromURL.Host),
 					strings.ToLower(urlfromURL.Path),
@@ -843,111 +843,119 @@ func (i *CassandraService) write(w *WriteArgs) error {
 	v := *w.Values
 	switch w.WriteType {
 	case WRITE_COUNT:
-		if i.AppConfig.Debug {
-			fmt.Printf("COUNT %s\n", w)
+		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_COUNTERS)) {
+			if i.AppConfig.Debug {
+				fmt.Printf("COUNT %s\n", w)
+			}
+			return i.Session.Query(`UPDATE counters set total=total+1 where id=?`,
+				v["id"]).Exec()
 		}
-		return i.Session.Query(`UPDATE counters set total=total+1 where id=?`,
-			v["id"]).Exec()
+		return nil
 	case WRITE_UPDATE:
-		if i.AppConfig.Debug {
-			fmt.Printf("UPDATE %s\n", w)
-		}
-		timestamp := time.Now().UTC()
-		updated, ok := v["updated"].(string)
-		if ok {
-			millis, err := strconv.ParseInt(updated, 10, 64)
-			if err == nil {
-				timestamp = time.Unix(0, millis*int64(time.Millisecond))
+		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_UPDATES)) {
+			if i.AppConfig.Debug {
+				fmt.Printf("UPDATE %s\n", w)
 			}
+			timestamp := time.Now().UTC()
+			updated, ok := v["updated"].(string)
+			if ok {
+				millis, err := strconv.ParseInt(updated, 10, 64)
+				if err == nil {
+					timestamp = time.Unix(0, millis*int64(time.Millisecond))
+				}
+			}
+			return i.Session.Query(`INSERT INTO updates (id, updated, msg) values (?,?,?)`,
+				v["id"],
+				timestamp,
+				v["msg"]).Exec()
 		}
-		return i.Session.Query(`INSERT INTO updates (id, updated, msg) values (?,?,?)`,
-			v["id"],
-			timestamp,
-			v["msg"]).Exec()
-
+		return nil
 	case WRITE_LOG:
-		if i.AppConfig.Debug {
-			fmt.Printf("LOG %s\n", w)
-		}
-		//////////////////////////////////////////////
-		//FIX VARS
-		//////////////////////////////////////////////
-		//[params]
-		if ps, ok := v["params"].(string); ok {
-			temp := make(map[string]string)
-			json.Unmarshal([]byte(ps), &temp)
-			v["params"] = &temp
-		}
-		//[ltimenss] ltime as nanosecond string
-		var ltime time.Duration
-		if lts, ok := v["ltimenss"].(string); ok {
-			ns, _ := strconv.ParseInt(lts, 10, 64)
-			ltime = time.Duration(ns)
-		}
-		//[level]
-		var level *int64
-		if lvl, ok := v["level"].(float64); ok {
-			temp := int64(lvl)
-			level = &temp
-		}
-
-		var topic string
-		if ttemp1, ok := v["topic"].(string); ok {
-			topic = ttemp1
-		} else {
-			if ttemp2, ok2 := v["id"].(string); ok2 {
-				topic = ttemp2
+		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_LOGS)) {
+			if i.AppConfig.Debug {
+				fmt.Printf("LOG %s\n", w)
 			}
+			//////////////////////////////////////////////
+			//FIX VARS
+			//////////////////////////////////////////////
+			//[params]
+			if ps, ok := v["params"].(string); ok {
+				temp := make(map[string]string)
+				json.Unmarshal([]byte(ps), &temp)
+				v["params"] = &temp
+			}
+			//[ltimenss] ltime as nanosecond string
+			var ltime time.Duration
+			if lts, ok := v["ltimenss"].(string); ok {
+				ns, _ := strconv.ParseInt(lts, 10, 64)
+				ltime = time.Duration(ns)
+			}
+			//[level]
+			var level *int64
+			if lvl, ok := v["level"].(float64); ok {
+				temp := int64(lvl)
+				level = &temp
+			}
+
+			var topic string
+			if ttemp1, ok := v["topic"].(string); ok {
+				topic = ttemp1
+			} else {
+				if ttemp2, ok2 := v["id"].(string); ok2 {
+					topic = ttemp2
+				}
+			}
+
+			cleanInterfaceString(v["ip"])
+			cleanInterfaceString(v["topic"])
+			cleanInterfaceString(v["name"])
+			cleanInterfaceString(v["host"])
+			cleanInterfaceString(v["hostname"])
+			cleanInterfaceString(v["msg"])
+
+			var iphash string
+			if temp, ok := v["ip"].(string); ok && temp != "" {
+				//128 bits = ipv6
+				iphash = strconv.FormatInt(int64(hash(temp)), 36)
+				iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
+				iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
+				iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
+			}
+
+			return i.Session.Query(`INSERT INTO logs
+		  (
+			  id,
+			  ldate,
+			  created,
+			  ltime,
+			  topic, 
+			  name, 
+			  host, 
+			  hostname, 
+			  owner,
+			  ip,
+			  iphash,
+			  level, 
+			  msg,
+			  params
+		  ) 
+		  values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?)`, //14
+				gocql.TimeUUID(),
+				v["ldate"],
+				time.Now().UTC(),
+				ltime,
+				topic,
+				v["name"],
+				v["host"],
+				v["hostname"],
+				v["owner"],
+				v["ip"],
+				iphash,
+				level,
+				v["msg"],
+				v["params"]).Exec()
 		}
-
-		cleanInterfaceString(v["ip"])
-		cleanInterfaceString(v["topic"])
-		cleanInterfaceString(v["name"])
-		cleanInterfaceString(v["host"])
-		cleanInterfaceString(v["hostname"])
-		cleanInterfaceString(v["msg"])
-
-		var iphash string
-		if temp, ok := v["ip"].(string); ok && temp != "" {
-			//128 bits = ipv6
-			iphash = strconv.FormatInt(int64(hash(temp)), 36)
-			iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
-			iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
-			iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
-		}
-
-		return i.Session.Query(`INSERT INTO logs
-		 (
-			 id,
-			 ldate,
-			 created,
-			 ltime,
-			 topic, 
-			 name, 
-			 host, 
-			 hostname, 
-			 owner,
-			 ip,
-			 iphash,
-			 level, 
-			 msg,
-			 params
-		 ) 
-		 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?)`, //14
-			gocql.TimeUUID(),
-			v["ldate"],
-			time.Now().UTC(),
-			ltime,
-			topic,
-			v["name"],
-			v["host"],
-			v["hostname"],
-			v["owner"],
-			v["ip"],
-			iphash,
-			level,
-			v["msg"],
-			v["params"]).Exec()
+		return nil
 	case WRITE_EVENT:
 		//TODO: Commented for AWS, perhaps non-optimal, CHECK
 		//go func() {
@@ -1429,47 +1437,47 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//TODO: Add other table type checks
 		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS_RECENT)) {
 			if xerr := i.Session.Query(`INSERT into events_recent 
-				 (
-				 eid,
-				 vid, 
-				 sid,
-				 hhash, 
-				 app,
-				 rel,
-				 cflags,
-				 created,
-				 uid,
-				 last,
-				 url,
-				 ip,
-				 iphash,
-				 latlon,
-				 ptyp,
-				 bhash,
-				 auth,
-				 duration,
-				 xid,
-				 split,
-				 ename,
-				 source,
-				 medium,
-				 campaign,
-				 country,
-				 region,
-				 city,
-				 zip,
-				 term,
-				 etyp,
-				 ver,
-				 sink,
-				 score,							
-				 params,
-				 nparams,
-				 targets,
-				 rid,
-				 relation
-			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
+				  (
+				  eid,
+				  vid, 
+				  sid,
+				  hhash, 
+				  app,
+				  rel,
+				  cflags,
+				  created,
+				  uid,
+				  last,
+				  url,
+				  ip,
+				  iphash,
+				  latlon,
+				  ptyp,
+				  bhash,
+				  auth,
+				  duration,
+				  xid,
+				  split,
+				  ename,
+				  source,
+				  medium,
+				  campaign,
+				  country,
+				  region,
+				  city,
+				  zip,
+				  term,
+				  etyp,
+				  ver,
+				  sink,
+				  score,							
+				  params,
+				  nparams,
+				  targets,
+				  rid,
+				  relation
+			  ) 
+			  values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
 				w.EventID,
 				v["vid"],
 				v["sid"],
@@ -1519,47 +1527,47 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//events
 		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS)) {
 			if xerr := i.Session.Query(`INSERT into events 
-			 (
-				 eid,
-				 vid, 
-				 sid,
-				 hhash, 
-				 app,
-				 rel,
-				 cflags,
-				 created,
-				 uid,
-				 last,
-				 url,
-				 ip,
-				 iphash,
-				 latlon,
-				 ptyp,
-				 bhash,
-				 auth,
-				 duration,
-				 xid,
-				 split,
-				 ename,
-				 source,
-				 medium,
-				 campaign,
-				 country,
-				 region,
-				 city,
-				 zip,
-				 term,
-				 etyp,
-				 ver,
-				 sink,
-				 score,							
-				 params,
-				 nparams,
-				 targets,
-				 rid,
-				 relation
-			 ) 
-			 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
+			  (
+				  eid,
+				  vid, 
+				  sid,
+				  hhash, 
+				  app,
+				  rel,
+				  cflags,
+				  created,
+				  uid,
+				  last,
+				  url,
+				  ip,
+				  iphash,
+				  latlon,
+				  ptyp,
+				  bhash,
+				  auth,
+				  duration,
+				  xid,
+				  split,
+				  ename,
+				  source,
+				  medium,
+				  campaign,
+				  country,
+				  region,
+				  city,
+				  zip,
+				  term,
+				  etyp,
+				  ver,
+				  sink,
+				  score,							
+				  params,
+				  nparams,
+				  targets,
+				  rid,
+				  relation
+			  ) 
+			  values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
 				w.EventID,
 				v["vid"],
 				v["sid"],
@@ -1658,12 +1666,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//referrals
 			if v["ref"] != nil {
 				if xerr := i.Session.Query(`INSERT into referrals 
-					 (
-						 hhash,
-						 vid, 
-						 ref
-					 ) 
-					 values (?,?,?) IF NOT EXISTS`, //3
+					  (
+						  hhash,
+						  vid, 
+						  ref
+					  ) 
+					  values (?,?,?) IF NOT EXISTS`, //3
 					hhash,
 					v["vid"],
 					v["ref"]).Exec(); xerr != nil && i.AppConfig.Debug {
@@ -1674,12 +1682,12 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//referred
 			if v["rcode"] != nil {
 				if xerr := i.Session.Query(`INSERT into referred 
-					 (
-						 hhash,
-						 vid, 
-						 rcode
-					 ) 
-					 values (?,?,?) IF NOT EXISTS`, //3
+					  (
+						  hhash,
+						  vid, 
+						  rcode
+					  ) 
+					  values (?,?,?) IF NOT EXISTS`, //3
 					hhash,
 					v["vid"],
 					v["rcode"]).Exec(); xerr != nil && i.AppConfig.Debug {
@@ -1690,11 +1698,11 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//hosts
 			if w.Host != "" {
 				if xerr := i.Session.Query(`INSERT into hosts 
-					 (
-						 hhash,
-						 hostname						
-					 ) 
-					 values (?,?) IF NOT EXISTS`, //2
+					  (
+						  hhash,
+						  hostname						
+					  ) 
+					  values (?,?) IF NOT EXISTS`, //2
 					hhash,
 					w.Host).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[hosts]:", xerr)
@@ -1709,15 +1717,15 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//nodes
 			if xerr := i.Session.Query(`INSERT into nodes 
-				 (
-					 hhash,
-					 vid, 
-					 uid,
-					 ip,
-					 iphash,
-					 sid
-				 ) 
-				 values (?,?,?,?,?,?)`, //6
+				  (
+					  hhash,
+					  vid, 
+					  uid,
+					  ip,
+					  iphash,
+					  sid
+				  ) 
+				  values (?,?,?,?,?,?)`, //6
 				hhash,
 				v["vid"],
 				v["uid"],
@@ -1730,14 +1738,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//locations
 			if latlon != nil {
 				if xerr := i.Session.Query(`INSERT into locations 
-				 (
-					 hhash,
-					 vid, 
-					 latlon,
-					 uid,
-					 sid
-				 ) 
-				 values (?,?,?,?,?)`, //5
+				  (
+					  hhash,
+					  vid, 
+					  latlon,
+					  uid,
+					  sid
+				  ) 
+				  values (?,?,?,?,?)`, //5
 					hhash,
 					v["vid"],
 					latlon,
@@ -1750,13 +1758,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//alias
 			if v["uid"] != nil {
 				if xerr := i.Session.Query(`INSERT into aliases 
-					 (
-						 hhash,
-						 vid, 
-						 uid,
-						 sid
-					 ) 
-					 values (?,?,?,?)`, //4
+					  (
+						  hhash,
+						  vid, 
+						  uid,
+						  sid
+					  ) 
+					  values (?,?,?,?)`, //4
 					hhash,
 					v["vid"],
 					v["uid"],
@@ -1768,13 +1776,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//users
 			if v["uid"] != nil {
 				if xerr := i.Session.Query(`INSERT into users 
-					 (
-						 hhash,
-						 vid, 
-						 uid,
-						 sid
-					 ) 
-					 values (?,?,?,?)`, //4
+					  (
+						  hhash,
+						  vid, 
+						  uid,
+						  sid
+					  ) 
+					  values (?,?,?,?)`, //4
 					hhash,
 					v["vid"],
 					v["uid"],
@@ -1786,13 +1794,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//uhash
 			if uhash != nil {
 				if xerr := i.Session.Query(`INSERT into usernames 
-					 (
-						 hhash,
-						 vid, 
-						 uhash,
-						 sid
-					 ) 
-					 values (?,?,?,?)`, //4
+					  (
+						  hhash,
+						  vid, 
+						  uhash,
+						  sid
+					  ) 
+					  values (?,?,?,?)`, //4
 					hhash,
 					v["vid"],
 					uhash,
@@ -1804,13 +1812,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//ehash
 			if ehash != nil {
 				if xerr := i.Session.Query(`INSERT into emails
-					 (
-						 hhash,
-						 vid, 
-						 ehash,
-						 sid
-					 ) 
-					 values (?,?,?,?)`, //4
+					  (
+						  hhash,
+						  vid, 
+						  ehash,
+						  sid
+					  ) 
+					  values (?,?,?,?)`, //4
 					hhash,
 					v["vid"],
 					ehash,
@@ -1822,13 +1830,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			//chash
 			if chash != nil {
 				if xerr := i.Session.Query(`INSERT into cells
-					 (
-						 hhash,
-						 vid, 
-						 chash,
-						 sid
-					 ) 
-					 values (?,?,?,?)`, //4
+					  (
+						  hhash,
+						  vid, 
+						  chash,
+						  sid
+					  ) 
+					  values (?,?,?,?)`, //4
 					hhash,
 					v["vid"],
 					chash,
@@ -1846,57 +1854,57 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if isNew || isFirst {
 				//vistors
 				if xerr := i.Session.Query(`INSERT into visitors 
-						 (
-							 vid, 
-							 did,
-							 sid, 
-							 hhash,
-							 app,
-							 rel,
-							 cflags,
-							 created,
-							 uid,
-							 last,
-							 url,
-							 ip,
-							 iphash,
-							 latlon,
-							 ptyp,
-							 bhash,
-							 auth,
-							 xid,
-							 split,
-							 ename,
-							 etyp,
-							 ver,
-							 sink,
-							 score,							
-							 params,
-							 nparams,
-							 gaid,
-							 idfa,
-							 msid,
-							 fbid,
-							 country,
-							 region,
-							 city,
-							 zip,
-							 culture,
-							 source,
-							 medium,
-							 campaign,
-							 term,
-							 ref,
-							 rcode,
-							 aff,
-							 browser,
-							 device,
-							 os,
-							 tz,
-							 vp
-						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //47
+						  (
+							  vid, 
+							  did,
+							  sid, 
+							  hhash,
+							  app,
+							  rel,
+							  cflags,
+							  created,
+							  uid,
+							  last,
+							  url,
+							  ip,
+							  iphash,
+							  latlon,
+							  ptyp,
+							  bhash,
+							  auth,
+							  xid,
+							  split,
+							  ename,
+							  etyp,
+							  ver,
+							  sink,
+							  score,							
+							  params,
+							  nparams,
+							  gaid,
+							  idfa,
+							  msid,
+							  fbid,
+							  country,
+							  region,
+							  city,
+							  zip,
+							  culture,
+							  source,
+							  medium,
+							  campaign,
+							  term,
+							  ref,
+							  rcode,
+							  aff,
+							  browser,
+							  device,
+							  os,
+							  tz,
+							  vp
+						  ) 
+						  values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?) 
+						  IF NOT EXISTS`, //47
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -1949,58 +1957,58 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 				//starts
 				if xerr := i.Session.Query(`INSERT into sessions 
-						 (
-							 vid, 
-							 did,
-							 sid, 
-							 hhash,
-							 app,
-							 rel,
-							 cflags,
-							 created,
-							 uid,
-							 last,
-							 url,
-							 ip,
-							 iphash,
-							 latlon,
-							 ptyp,
-							 bhash,
-							 auth,
-							 duration,
-							 xid,
-							 split,
-							 ename,
-							 etyp,
-							 ver,
-							 sink,
-							 score,							
-							 params,
-							 nparams,
-							 gaid,
-							 idfa,
-							 msid,
-							 fbid,
-							 country,
-							 region,
-							 city,
-							 zip,
-							 culture,
-							 source,
-							 medium,
-							 campaign,
-							 term,
-							 ref,
-							 rcode,
-							 aff,
-							 browser,
-							 device,
-							 os,
-							 tz,
-							 vp                        
-						 ) 
-						 values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?) 
-						 IF NOT EXISTS`, //48
+						  (
+							  vid, 
+							  did,
+							  sid, 
+							  hhash,
+							  app,
+							  rel,
+							  cflags,
+							  created,
+							  uid,
+							  last,
+							  url,
+							  ip,
+							  iphash,
+							  latlon,
+							  ptyp,
+							  bhash,
+							  auth,
+							  duration,
+							  xid,
+							  split,
+							  ename,
+							  etyp,
+							  ver,
+							  sink,
+							  score,							
+							  params,
+							  nparams,
+							  gaid,
+							  idfa,
+							  msid,
+							  fbid,
+							  country,
+							  region,
+							  city,
+							  zip,
+							  culture,
+							  source,
+							  medium,
+							  campaign,
+							  term,
+							  ref,
+							  rcode,
+							  aff,
+							  browser,
+							  device,
+							  os,
+							  tz,
+							  vp                        
+						  ) 
+						  values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?) 
+						  IF NOT EXISTS`, //48
 					v["vid"],
 					v["did"],
 					v["sid"],
@@ -2055,53 +2063,53 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 
 			if xerr := i.Session.Query(`UPDATE visitors_latest SET 
-							did = ?,
-							sid = ?, 
-							hhash = ?,
-							app = ?,
-							rel = ?,
-							cflags = ?,
-							created = ?,
-							uid = ?,
-							last = ?,
-							url = ?,
-							ip = ?,
-							iphash = ?,
-							latlon = ?,
-							ptyp = ?,
-							bhash = ?,
-							auth = ?,
-							xid = ?,
-							split = ?,
-							ename = ?,
-							etyp = ?,
-							ver = ?,
-							sink = ?,
-							score = ?,							
-							params = ?,
-							nparams = ?,
-							gaid = ?,
-							idfa = ?,
-							msid = ?,
-							fbid = ?,
-							country = ?,
-							region = ?,
-							city = ?,
-							zip = ?,
-							culture = ?,
-							source = ?,
-							medium = ?,
-							campaign = ?,
-							term = ?,
-							ref = ?,
-							rcode = ?,
-							aff = ?,
-							browser = ?,
-							device = ?,
-							os = ?,
-							tz = ?,
-							vp = ?
-						WHERE vid = ?`, //47
+							 did = ?,
+							 sid = ?, 
+							 hhash = ?,
+							 app = ?,
+							 rel = ?,
+							 cflags = ?,
+							 created = ?,
+							 uid = ?,
+							 last = ?,
+							 url = ?,
+							 ip = ?,
+							 iphash = ?,
+							 latlon = ?,
+							 ptyp = ?,
+							 bhash = ?,
+							 auth = ?,
+							 xid = ?,
+							 split = ?,
+							 ename = ?,
+							 etyp = ?,
+							 ver = ?,
+							 sink = ?,
+							 score = ?,							
+							 params = ?,
+							 nparams = ?,
+							 gaid = ?,
+							 idfa = ?,
+							 msid = ?,
+							 fbid = ?,
+							 country = ?,
+							 region = ?,
+							 city = ?,
+							 zip = ?,
+							 culture = ?,
+							 source = ?,
+							 medium = ?,
+							 campaign = ?,
+							 term = ?,
+							 ref = ?,
+							 rcode = ?,
+							 aff = ?,
+							 browser = ?,
+							 device = ?,
+							 os = ?,
+							 tz = ?,
+							 vp = ?
+						 WHERE vid = ?`, //47
 				v["did"],
 				v["sid"],
 				hhash,
@@ -2391,16 +2399,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		pmts = append(pmts, *pmt)
 
 		if xerr := i.Session.Query(`UPDATE ltv SET
-			vid = ?, 
-			sid = ?,
-			payments = ?, 
-			paid = ?,
-			org = ?,
-			updated = ?,
-			updater = ?,
-			created = ?,
-			owner = ?
-			WHERE hhash=? AND uid=?`, //11
+			 vid = ?, 
+			 sid = ?,
+			 payments = ?, 
+			 paid = ?,
+			 org = ?,
+			 updated = ?,
+			 updater = ?,
+			 created = ?,
+			 owner = ?
+			 WHERE hhash=? AND uid=?`, //11
 			v["vid"],
 			v["sid"],
 			pmts,
@@ -2433,16 +2441,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		pmts = append(pmts, *pmt)
 
 		if xerr := i.Session.Query(`UPDATE ltvu SET
-			vid = ?, 
-			sid = ?,
-			payments = ?, 
-			paid = ?,
-			org = ?,
-			updated = ?,
-			updater = ?,
-			created = ?,
-			owner = ?
-			WHERE hhash=? AND uid=? AND orid = ?`, //11
+			 vid = ?, 
+			 sid = ?,
+			 payments = ?, 
+			 paid = ?,
+			 org = ?,
+			 updated = ?,
+			 updater = ?,
+			 created = ?,
+			 owner = ?
+			 WHERE hhash=? AND uid=? AND orid = ?`, //11
 			v["vid"],
 			v["sid"],
 			pmts,
@@ -2476,16 +2484,16 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		pmts = append(pmts, *pmt)
 
 		if xerr := i.Session.Query(`UPDATE ltvv SET
-			uid = ?, 
-			sid = ?,
-			payments = ?, 
-			paid = ?,
-			org = ?,
-			updated = ?,
-			updater = ?,
-			created = ?,
-			owner = ?
-			WHERE hhash=? AND vid=? AND orid = ?`, //11
+			 uid = ?, 
+			 sid = ?,
+			 payments = ?, 
+			 paid = ?,
+			 org = ?,
+			 updated = ?,
+			 updater = ?,
+			 created = ?,
+			 owner = ?
+			 WHERE hhash=? AND vid=? AND orid = ?`, //11
 			v["uid"],
 			v["sid"],
 			pmts,

@@ -215,6 +215,7 @@ const (
 	TABLE_ALL_LTV       = TABLE_LTV | TABLE_LTVU | TABLE_LTVV
 	TABLE_ALL_REDIRECTS = TABLE_REDIRECTS | TABLE_REDIRECT_HISTORY
 	TABLE_ALL           = ^uint64(0)
+	TABLE_PROXY_DEFAULT = ^uint64(0) &^ uint64(TABLE_ALL_EVENTS|TABLE_UPDATES|TABLE_LOGS) //Default proxy tables, NO EVENTS, UPDATES, LOGS
 )
 
 // Helper methods for bitwise operations

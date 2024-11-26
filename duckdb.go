@@ -793,6 +793,11 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 
 // ////////////////////////////////////// DuckDB
 func (i *DuckService) write(w *WriteArgs) error {
+	//Write to proxy if configured
+	if i.Configuration.ProxyRealtimeStorageService != nil && i.Configuration.ProxyRealtimeStorageServiceTables != 0 && i.Configuration.ProxyRealtimeStorageService.Session != nil {
+		w.CallingService = i.Configuration
+		i.Configuration.ProxyRealtimeStorageService.Session.write(w)
+	}
 	err := fmt.Errorf("[ERROR] Could not write to duck")
 	v := *w.Values
 	switch w.WriteType {
@@ -908,12 +913,6 @@ func (i *DuckService) write(w *WriteArgs) error {
 	case WRITE_EVENT:
 		//TODO: Commented for AWS, perhaps non-optimal, CHECK
 		//go func() {
-
-		//Write to proxy if configured
-		if i.Configuration.ProxyRealtimeStorageService != nil && i.Configuration.ProxyRealtimeStorageServiceTables != 0 && i.Configuration.ProxyRealtimeStorageService.Session != nil {
-			w.CallingService = i.Configuration
-			i.Configuration.ProxyRealtimeStorageService.Session.write(w)
-		}
 
 		//////////////////////////////////////////////
 		//FIX CASE
