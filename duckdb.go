@@ -1,6 +1,6 @@
 //TO ACCESS:
 //SELECT json_extract_scalar(params::json, '$.rock') FROM read_parquet('s3://bucket/v1/tracker/events/*/*/*/*.parquet', hive_partitioning=true) where year=2025;
-//SELECT params::json->'$.rock' FROM read_parquet('s3://bucket/v1/tracker/events/*/*/*/*.parquet', hive_partitioning=true) where year=2024
+//SELECT params::json->'$.threadId' FROM read_parquet('s3://bucket/v1/tracker/events/*/*/*/*.parquet', hive_partitioning=true) where year=2024
 
 package main
 
@@ -1380,9 +1380,16 @@ func (i *DuckService) write(w *WriteArgs) error {
 			}
 		}
 
-		var jsparams []byte
+		var jsparams *string
 		if params != nil {
-			jsparams, err = json.Marshal(*params)
+			if b, err := json.Marshal(*params); err == nil {
+				s := string(b)
+				jsparams = &s
+			} else {
+				jsparams = nil
+			}
+		} else {
+			jsparams = nil
 		}
 
 		//////////////////////////////////////////////
