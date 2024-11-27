@@ -1558,7 +1558,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 			expiration := time.Now().UTC().Add(99999 * 24 * time.Hour)
 			cookie := http.Cookie{Name: "vid", Value: vid, Expires: expiration, Path: "/", Domain: dom}
 			http.SetCookie(*w, &cookie)
-		} else if vid, ok := j["vid"].(gocql.UUID); ok {
+		} else if vid, ok := j["vid"].(uuid.UUID); ok {
 			expiration := time.Now().UTC().Add(99999 * 24 * time.Hour)
 			cookie := http.Cookie{Name: "vid", Value: vid.String(), Expires: expiration, Path: "/", Domain: dom}
 			http.SetCookie(*w, &cookie)
