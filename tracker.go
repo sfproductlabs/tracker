@@ -833,6 +833,11 @@ func main() {
 
 	//////////////////////////////////////// WEBSOCKET
 	http.HandleFunc("/tr/"+apiVersion+"/ws", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			//Lets just allow requests to this endpoint
+			handlePreflight(&w, &configuration.AllowOrigin)
+			return
+		}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			fmt.Println("Error upgrading to WebSocket:", err)

@@ -793,13 +793,16 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 
 // ////////////////////////////////////// DuckDB
 func (i *DuckService) write(w *WriteArgs) error {
+	//First make a deep copy of the values using JSON marshal/unmarshal
+	v := make(map[string]interface{})
+	b, _ := json.Marshal(*w.Values)
+	json.Unmarshal(b, &v)
 	//Write to proxy if configured
 	if i.Configuration.ProxyRealtimeStorageService != nil && i.Configuration.ProxyRealtimeStorageServiceTables != 0 && i.Configuration.ProxyRealtimeStorageService.Session != nil {
 		w.CallingService = i.Configuration
 		i.Configuration.ProxyRealtimeStorageService.Session.write(w)
 	}
 	err := fmt.Errorf("[ERROR] Could not write to duck")
-	v := *w.Values
 	switch w.WriteType {
 	case WRITE_UPDATE:
 		if i.AppConfig.Debug {
@@ -1121,6 +1124,16 @@ func (i *DuckService) write(w *WriteArgs) error {
 			params = &ps
 		}
 		if params != nil {
+			//First make a deep copy of the params.params into params and remove it
+			if _, exists := (*params)["params"]; exists {
+				if nestedParams, ok := (*params)["params"].(map[string]interface{}); ok {
+					// Merge nested params into main params
+					for k, v := range nestedParams {
+						(*params)[k] = v
+					}
+				}
+			}
+			delete(*params, "params")
 			//De-identify data
 			delete(*params, "uri")
 			delete(*params, "hhash")
@@ -1163,7 +1176,6 @@ func (i *DuckService) write(w *WriteArgs) error {
 			delete(*params, "ver")
 			delete(*params, "sink")
 			delete(*params, "score")
-			delete(*params, "params")
 			delete(*params, "gaid")
 			delete(*params, "idfa")
 			delete(*params, "msid")
@@ -1368,7 +1380,10 @@ func (i *DuckService) write(w *WriteArgs) error {
 			}
 		}
 
-		jsparams, err := json.Marshal(*params)
+		var jsparams []byte
+		if params != nil {
+			jsparams, err = json.Marshal(*params)
+		}
 
 		//////////////////////////////////////////////
 		//Persist
@@ -1397,7 +1412,7 @@ func (i *DuckService) write(w *WriteArgs) error {
 			iphash, latlon.Lat, latlon.Lon, v["ptyp"], bhash, auth, duration, v["xid"],
 			v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 			country, region, city, zip, v["term"], v["etyp"], version,
-			v["sink"], score, string(jsparams), v["payment"], v["targets"], v["relation"], rid)
+			v["sink"], score, jsparams, v["payment"], v["targets"], v["relation"], rid)
 		if err != nil && i.AppConfig.Debug {
 			fmt.Println("[ERROR] DuckDB[events]:", err)
 		}
