@@ -1037,6 +1037,9 @@ func (i *DuckService) write(w *WriteArgs) error {
 				}
 			}
 		}
+		if latlon == nil {
+			latlon = &geo_point{}
+		}
 		if !i.AppConfig.UseRegionDescriptions {
 			//country = nil
 			region = nil
