@@ -944,12 +944,7 @@ func main() {
 		http.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 			if !configuration.IgnoreProxyOptions && r.Method == http.MethodOptions {
 				//Lets just allow requests to this endpoint
-				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-				w.Header().Set("access-control-allow-credentials", "true")
-				w.Header().Set("access-control-allow-headers", "Authorization,Accept,X-CSRFToken,User")
-				w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
-				w.Header().Set("access-control-max-age", "1728000")
-				w.WriteHeader(http.StatusOK)
+				handlePreflight(&w, &configuration.AllowOrigin)
 				return
 			}
 			//TODO: Check certificate in cookie
@@ -1037,12 +1032,8 @@ func main() {
 	http.HandleFunc("/tr/"+apiVersion+"/tr/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
-			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-			w.Header().Set("access-control-allow-credentials", "true")
-			w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
-			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
-			w.Header().Set("access-control-max-age", "1728000")
-			w.WriteHeader(http.StatusOK)
+			handlePreflight(&w, &configuration.AllowOrigin)
+			return
 		} else {
 			select {
 			case <-connc:
@@ -1062,12 +1053,8 @@ func main() {
 	http.HandleFunc("/tr/"+apiVersion+"/ltv/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
-			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-			w.Header().Set("access-control-allow-credentials", "true")
-			w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
-			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
-			w.Header().Set("access-control-max-age", "1728000")
-			w.WriteHeader(http.StatusOK)
+			handlePreflight(&w, &configuration.AllowOrigin)
+			return
 		} else {
 			select {
 			case <-connc:
@@ -1087,12 +1074,8 @@ func main() {
 	http.HandleFunc("/tr/"+apiVersion+"/str/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
-			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-			w.Header().Set("access-control-allow-credentials", "true")
-			w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
-			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
-			w.Header().Set("access-control-max-age", "1728000")
-			w.WriteHeader(http.StatusOK)
+			handlePreflight(&w, &configuration.AllowOrigin)
+			return
 		} else {
 			select {
 			case <-connc:
@@ -1232,12 +1215,8 @@ func main() {
 	ctr.HandleFunc("/tr/"+apiVersion+"/ppi/{action}", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
-			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-			w.Header().Set("access-control-allow-credentials", "true")
-			w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
-			w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
-			w.Header().Set("access-control-max-age", "1728000")
-			w.WriteHeader(http.StatusOK)
+			handlePreflight(&w, &configuration.AllowOrigin)
+			return
 		} else {
 			select {
 			case <-connc:
@@ -1277,12 +1256,7 @@ func main() {
 	//////////////////////////////////////// Redirect API Route & Functions
 	rtr := mux.NewRouter()
 	rtr.HandleFunc("/tr/"+apiVersion+"/rpi/{_dummy:.*}", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-		w.Header().Set("access-control-allow-credentials", "true")
-		w.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
-		w.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
-		w.Header().Set("access-control-max-age", "1728000")
-		w.WriteHeader(http.StatusOK)
+		handlePreflight(&w, &configuration.AllowOrigin)
 	}).Methods("OPTIONS")
 	rtr.HandleFunc("/tr/"+apiVersion+"/rpi/redirects/{uid}/{password}/{host}", func(w http.ResponseWriter, r *http.Request) {
 		select {
@@ -1351,6 +1325,16 @@ func main() {
 		log.Fatal(server.ListenAndServeTLS("", "")) // SERVE HTTPS!
 	}
 
+}
+
+func handlePreflight(w *http.ResponseWriter, allowOrigin *string) {
+	writer := *w
+	writer.Header().Set("access-control-allow-origin", *allowOrigin)
+	writer.Header().Set("access-control-allow-credentials", "true")
+	writer.Header().Set("access-control-allow-headers", "Authorization,Accept,User")
+	writer.Header().Set("access-control-allow-methods", "GET,POST,HEAD,PUT,DELETE")
+	writer.Header().Set("access-control-max-age", "1728000")
+	writer.WriteHeader(http.StatusOK)
 }
 
 // //////////////////////////////////////
