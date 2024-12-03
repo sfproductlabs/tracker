@@ -172,11 +172,15 @@ export default function track(params) {
 
   let tr = function (obj) {
     if (socket && socket.readyState === WebSocket.OPEN) {
-      const str = JSON.stringify(obj);
-      const bytes = new TextEncoder().encode(str);
-      compress(bytes, true).then(compressed => {
-        socket.send(compressed);
-      });
+      try {
+        const str = JSON.stringify(obj);
+        const bytes = new TextEncoder().encode(str);
+        compress(bytes, true).then(compressed => {
+          try {
+            socket.send(compressed) ;
+          } catch (e) { }
+        }).catch(() => { });
+      } catch (e) { }
     } else {
       try {
         window.fetch(`${getTrackerUrl()}/tr/v1/tr/`, {
@@ -365,13 +369,17 @@ const sendTrackingEvents = () => {
     scrollEvents = [];
   }
   if (clickEvents.length > 0) {
-    debugger
-    const firstText = clickEvents?.[0]?.element?.text || clickEvents?.[0]?.element?.trackingData || clickEvents?.[0]?.element?.alt;
-    if (clickEvents?.[0]?.element?.tagName !== 'canvas' && typeof firstText === 'string' && firstText.length > 0) {
-      track({
-        ename: "click",
-        params: { firstText: firstText.substring(0, 50).toLowerCase() }
-      });
+    const clickEvent = clickEvents.find(event => 
+      event?.element?.text || event?.element?.trackingData || event?.element?.alt
+    );
+    if (clickEvent && clickEvent?.element?.tagName !== 'canvas') {
+      const text = clickEvent?.element?.text || clickEvent?.element?.trackingData || clickEvent?.element?.alt;
+      if (typeof text === 'string' && text.length > 0) {
+        track({
+          ename: "click", 
+          params: { firstText: text.substring(0, 50).toLowerCase() }
+        });
+      }
     }
     clickEvents = [];
   }
