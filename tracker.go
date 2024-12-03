@@ -1405,12 +1405,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	//Normalize all data TOLOWERCASE
 
 	//Process
-	var j map[string]interface{}
-	if wargs.Values != nil {
-		j = *wargs.Values
-	} else {
-		j = make(map[string]interface{})
-	}
+	j := make(map[string]interface{})
 
 	//Try to get user from header or user cookie
 	userHeader := r.Header.Get("User")
@@ -1419,6 +1414,7 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	} else if cookie, cerr := r.Cookie("user"); cerr != nil && cookie != nil {
 		json.Unmarshal([]byte(cookie.Value), &j)
 	}
+
 	//Try to get vid from cookie
 	cookie, cerr := r.Cookie("vid")
 	if cerr == nil && cookie != nil {
@@ -1454,10 +1450,55 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 			j[p[i]] = strings.ToLower(p[i+1]) //TODO: Handle arrays
 		}
 	}
-	//Inject Params
-	if params, err := json.Marshal(j); err == nil {
-		j["params"] = strings.ToLower(string(params))
+	//Merge wargs.Values into j
+	if wargs.Values != nil {
+		// Deep merge wargs.Values into j
+		for k, v := range *wargs.Values {
+			if vm, ok := v.(map[string]interface{}); ok {
+				// If value is a nested map, merge recursively
+				if jm, exists := j[k].(map[string]interface{}); exists {
+					for mk, mv := range vm {
+						jm[mk] = mv
+					}
+				} else {
+					j[k] = vm
+				}
+			} else {
+				// For non-map values, overwrite directly
+				j[k] = v
+			}
+		}
 	}
+
+	//Inject Params
+	// Convert j to params string
+	if params, err := json.Marshal(j); err == nil {
+		paramsStr := strings.ToLower(string(params))
+
+		// Check if params already exists
+		if existingParams, ok := j["params"].(string); ok {
+			// Unmarshal existing params
+			var existingMap map[string]interface{}
+			if err := json.Unmarshal([]byte(existingParams), &existingMap); err == nil {
+				// Unmarshal new params
+				var newMap map[string]interface{}
+				if err := json.Unmarshal([]byte(paramsStr), &newMap); err == nil {
+					// Deep merge new params into existing
+					for k, v := range newMap {
+						existingMap[k] = v
+					}
+					// Marshal merged result back to string
+					if mergedParams, err := json.Marshal(existingMap); err == nil {
+						j["params"] = strings.ToLower(string(mergedParams))
+					}
+				}
+			}
+		} else {
+			// No existing params, just set new ones
+			j["params"] = paramsStr
+		}
+	}
+
 	wargs.Values = &j
 	switch r.Method {
 	case http.MethodGet:
@@ -1481,8 +1522,19 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 
 		}
 		if len(qp) > 0 {
-			//If we have query params **OVERWRITE** the split URL ones
-			if params, err := json.Marshal(qp); err == nil {
+			//If we have query params merge them into existing params
+			if existingParams, ok := j["params"].(string); ok {
+				var existingMap map[string]interface{}
+				if err := json.Unmarshal([]byte(existingParams), &existingMap); err == nil {
+					//Merge qp into existingMap
+					for k, v := range qp {
+						existingMap[k] = v
+					}
+					if params, err := json.Marshal(existingMap); err == nil {
+						j["params"] = strings.ToLower(string(params))
+					}
+				}
+			} else if params, err := json.Marshal(qp); err == nil {
 				j["params"] = strings.ToLower(string(params))
 			}
 		}

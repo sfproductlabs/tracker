@@ -1127,9 +1127,18 @@ func (i *DuckService) write(w *WriteArgs) error {
 			//First make a deep copy of the params.params into params and remove it
 			if _, exists := (*params)["params"]; exists {
 				if nestedParams, ok := (*params)["params"].(map[string]interface{}); ok {
-					// Merge nested params into main params
+					// Merge nested params into main params, checking for nested params
 					for k, v := range nestedParams {
-						(*params)[k] = v
+						if k == "params" {
+							if childParams, ok := v.(map[string]interface{}); ok {
+								// Merge child params into main params
+								for ck, cv := range childParams {
+									(*params)[ck] = cv
+								}
+							}
+						} else {
+							(*params)[k] = v
+						}
 					}
 				}
 			}
