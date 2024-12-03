@@ -845,8 +845,6 @@ func main() {
 		}
 		defer conn.Close()
 
-		fmt.Println("Client connected!")
-
 		wargs := WriteArgs{
 			WriteType: WRITE_EVENT,
 			IP:        getIP(r),
