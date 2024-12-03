@@ -832,7 +832,7 @@ func main() {
 
 	//////////////////////////////////////// WEBSOCKET
 	http.HandleFunc("/tr/"+apiVersion+"/ws", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Websocket request:", r.Method)
+
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			handlePreflight(&w, &configuration.AllowOrigin)
