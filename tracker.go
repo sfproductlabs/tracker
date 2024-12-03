@@ -3,7 +3,7 @@
  *
  * This file is licensed under the Apache 2 License. See LICENSE for details.
  *
- *  Copyright (c) 2018 Andrew Grosser. All Rights Reserved.
+ *  Copyright (c) 2018-2024 Andrew Grosser. All Rights Reserved.
  *
  *                                     `...
  *                                    yNMMh`
@@ -69,15 +69,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/s3"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/aws/aws-sdk-go/service/s3"
+	lz4 "github.com/bkaradzic/go-lz4"
 	"github.com/gocql/gocql"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
-	"github.com/pierrec/lz4/v4"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -833,6 +832,7 @@ func main() {
 
 	//////////////////////////////////////// WEBSOCKET
 	http.HandleFunc("/tr/"+apiVersion+"/ws", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("Websocket request:", r.Method)
 		if r.Method == http.MethodOptions {
 			//Lets just allow requests to this endpoint
 			handlePreflight(&w, &configuration.AllowOrigin)
@@ -877,15 +877,15 @@ func main() {
 					continue
 				}
 			case websocket.BinaryMessage:
-				// Decompress LZ4 data
-				dst := make([]byte, len(msg)*3)
-				decompressed, err := lz4.UncompressBlock(msg, dst)
+				// Decompress the message
+				decompressed, err := lz4.Decode(nil, msg)
 				if err != nil {
 					fmt.Printf("Error decompressing message: %v\n", err)
 					continue
 				}
+
 				// Parse JSON
-				if err := json.Unmarshal(dst[:decompressed], &data); err != nil {
+				if err := json.Unmarshal(decompressed, &data); err != nil {
 					fmt.Printf("Error parsing JSON: %v\n", err)
 					continue
 				}

@@ -7,6 +7,7 @@ toolchain go1.23.3
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.30.0
 	github.com/aws/aws-sdk-go v1.55.5
+	github.com/bkaradzic/go-lz4 v1.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230307175142-1c38c4cb89d4
 	github.com/coreos/pkg v0.0.0-20230209195159-6f3db454fdf8
 	github.com/gocql/gocql v1.3.1
