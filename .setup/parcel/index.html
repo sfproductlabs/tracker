@@ -6,7 +6,62 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 	<meta name="theme-color" content="#000000">
 	<title>React App</title>
-    
+	<script>
+		globalThis._sfpl = {
+			config: {
+				"Application": {
+					"Name": "www",
+					"Release": "1.0.0",
+					"Target": "staging",
+				},
+				"Cookies": {
+					"Names": {
+						"COOKIE_VISITOR": "vid",
+						"COOKIE_SESSION": "sess",
+						"COOKIE_USER": "uid",
+						"COOKIE_AUTH": "jwt",
+						"COOKIE_LAST_ACTIVE": "la",
+						"COOKIE_REFERRAL": "ref",
+						"COOKIE_EXPERIMENT": "x",
+						"COOKIE_EXP_PARAMS": "xp",
+						"COOKIE_QPS": "qps",
+						"COOKIE_TARGET": "tgt",
+						"COOKIE_ORG": "org",
+						"COOKIE_ORG_NAME": "orgName",
+						"COOKIE_ORG_ID": "oid",
+						"COOKIE_FIRST_TIME": "first",
+
+					}
+				},
+				"Tracker": {
+					"Track": true,
+					"Url": {
+						"Debug": "https://tr.v4.sfpl.io",
+						"Development": "https://tr.v4.sfpl.io",
+						"Staging": "https://tr.v4.sfpl.io",
+						"Production": "https://tr.sfpl.io"
+					},
+					"WS": {
+						"Debug": "wss://tr.v4.sfpl.io/tr/v1/ws",
+						"Development": "wss://tr.v4.sfpl.io/tr/v1/ws",
+						"Staging": "wss://tr.v4.sfpl.io/tr/v1/ws",
+						"Production": "wss://tr.sfpl.io/tr/v1/ws"
+					},
+					"Routes": [
+						{
+							"PageType": "home",
+							"Regex": "^(https?:\\/\\/[^\\/]+\\/?)$"
+						},
+						{
+							"PageType": "files",
+							"Regex": ".*\\/files$"
+						},
+					]
+				}
+			}
+		}
+	</script>
+
 </head>
 
 <body>
@@ -14,7 +69,7 @@
 		You need to enable JavaScript to run this app.
 	</noscript>
 	<div id="root"></div>
-    <script type="module" src="./src/index.jsx"></script>
+	<script type="module" src="./src/index.jsx"></script>
 </body>
 
 </html>

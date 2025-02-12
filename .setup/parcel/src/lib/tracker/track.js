@@ -12,13 +12,16 @@ import report from './report';
 import request from './request';
 import device from './device';
 import { getHostRoot } from './network';
-import config from '../../../config.yaml';
 import { compress } from '../lz4';
 
+const config = globalThis?._sfpl?.config;
+
+if (!config) throw new Error('Tracker not initialized');
 
 // Initial WebSocket setup
 let socket;
-const wsurl = config.Tracker.WS[config.Application.Target] || config.Tracker.WS.Development;
+const resturl = config.Tracker.Url[config.Application.Target || process.env.TARGET] || config.Tracker.Url.Development;
+const wsurl = config.Tracker.WS[config.Application.Target || process.env.TARGET] || config.Tracker.WS.Development;
 // Define WebSocket event handlers
 const wsHandlers = {
   onopen: () => {
@@ -177,13 +180,13 @@ export default function track(params) {
         const bytes = new TextEncoder().encode(str);
         compress(bytes, true).then(compressed => {
           try {
-            socket.send(compressed) ;
+            socket.send(compressed);
           } catch (e) { }
         }).catch(() => { });
       } catch (e) { }
     } else {
       try {
-        window.fetch(`${getTrackerUrl()}/tr/v1/tr/`, {
+        window.fetch(`${resturl}/tr/v1/tr/`, {
           method: "POST",
           body: JSON.stringify(obj),
           ...ta
@@ -226,10 +229,6 @@ export const getPageType = () => {
   return null;
 }
 
-export function getTrackerUrl() {
-  return path(["Tracker", "Url", process.env.TARGET || path(["Application", "Target"], config) || "Development"], config);
-}
-
 export function resetUserCookies() {
   const domain = getHostRoot();
   let vid = cookies.get(config.Cookies.Names.COOKIE_VISITOR);
@@ -253,9 +252,6 @@ export function resetUserCookies() {
 }
 
 resetUserCookies();
-
-
-
 
 // Track mouse position, scroll position and click events
 // Events are batched and sent every 100ms to reduce server load and improve performance
@@ -369,15 +365,15 @@ const sendTrackingEvents = () => {
     scrollEvents = [];
   }
   if (clickEvents.length > 0) {
-    const clickEvent = clickEvents.find(event => 
+    const clickEvent = clickEvents.find(event =>
       event?.element?.text || event?.element?.trackingData || event?.element?.alt
     );
     if (clickEvent && clickEvent?.element?.tagName !== 'canvas') {
       const text = clickEvent?.element?.text || clickEvent?.element?.trackingData || clickEvent?.element?.alt;
       if (typeof text === 'string' && text.length > 0) {
         track({
-          ename: "click", 
-          params: { firstText: text.substring(0, 50).toLowerCase() }
+          ename: "click",
+          params: { firsttext: text.substring(0, 50).toLowerCase() }
         });
       }
     }

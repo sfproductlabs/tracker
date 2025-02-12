@@ -4,25 +4,45 @@
   "description": "",
   "license": "UNLICENSED",
   "keywords": [],
-  "main": "index.js",
+  "source": "src/lib/tracker/track.js",
   "dependencies": {
     "js-cookie": "^3.0.1",
     "ramda": "^0.27.1",
     "react": "16.8.6",
     "react-dom": "16.8.6",
-    "unfetch": "^4.2.0"
+    "unfetch": "^4.2.0",
+    "uuid": "^11.0.5"
   },
   "devDependencies": {
     "@parcel/transformer-yaml": "^2.0.1",
     "parcel": "^2.0.1"
   },
   "scripts": {
-    "start": "yarn parcel index.html"
+    "start": "parcel index.html",
+    "build:production:all": "TARGET=production parcel build index.html --log-level info --no-cache --no-scope-hoist --target production",
+    "build": "TARGET=production parcel build --log-level info --no-cache --target production"
   },
   "browserslist": [
     ">0.2%",
     "not dead",
     "not ie 11",
     "not op_mini all"
-  ]
+  ],
+  "targets": {
+    "production": {
+      "engines": {
+        "browsers": [
+          "last 2 versions",
+          "> 1%",
+          "iOS 7",
+          "last 4 iOS versions"
+        ]
+      },
+      "distDir": "dist/production",
+      "publicUrl": "/",
+      "sourceMap": false,
+      "optimize": true
+    }
+  },
+  "packageManager": "yarn@1.22.21+sha1.1959a18351b811cdeedbd484a8f86c3cc3bbaf72"
 }
