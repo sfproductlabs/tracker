@@ -55,7 +55,8 @@
 					"Routes": [
 						{
 							"PageType": "window.location.pathname.split('/')?.filter?.(segment => segment)?.[0] || void 0",
-							"Regex": "^(https?:\\/\\/[^\\/]+\\/?)$"
+							"Regex": "^(https?:\\/\\/[^\\/]+\\/?)$",
+							"Function": true
 						},
 						{
 							"PageType": "files",

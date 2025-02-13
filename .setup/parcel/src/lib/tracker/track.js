@@ -227,10 +227,13 @@ export const getPageType = () => {
     for (const route of routes) {
       if (route && route.PageType && route.Regex) {
         if (new RegExp(route.Regex, "ig").test(window.location.href)) {
-          try {
-            return (0, eval)(route.PageType)
-          } catch {}
-          return route.PageType
+          if (route.Function) {
+            try {
+              return (0, eval)(route.PageType)
+            } catch {}
+          } else {
+            return route.PageType
+          }
         }
       }
     }
