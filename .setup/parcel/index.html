@@ -14,6 +14,11 @@
 					"Release": "1.0.0",
 					"Target": "staging",
 				},
+				"User": {
+					"Session": {
+						"Timeout": 3600000
+					}
+				},
 				"Cookies": {
 					"Names": {
 						"COOKIE_VISITOR": "vid",
@@ -36,20 +41,20 @@
 				"Tracker": {
 					"Track": true,
 					"Url": {
-						"Debug": "https://tr.v4.sfpl.io",
-						"Development": "https://tr.v4.sfpl.io",
-						"Staging": "https://tr.v4.sfpl.io",
-						"Production": "https://tr.sfpl.io"
+						"Debug": "https://tr.v4.sourcetable.com",
+						"Development": "https://tr.v4.sourcetable.com",
+						"Staging": "https://tr.v4.sourcetable.com",
+						"Production": "https://tr.sourcetable.com"
 					},
 					"WS": {
-						"Debug": "wss://tr.v4.sfpl.io/tr/v1/ws",
-						"Development": "wss://tr.v4.sfpl.io/tr/v1/ws",
-						"Staging": "wss://tr.v4.sfpl.io/tr/v1/ws",
-						"Production": "wss://tr.sfpl.io/tr/v1/ws"
+						"Debug": "wss://tr.v4.sourcetable.com/tr/v1/ws",
+						"Development": "wss://tr.v4.sourcetable.com/tr/v1/ws",
+						"Staging": "wss://tr.v4.sourcetable.com/tr/v1/ws",
+						"Production": "wss://tr.sourcetable.com/tr/v1/ws"
 					},
 					"Routes": [
 						{
-							"PageType": "home",
+							"PageType": "window.location.pathname.split('/')?.filter?.(segment => segment)?.[0] || void 0",
 							"Regex": "^(https?:\\/\\/[^\\/]+\\/?)$"
 						},
 						{

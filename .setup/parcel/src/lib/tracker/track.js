@@ -15,6 +15,8 @@ import { getHostRoot } from './network';
 import { compress } from '../lz4';
 
 const config = globalThis?._sfpl?.config;
+//OR
+//import config from '../../../config.yaml';
 
 if (!config) throw new Error('Tracker not initialized');
 
@@ -54,6 +56,7 @@ setupWebSocket();
 
 // Track route changes
 let lastUrl = window.location.href;
+let beenFirst = false;
 
 /**
  * @param {object} params - event parameters
@@ -88,18 +91,21 @@ export default function track(params) {
   };
   // Keep track of Time
   let now = Date.now();
-  let inactive = (now - Number(cookies.get(config.Cookies.Names.COOKIE_LAST_ACTIVE) ?? now));
+  let inactive = (now - Number(cookies.get(config.Cookies.Names.COOKIE_LAST_ACTIVE) || now));
   cookies.setLax(config.Cookies.Names.COOKIE_LAST_ACTIVE, now, { expires: 99999 });
   //Session
   let sid = cookies.get(config.Cookies.Names.COOKIE_SESSION);
-  if ((inactive < Number(config?.User?.Session?.Timeout || process.env.USER_SESSION_TIMEOUT)) && sid) {
+  if (inactive > 0 && (inactive < Number(config?.User?.Session?.Timeout || process.env.USER_SESSION_TIMEOUT)) && sid) {
     json.sid = sid;
   } else {
     json.sid = uuid();
-    json.first = "true";
+    if (!beenFirst) {
+      debugger
+      beenFirst = true;
+      json.first = "true";  
+    }
     cookies.setLax(config.Cookies.Names.COOKIE_SESSION, json.sid);
   }
-  console.log(config.Cookies.Names.COOKIE_USERNAME)
   //Owner
   let uid = cookies.get(config.Cookies.Names.COOKIE_USER);
   if (uid) {
@@ -221,6 +227,9 @@ export const getPageType = () => {
     for (const route of routes) {
       if (route && route.PageType && route.Regex) {
         if (new RegExp(route.Regex, "ig").test(window.location.href)) {
+          try {
+            return (0, eval)(route.PageType)
+          } catch {}
           return route.PageType
         }
       }
