@@ -1775,7 +1775,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//users
 			if v["uid"] != nil {
-				if xerr := i.Session.Query(`INSERT into users 
+				if xerr := i.Session.Query(`INSERT into userhosts 
 					  (
 						  hhash,
 						  vid, 
@@ -1787,7 +1787,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					v["vid"],
 					v["uid"],
 					v["sid"]).Exec(); xerr != nil && i.AppConfig.Debug {
-					fmt.Println("C*[users]:", xerr)
+					fmt.Println("C*[userhosts]:", xerr)
 				}
 			}
 

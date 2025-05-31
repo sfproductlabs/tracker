@@ -275,7 +275,7 @@ func (t TableType) String() string {
 	case TABLE_ALIASES:
 		return "aliases"
 	case TABLE_USERS:
-		return "users"
+		return "userhosts"
 	case TABLE_USERNAMES:
 		return "usernames"
 	case TABLE_EMAILS:
