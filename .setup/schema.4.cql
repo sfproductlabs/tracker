@@ -1172,12 +1172,6 @@ create table abz_tests (
   parameter_space json, -- JSON description of parameter space
   model_type text, -- Model type for infinite armed
   acquisition_function text, -- Acquisition function for Bayesian optimization
-  vector_based boolean, -- Whether using vector-based approach
-  context_embedding_type text, -- Type of context embedding
-  arm_embedding_type text, -- Type of arm embedding
-  kernel_id text, -- Kernel function for similarity
-  embedding_model text, -- Model used for embeddings
-  similarity_threshold double, -- Threshold for similarity matching
   created timestamp,
   updated timestamp,
   updater timeuuid,
@@ -1438,255 +1432,169 @@ insert into sequences (name, seq) values('PMF_VER',1);
 
 -------------------END PRODUCT MARKET FIT FEATURES
 
--------------------START VECTOR OPTIMIZATION FEATURES
+-------------------START CREATOR ECONOMY FEATURES
 
--- Embedding Model Registry
-create table embedding_models (
-  model_id text, -- Unique model identifier
-  model_name text, -- Model name
-  model_version text, -- Model version
-  vector_dimension int, -- Dimension of vectors produced
-  model_type text, -- semantic, user, content, etc.
-  model_provider text, -- OpenAI, Google, custom, etc.
-  model_description text,
-  model_parameters map<text, text>, -- Key parameters
-  active boolean, -- Whether model is currently active
-  default_for set<text>, -- Entity types this is default for
-  compatible_models set<text>, -- Models with compatible vectors
-  projection_to map<text, text>, -- How to project to other models
+-- Content Creators
+create table content_creators (
+  creator_id timeuuid,
+  name text,
+  username text,
+  email text,
+  bio text,
+  website text,
+  social_profiles map<text, text>, -- platform -> profile URL
+  expertise set<text>, -- Areas of expertise
+  content_types set<text>, -- Types of content they create
+  topics set<text>, -- Topics they cover
+  status text, -- active, pending, inactive, banned
+  rating double, -- Internal quality rating (1-5)
+  tier text, -- tier level (bronze, silver, gold, etc.)
+  payment_method text, -- preferred payment method
+  payment_details text, -- encrypted payment details
+  tax_info text, -- tax identification information
+  contract_terms text, -- specific terms for this creator
+  contract_start timestamp,
+  contract_end timestamp,
   created timestamp,
-  deployment_date timestamp, -- When deployed to production
-  deprecated_date timestamp, -- When deprecated
+  updated timestamp,
+  PRIMARY KEY (creator_id)
+);
+CREATE INDEX content_creators_username_idx ON content_creators (username);
+CREATE INDEX content_creators_status_idx ON content_creators (status);
+
+-- Creator Content
+create table creator_content (
+  content_id timeuuid,
+  creator_id timeuuid, -- Link to creator
+  thread_id timeuuid, -- Link to thread using this content
+  title text,
+  description text,
+  content_type text, -- article, image, video, etc.
+  content_url text, -- URL to the content
+  license text, -- license type
+  rights_usage text, -- usage rights
+  exclusivity boolean, -- whether content is exclusive
+  approval_status text, -- pending, approved, rejected
+  approval_notes text,
+  approver timeuuid, -- Who approved the content
+  approved_date timestamp,
+  publication_date timestamp,
+  expiration_date timestamp,
+  topics set<text>,
+  tags set<text>,
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY (content_id)
+);
+CREATE INDEX creator_content_creator_idx ON creator_content (creator_id);
+CREATE INDEX creator_content_thread_idx ON creator_content (thread_id);
+
+-- Content Performance
+create table content_performance (
+  content_id timeuuid,
+  date date,
+  impressions bigint,
+  likes bigint, -- The key metric for payment
+  shares bigint,
+  comments bigint,
+  clicks bigint,
+  conversions bigint,
+  time_spent bigint, -- Time spent in seconds
+  avg_completion double, -- For video/articles
+  performance_score double, -- Composite performance score
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((content_id), date)
+) WITH CLUSTERING ORDER BY (date DESC);
+
+-- Creator Earnings
+create table creator_earnings (
+  creator_id timeuuid,
+  period_start date,
+  period_end date,
+  content_id timeuuid,
+  impressions bigint,
+  likes bigint,
+  likes_rate double, -- $ per 1000 likes (CPM model)
+  earnings double, -- Calculated earnings
+  bonus double, -- Additional bonus if applicable
+  total_earnings double, -- Total including bonus
+  status text, -- calculated, approved, paid
+  payment_id timeuuid, -- Link to payment record
+  payment_date timestamp,
+  notes text,
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((creator_id), period_start, period_end, content_id)
+) WITH CLUSTERING ORDER BY (period_start DESC, period_end DESC, content_id ASC);
+
+-- Creator Payments
+create table creator_payments (
+  payment_id timeuuid,
+  creator_id timeuuid,
+  amount double,
+  currency text,
+  payment_method text,
+  transaction_id text, -- External payment reference
+  status text, -- pending, processing, completed, failed
+  period_start date,
+  period_end date,
+  payment_date timestamp,
+  receipt_url text,
+  notes text,
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY (payment_id)
+);
+CREATE INDEX creator_payments_creator_idx ON creator_payments (creator_id);
+
+-- Creator Analytics
+create table creator_analytics (
+  creator_id timeuuid,
+  date date,
+  total_content int, -- Total pieces of content
+  active_content int, -- Currently active content
+  total_impressions bigint,
+  total_likes bigint,
+  total_shares bigint,
+  total_comments bigint,
+  total_clicks bigint,
+  total_conversions bigint,
+  engagement_rate double, -- Overall engagement rate
+  like_rate double, -- Likes per impression
+  conversion_rate double, -- Conversions per impression
+  avg_performance_score double,
+  earnings double, -- Earnings for this date
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((creator_id), date)
+) WITH CLUSTERING ORDER BY (date DESC);
+
+-- Payment Settings
+create table payment_settings (
+  setting_id text, -- e.g., "like_rate", "min_payout", etc.
+  value double, -- Numerical value of setting
+  description text,
+  effective_date timestamp,
+  end_date timestamp,
+  created timestamp,
   updated timestamp,
   updater timeuuid,
-  PRIMARY KEY (model_id)
-);
+  PRIMARY KEY (setting_id, effective_date)
+) WITH CLUSTERING ORDER BY (effective_date DESC);
 
--- Vector Space Projections 
-create table vector_projections (
-  projection_id text, -- Unique projection identifier
-  source_model_id text, -- Source embedding model
-  target_model_id text, -- Target embedding model
-  projection_type text, -- linear, PCA, neural, etc.
-  projection_matrix text, -- Serialized projection matrix/parameters
-  source_dimension int,
-  target_dimension int,
-  loss double, -- Training loss
-  accuracy double, -- Projection accuracy
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY (projection_id)
-);
+-- Content Attribution in Threads
+alter table mthreads add creator_id timeuuid; -- Link to content creator
+alter table mthreads add content_id timeuuid; -- Link to specific creator content
+alter table mthreads add creator_compensation boolean; -- Whether creator is compensated
+alter table mthreads add creator_compensation_rate double; -- $ per 1000 likes
+alter table mthreads add creator_compensation_model text; -- likes, impressions, conversions
+alter table mthreads add creator_compensation_cap double; -- Maximum payout
+alter table mthreads add creator_notes text; -- Notes about the creator content
 
--- Embedding Version History
-create table embedding_version_history (
-  entity_id timeuuid, -- Content, user, or segment ID
-  entity_type text, -- content, user, segment
-  model_id text, -- Model used
-  embedding_time timestamp, -- When embedding was created
-  vector_dimension int,
-  embedding vector<float, 768>, -- The actual embedding
-  replaced_by_model text, -- Which model replaced this
-  migration_status text, -- pending, completed, failed
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY ((entity_id, entity_type), embedding_time)
-) WITH CLUSTERING ORDER BY (embedding_time DESC);
+insert into sequences (name, seq) values('CREATOR_ECONOMY_VER',1);
 
--- Migration Jobs
-create table embedding_migrations (
-  migration_id timeuuid,
-  source_model_id text,
-  target_model_id text,
-  entity_type text, -- content, user, segment
-  total_entities int,
-  processed_entities int,
-  failed_entities int,
-  status text, -- pending, in-progress, completed, failed
-  start_time timestamp,
-  completion_time timestamp,
-  error_log text,
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY (migration_id)
-);
-
--- Enhanced content_embeddings table with multi-model support
-drop table if exists content_embeddings;
-create table content_embeddings (
-  content_id timeuuid, -- Content identifier
-  model_id text, -- Reference to embedding model
-  embedding_type text, -- Type of embedding (semantic, style, topic, etc.)
-  vector_dimension int, -- Dimension of vector
-  embedding vector<float, 1536>, -- Vector embedding with larger dimension to future-proof
-  quality_score double, -- Quality assessment of embedding
-  computation_time bigint, -- Time taken to compute in ms
-  is_current boolean, -- Whether this is the current version
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY ((content_id), model_id, embedding_type)
-);
-CREATE CUSTOM INDEX content_embeddings_ann_idx ON content_embeddings (embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' 
-WITH OPTIONS = {'similarity_function': 'dot_product'};
-
--- Enhanced user_embeddings table with multi-model support
-drop table if exists user_embeddings;
-create table user_embeddings (
-  uid timeuuid, -- User ID
-  model_id text, -- Reference to embedding model
-  embedding_type text, -- Type of embedding (interests, behavior, etc.)
-  vector_dimension int, -- Dimension of vector
-  embedding vector<float, 1536>, -- Vector embedding with larger dimension
-  confidence double, -- Confidence in embedding
-  is_current boolean, -- Whether this is the current version
-  last_updated timestamp, -- When embedding was last updated
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY ((uid), model_id, embedding_type)
-);
-CREATE CUSTOM INDEX user_embeddings_ann_idx ON user_embeddings (embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' 
-WITH OPTIONS = {'similarity_function': 'dot_product'};
-
--- Enhanced segment_embeddings table with multi-model support
-drop table if exists segment_embeddings;
-create table segment_embeddings (
-  segment_id text, -- Segment identifier
-  model_id text, -- Reference to embedding model
-  embedding_type text, -- Type of embedding
-  vector_dimension int, -- Dimension of vector
-  embedding vector<float, 1536>, -- Vector embedding with larger dimension
-  is_current boolean, -- Whether this is the current version
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY ((segment_id), model_id, embedding_type)
-);
-CREATE CUSTOM INDEX segment_embeddings_ann_idx ON segment_embeddings (embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' 
-WITH OPTIONS = {'similarity_function': 'dot_product'};
-
--- Embedding Comparisons Across Models
-create table cross_model_similarity (
-  source_entity_id timeuuid,
-  source_model_id text,
-  target_entity_id timeuuid,
-  target_model_id text,
-  similarity_score double,
-  comparison_method text, -- direct, projection, etc.
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY ((source_entity_id, source_model_id), similarity_score, target_entity_id)
-) WITH CLUSTERING ORDER BY (similarity_score DESC, target_entity_id ASC);
-
--- Update mthreads to track model versions
-alter table mthreads drop embedding_model;
-alter table mthreads add model_id text; -- Reference to embedding model in registry
-alter table mthreads add previous_model_ids set<text>; -- History of models used
-
--- Vector-based Similarity Matches
-create table content_similarity (
-  content_id timeuuid, -- Source content
-  similar_content_id timeuuid, -- Similar content
-  similarity_score double, -- Similarity score (dot product or cosine)
-  embedding_type text, -- Type of embedding used for comparison
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY ((content_id), similarity_score, similar_content_id)
-) WITH CLUSTERING ORDER BY (similarity_score DESC, similar_content_id ASC);
-
--- Vector-based Content Performance
-create table vector_performance (
-  embedding_region text, -- Region in vector space (can be cluster ID)
-  content_id timeuuid, -- Content in this region
-  segment_id text, -- User segment
-  impressions bigint, -- Number of impressions
-  conversions bigint, -- Number of conversions
-  conversion_rate double, -- Conversion rate
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY ((embedding_region), conversion_rate, content_id)
-) WITH CLUSTERING ORDER BY (conversion_rate DESC, content_id ASC);
-
--- Vector-based Bandit Context
-create table vector_bandit_contexts (
-  context_id timeuuid, -- Unique context identifier
-  context_embedding vector<float, 768>, -- Context vector
-  context_features map<text, text>, -- Raw context features
-  embedding_model text, -- Model used for embedding
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY (context_id)
-);
-CREATE CUSTOM INDEX vector_bandit_contexts_ann_idx ON vector_bandit_contexts (context_embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' 
-WITH OPTIONS = {'similarity_function': 'dot_product'};
-
--- Vector-based Bandit Arms
-create table vector_bandit_arms (
-  arm_id timeuuid, -- Unique arm identifier
-  test_id timeuuid, -- Reference to abz_test
-  arm_embedding vector<float, 768>, -- Arm vector representation
-  arm_params map<text, text>, -- Parameters that define this arm
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY ((test_id), arm_id)
-);
-CREATE CUSTOM INDEX vector_bandit_arms_ann_idx ON vector_bandit_arms (arm_embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' 
-WITH OPTIONS = {'similarity_function': 'dot_product'};
-
--- Vector-based Bandit Rewards
-create table vector_bandit_rewards (
-  test_id timeuuid, -- Reference to abz_test
-  context_id timeuuid, -- Context when decision was made
-  arm_id timeuuid, -- Arm that was pulled
-  reward double, -- Observed reward
-  context_embedding vector<float, 768>, -- Context vector at time of decision
-  arm_embedding vector<float, 768>, -- Arm vector at time of decision
-  decision_time timestamp,
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY ((test_id), decision_time, context_id, arm_id)
-) WITH CLUSTERING ORDER BY (decision_time DESC, context_id ASC, arm_id ASC);
-
--- Vector-based Content Clusters
-create table content_clusters (
-  cluster_id text, -- Cluster identifier
-  embedding_type text, -- Type of embedding used
-  centroid vector<float, 768>, -- Centroid of cluster
-  radius double, -- Radius of cluster
-  content_count int, -- Number of content items in cluster
-  performance_metrics map<text, double>, -- Performance metrics for this cluster
-  contents set<timeuuid>, -- Content in this cluster
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY ((embedding_type), cluster_id)
-);
-
--- Vector-based Kernels for Bandits
-create table kernel_functions (
-  kernel_id text, -- Kernel identifier
-  name text, -- Kernel name (RBF, linear, polynomial, etc.)
-  parameters map<text, double>, -- Kernel parameters
-  description text,
-  created timestamp,
-  updated timestamp,
-  PRIMARY KEY (kernel_id)
-);
-
--- Add to existing abz_tests table
-alter table abz_tests add vector_based boolean; -- Whether using vector-based approach
-alter table abz_tests add context_embedding_type text; -- Type of context embedding
-alter table abz_tests add arm_embedding_type text; -- Type of arm embedding
-alter table abz_tests add kernel_id text; -- Kernel function for similarity
-alter table abz_tests add embedding_model text; -- Model used for embeddings
-alter table abz_tests add similarity_threshold double; -- Threshold for similarity matching
-
--- Add to mthreads table
-alter table mthreads add vector_optimization boolean; -- Whether using vector optimization
-alter table mthreads add similar_content set<timeuuid>; -- Similar content based on embeddings
-alter table mthreads add content_cluster text; -- Cluster this content belongs to
-alter table mthreads add semantic_topics map<text, double>; -- Topic distribution
-
-insert into sequences (name, seq) values('VECTOR_OPTIMIZATION_VER',1);
-
--------------------END VECTOR OPTIMIZATION FEATURES
+-------------------END CREATOR ECONOMY FEATURES
 
 
 
