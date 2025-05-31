@@ -630,6 +630,54 @@ create table pconfirmation (
     primary key (id)
 );
 
+CREATE TABLE permissions (
+    oid timeuuid,    -- org id
+    rtype text,      -- resource type: "folder"
+    rpath text,             -- resource path: /* or /folder1/x.pdf
+    obj text,              -- user or org or * (everyone)
+    ref uuid,         --user or org   00000000-0000-0000-0000-000000000000 corresponds to "everyone"
+    action text,    -- "OPEN" etc (for standard rights) or "*" (for all rights) or "folder:SYNC" (for custom rights)
+    effect boolean,  -- True = "allow" or False = "deny"
+    PRIMARY KEY ((oid, rtype), rpath, ref, action)
+);
+
+CREATE CUSTOM INDEX permissions_oid_idx ON permissions (oid) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';  
+CREATE CUSTOM INDEX rpath_oid_idx ON permissions (rpath) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';  
+--CREATE CUSTOM INDEX obj_oid_idx ON permissions (obj) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';  
+CREATE CUSTOM INDEX ref_oid_idx ON permissions (ref) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';  
+CREATE CUSTOM INDEX action_oid_idx ON permissions (action) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';  
+
+-- NOTES:
+-- WE MUST LIMIT THE RPATH TO 10 DIVISIONS /../.../...
+
+-- SELECT * FROM permissions 
+--   where 
+--     oid = 982c4900-3256-11ef-9772-1e1480865e16 
+--     AND rtype = 'folder' 
+--     AND rpath IN ('/', '/default', '/default/folder1', '/default/folder1/file1')
+--     --AND obj IN ('*', 'u', 'g') -- dont need this in query as we have 00000000-0000-0000-0000-000000000000 for everyone
+--     AND ref IN (00000000-0000-0000-0000-000000000000,982c4900-3256-11ef-9772-1e1480865e16)
+--     AND action IN ('folder:SYNC', '*', 'OPEN')
+--     --AND effect = true -- dont need this for query BUT MUST CROSS-CHECK IN CODE
+--     ;
+
+
+	-- ACTIONS
+  ------------
+
+	-- LIST                       //Ex. see file in folder
+	-- OPEN                       //Open the document & see properties
+	-- COMMENT                    //Comment in sidebar
+	-- APPEND                     //Non destructive changes
+	-- COPY                       //Clone a file to my directory
+	-- EDIT                       //Destructive changes
+	-- SHARE_INTERNAL             //Share to someone inside the original org
+	-- SHARE_EXTERNAL             //Share to someone outside the original org
+	-- MOVE                       //Move the document
+	-- DESTROY
+	-- ADMIN
+	-- IMPEROSONATE
+
 -------------------END EXPERIMENTAL SCHEMA
 
 
