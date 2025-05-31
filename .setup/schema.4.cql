@@ -301,6 +301,12 @@ CREATE TABLE mthreads (
     promo text, --promo code to pass through
     ref timeuuid, --referrer uid (Select)
     aff text, --affiliate uname or code (Select)
+    provider text, -- Specific provider (Facebook Ads, Google Ads, Mailchimp, Twilio, etc.)
+    provider_campaign_id text, -- ID of campaign in provider's system
+    provider_account_id text, -- Account ID in provider's system
+    provider_metrics map<text, double>, -- Metrics reported by provider
+    provider_cost double, -- Cost reported by provider
+    provider_status text, -- Status in provider's system
   --RECIPIENTS
     broadcast boolean,
     derive boolean, --update subs based on cohorts/splits
@@ -314,6 +320,92 @@ CREATE TABLE mthreads (
   --INTEREST
     interest map<text, int>, -- Ex. { attempted: 542, sent: 500, hearts : 44 , views : 55, clicks etc.}  
     perf map<text,double>, --Performance. {sink : score}
+  --IMPRESSION TRACKING
+    planned_impressions bigint, -- expected impression count
+    actual_impressions bigint, -- actual impression count (manually incremented)
+    impression_goal bigint, -- goal for number of impressions
+    impression_budget double, -- budget for impressions if paid
+    cost_per_impression double, -- actual cost per impression
+    vid_targets set<timeuuid>, -- target visitor ids if known
+    funnel_stage text, -- awareness, consideration, conversion, retention, advocacy
+    total_conversions bigint, -- count of conversions from this thread
+    conversion_value double, -- monetary value of conversions
+    variants map<text, text>, -- simple variant mapping (id -> json data)
+    variant_weights map<text, int>, -- traffic allocation weight by variant
+    winner_variant text, -- winning variant after test concludes
+  --AUDIENCE TARGETING
+    audience_params map<text, text>, -- Psychographic params: age_range, curiosity_level, position, etc.
+    audience_metrics map<text, double>, -- Numerical metrics related to audience targeting
+    audience_segments set<text>, -- Predefined audience segments this content targets
+  --CONTENT ASSUMPTIONS
+    content_keywords set<text>, -- Keywords targeted in content creation
+    content_assumptions map<text, text>, -- Assumptions made during content creation
+    content_metrics map<text, double>, -- Performance metrics by content attributes
+    content_intention text, -- Primary intention of the content (inform, persuade, entertain)
+  --MULTI-ARMED BANDIT TESTING
+    abz_enabled boolean, -- Whether multi-armed bandit testing is enabled
+    abz_algorithm text, -- Algorithm type (epsilon-greedy, UCB, Thompson sampling, etc.)
+    abz_reward_metric text, -- Primary metric used as reward (conversion, click, revenue)
+    abz_reward_value double, -- Current cumulative reward value
+    abz_exploration_rate double, -- Exploration rate (epsilon value)
+    abz_learning_rate double, -- Learning rate for some algorithms
+    abz_start_time timestamp, -- When the test started
+    abz_sample_size bigint, -- Current sample size
+    abz_min_sample_size bigint, -- Minimum sample size before optimization
+    abz_confidence_level double, -- Statistical confidence level
+    abz_winner_threshold double, -- Threshold to declare a winner
+    abz_auto_optimize boolean, -- Whether to automatically optimize traffic
+    abz_auto_stop boolean, -- Whether to automatically stop test when winner found
+    abz_status text, -- running, paused, completed
+    abz_params map<text, text>, -- Algorithm-specific parameters
+    abz_infinite_armed boolean, -- Whether this is an infinite armed bandit test
+    abz_param_space map<text, text>, -- Continuous parameter space definitions
+    abz_model_type text, -- For infinite armed: GP, random forest, neural network, etc.
+    abz_model_params map<text, text>, -- Model hyperparameters
+    abz_acquisition_function text, -- EI, UCB, PI, etc. for Bayesian optimization
+  --CAMPAIGN MANAGEMENT
+    campaign_id timeuuid, -- Campaign this thread belongs to
+    campaign_phase text, -- Phase within campaign (teaser, launch, follow-up, etc)
+    campaign_priority int, -- Priority within campaign
+    campaign_budget_allocation double, -- Budget allocated to this thread within campaign
+    campaign_status text, -- active, paused, scheduled, completed, archived
+  --ADVANCED ATTRIBUTION
+    attribution_model text, -- first-touch, last-touch, linear, time-decay, position-based, custom
+    attribution_weight double, -- Weight in multi-touch attribution
+    attribution_window int, -- Attribution window in days
+    attribution_params map<text, text>, -- Model-specific parameters
+  --REGULATORY COMPLIANCE
+    requires_consent boolean, -- Whether explicit consent is required
+    consent_types set<text>, -- Types of consent required (marketing, profiling, etc.)
+    regional_compliance map<text, boolean>, -- Compliance flags by region (GDPR, CCPA, etc.)
+    frequency_caps map<text, int>, -- Max frequency by jurisdiction
+    data_retention int, -- Retention period in days
+  --CONTENT VERSIONING
+    content_version int, -- Version number
+    content_status text, -- draft, review, approved, published
+    content_approver timeuuid, -- Who approved the content
+    content_approval_date timestamp, -- When content was approved
+    content_history set<timeuuid>, -- References to previous versions
+    content_creator timeuuid, -- Who created the content
+    content_editors set<timeuuid>, -- Who edited the content
+  --PERSONALIZATION RULES
+    personalization_enabled boolean, -- Whether personalization is enabled
+    personalization_rules map<text, text>, -- Rules for dynamic content selection
+    personalization_algorithm text, -- Algorithm used for personalization
+    fallback_content map<text, text>, -- Default content if personalization fails
+    personalization_segments map<text, text>, -- Segment-specific content mappings
+  --INTEGRATION REFERENCES
+    external_ids map<text, text>, -- IDs in external systems (CRM, CDP, etc.)
+    webhook_configs map<text, text>, -- Webhook configurations
+    api_references map<text, text>, -- API reference tracking
+  --COMPETITIVE INTELLIGENCE
+    competitor_references set<text>, -- References to competitor campaigns
+    competitive_position text, -- Market positioning
+    competitive_analysis text, -- Analysis of competitive landscape
+  --PERFORMANCE BENCHMARKING
+    industry_benchmarks map<text, double>, -- Industry standard metrics
+    internal_benchmarks map<text, double>, -- Company historical benchmarks
+    benchmark_comparison map<text, double>, -- Performance vs benchmarks
   --OWNER
     deleted timestamp,
     created timestamp,
@@ -426,6 +518,8 @@ create table mstore (
   perf map<text,double>, --Performance. {sink : score}
   hide timestamp, --use ephemeral value in thread
   hidden boolean, --REQUIRED: set to false
+  funnel_stage text, -- match with threads
+  conversion_events bigint, -- count of conversions from this message
   PRIMARY KEY ((tid), mid)
 )
 WITH CLUSTERING ORDER BY (mid DESC);
@@ -679,6 +773,920 @@ CREATE CUSTOM INDEX action_oid_idx ON permissions (action) USING 'org.apache.cas
 	-- IMPEROSONATE
 
 -------------------END EXPERIMENTAL SCHEMA
+
+-------------------START VISITOR IMPRESSION TRACKING
+
+-- Thread-Visitor Relationship (for anonymous tracking)
+create table thread_visitors (
+  tid timeuuid, -- thread id
+  vid timeuuid, -- visitor id from cookie
+  variant_id text, -- which variant they saw
+  first_impression timestamp,
+  last_impression timestamp,
+  impression_count int,
+  interactions set<text>, -- types of interactions (click, view, etc)
+  conversion boolean, -- whether this visitor converted
+  conversion_value double, -- value of conversion if any
+  PRIMARY KEY ((tid), vid)
+);
+
+-- Daily impression tracking
+create table impression_daily (
+  tid timeuuid, -- thread id
+  day date, -- for daily aggregation
+  variant_id text, -- 'all' for all variants or specific variant id
+  total_impressions bigint, -- manually incremented count
+  anonymous_impressions bigint, -- from visitors without uid
+  identified_impressions bigint, -- from known users
+  unique_visitors bigint, -- unique visitors
+  conversions bigint, -- conversion events
+  updated timestamp, -- last update time
+  PRIMARY KEY ((tid), day, variant_id)
+) WITH CLUSTERING ORDER BY (day DESC, variant_id ASC);
+
+-- Channel-specific Tracking
+create table channel_metrics (
+  channel text, -- channel name (web, social, etc)
+  day date, -- date for daily rollup
+  impressions bigint, -- total impressions
+  unique_visitors bigint, -- unique visitors
+  clicks bigint, -- click events
+  conversions bigint, -- conversion events
+  conversion_value double, -- value of conversions
+  updated timestamp, -- last update time
+  PRIMARY KEY ((channel), day)
+) WITH CLUSTERING ORDER BY (day DESC);
+
+-- Hourly metrics (if needed)
+create table impression_hourly (
+  tid timeuuid, -- thread id
+  day date, 
+  hour int, -- 0-23
+  variant_id text, -- 'all' for all variants or specific variant id
+  total_impressions bigint,
+  anonymous_impressions bigint,
+  identified_impressions bigint,
+  unique_visitors bigint,
+  conversions bigint,
+  updated timestamp,
+  PRIMARY KEY ((tid, day), hour, variant_id)
+) WITH CLUSTERING ORDER BY (hour ASC, variant_id ASC);
+
+insert into sequences (name, seq) values('VISITOR_TRACKING_VER',1);
+
+-------------------END VISITOR IMPRESSION TRACKING
+
+-------------------START EXTENDED MARKETING FEATURES
+
+-- Campaign Management
+create table campaigns (
+  campaign_id timeuuid,
+  name text,
+  description text,
+  objective text, -- Awareness, consideration, conversion, etc.
+  start_date timestamp,
+  end_date timestamp,
+  status text, -- planning, active, paused, completed
+  total_budget double,
+  spent_budget double,
+  primary_channel text,
+  channels set<text>,
+  threads set<timeuuid>, -- All threads in this campaign
+  kpis map<text, double>, -- Key performance indicators and targets
+  results map<text, double>, -- Actual results
+  success_metrics set<text>, -- Which metrics determine success
+  owner timeuuid,
+  team set<timeuuid>, -- Team members involved
+  tags set<text>,
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (campaign_id)
+);
+
+-- Cross-channel Journey Tracking
+create table customer_journeys (
+  journey_id timeuuid,
+  uid timeuuid, -- User ID
+  vid timeuuid, -- Visitor ID (if anonymous)
+  journey_name text, -- Name of journey template if following one
+  touchpoints list<frozen<map<text, text>>>, -- Ordered list of touchpoints
+  channel_sequence list<text>, -- Sequence of channels used
+  thread_sequence list<timeuuid>, -- Sequence of threads interacted with
+  variant_sequence list<text>, -- Sequence of variants seen
+  time_between_touchpoints list<bigint>, -- Time in seconds between touchpoints
+  journey_start timestamp,
+  journey_end timestamp,
+  journey_status text, -- active, completed, abandoned
+  conversion_value double,
+  conversion_point int, -- At which touchpoint conversion happened
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((uid), journey_id)
+) WITH CLUSTERING ORDER BY (journey_id DESC);
+
+-- Journey Templates
+create table journey_templates (
+  template_id timeuuid,
+  name text,
+  description text,
+  objective text,
+  steps list<frozen<map<text, text>>>, -- Predefined journey steps
+  expected_duration int, -- Expected journey duration in days
+  target_audience set<text>, -- Target audience segments
+  success_criteria text,
+  avg_conversion_rate double,
+  active boolean,
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (template_id)
+);
+
+-- Performance Benchmarks
+create table benchmarks (
+  benchmark_id text, -- Industry, category, etc.
+  metric text, -- CTR, conversion rate, etc.
+  channel text, -- Email, social, search, etc.
+  industry text,
+  audience_segment text,
+  timeframe text, -- Last updated timeframe
+  value double, -- Benchmark value
+  source text, -- Source of benchmark data
+  confidence double, -- Confidence level
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((benchmark_id), metric, channel)
+) WITH CLUSTERING ORDER BY (metric ASC, channel ASC);
+
+-- Content Library
+create table content_library (
+  content_id timeuuid,
+  title text,
+  description text,
+  content_type text, -- article, image, video, etc.
+  content_url text,
+  keywords set<text>,
+  categories set<text>,
+  personas set<text>, -- Target personas
+  lifecycle_stage text, -- Awareness, consideration, decision
+  author timeuuid,
+  approval_status text,
+  usage_count int, -- How many times used
+  performance_score double, -- Overall performance rating
+  performance_metrics map<text, double>, -- Specific performance metrics
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (content_id)
+);
+
+-- Attribution Models
+create table attribution_models (
+  model_id text,
+  name text,
+  description text,
+  model_type text, -- first-touch, last-touch, linear, time-decay, position-based, custom
+  parameters map<text, text>, -- Model-specific parameters
+  decay_function text, -- For time-decay models
+  position_weights list<double>, -- For position-based models
+  custom_logic text, -- For custom models
+  attribution_window int, -- In days
+  lookback_window int, -- In days
+  channels set<text>, -- Applicable channels
+  active boolean,
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (model_id)
+);
+
+-- Regulatory Compliance Settings
+create table compliance_settings (
+  region text, -- GDPR, CCPA, etc.
+  setting_key text, -- consent_required, max_frequency, etc.
+  setting_value text,
+  description text,
+  applies_to set<text>, -- Channels or message types
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY ((region), setting_key)
+) WITH CLUSTERING ORDER BY (setting_key ASC);
+
+-- Competitor Analysis
+create table competitors (
+  competitor_id text,
+  name text,
+  website text,
+  primary_channels set<text>,
+  strengths set<text>,
+  weaknesses set<text>,
+  positioning text,
+  target_segments set<text>,
+  campaign_examples map<text, text>, -- Campaign name to description
+  benchmarks map<text, double>, -- Metric to value
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (competitor_id)
+);
+
+-- Integration Configurations
+create table integrations (
+  integration_id text, -- CRM, CDP, etc.
+  name text,
+  provider text,
+  api_key text,
+  api_endpoint text,
+  webhook_url text,
+  mapping map<text, text>, -- Field mappings
+  sync_frequency text,
+  last_sync timestamp,
+  status text,
+  error_log text,
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (integration_id)
+);
+
+-- Marketing Channel Providers
+create table channel_providers (
+  provider_id text, -- Unique provider identifier
+  name text, -- Display name (Facebook Ads, Mailchimp, Twilio, etc.)
+  channel text, -- Primary channel (social, email, sms, etc.)
+  channels set<text>, -- All supported channels
+  api_credentials map<text, text>, -- Credentials (encrypted/tokenized)
+  api_endpoint text, -- Base API endpoint
+  webhook_url text, -- Webhook for callbacks
+  default_settings map<text, text>, -- Default configuration
+  rate_limits map<text, int>, -- API rate limits
+  pricing_model text, -- CPM, CPC, subscription, etc.
+  cost_structure map<text, double>, -- Pricing details
+  performance_metrics map<text, double>, -- Overall provider performance
+  active boolean, -- Whether provider is active
+  notes text,
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (provider_id)
+);
+
+-- Provider Campaigns
+create table provider_campaigns (
+  provider_id text, -- Channel provider
+  campaign_id text, -- ID in provider's system
+  internal_campaign_id timeuuid, -- Reference to internal campaign
+  internal_thread_id timeuuid, -- Reference to internal thread
+  name text, -- Campaign name in provider's system
+  status text, -- Status in provider's system
+  start_date timestamp,
+  end_date timestamp,
+  budget double,
+  spent double,
+  impressions bigint,
+  clicks bigint,
+  conversions bigint,
+  metrics map<text, double>, -- All metrics from provider
+  targeting json, -- Provider-specific targeting settings
+  creative_ids set<text>, -- IDs of creatives in provider's system
+  last_sync timestamp, -- Last data sync
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY ((provider_id), campaign_id)
+) WITH CLUSTERING ORDER BY (campaign_id ASC);
+
+-- Provider Account Metrics
+create table provider_metrics (
+  provider_id text,
+  date date,
+  account_id text, -- Account ID in provider's system
+  spend double,
+  impressions bigint,
+  clicks bigint,
+  conversions bigint,
+  metrics map<text, double>, -- All metrics from provider
+  updated timestamp,
+  PRIMARY KEY ((provider_id), date, account_id)
+) WITH CLUSTERING ORDER BY (date DESC, account_id ASC);
+
+-- Aggregate Channel Performance
+create table channel_performance (
+  channel text, -- email, social, search, display, etc.
+  provider_id text, -- Specific provider
+  date date,
+  impressions bigint,
+  clicks bigint,
+  conversions bigint,
+  spend double,
+  revenue double,
+  roi double,
+  metrics map<text, double>, -- Other performance metrics
+  updated timestamp,
+  PRIMARY KEY ((channel), date, provider_id)
+) WITH CLUSTERING ORDER BY (date DESC, provider_id ASC);
+
+insert into sequences (name, seq) values('MARKETING_EXTENDED_VER',1);
+
+-------------------END EXTENDED MARKETING FEATURES
+
+-------------------START ALGORITHMIC TESTING FEATURES
+
+-- Variant Performance for Multi-armed Bandit
+create table variant_performance (
+  tid timeuuid, -- Thread ID
+  variant_id text, -- Variant identifier
+  impressions bigint, -- Number of impressions
+  rewards bigint, -- Number of rewards (conversions, clicks, etc.)
+  reward_value double, -- Cumulative reward value
+  probability double, -- Current probability of showing this variant
+  expected_value double, -- Expected value based on algorithm
+  confidence_interval_lower double, -- Lower bound of confidence interval
+  confidence_interval_upper double, -- Upper bound of confidence interval
+  standard_deviation double, -- Standard deviation of rewards
+  last_served timestamp, -- Last time this variant was served
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((tid), variant_id)
+);
+
+-- Multi-armed Bandit Decision Log
+create table bandit_decisions (
+  tid timeuuid, -- Thread ID
+  decision_time timestamp, -- When decision was made
+  decision_id timeuuid, -- Unique decision ID
+  chosen_variant text, -- Which variant was chosen
+  context map<text, text>, -- Decision context
+  reward_received boolean, -- Whether reward was received
+  reward_value double, -- Value of reward if received
+  reward_time timestamp, -- When reward was received
+  algorithm_state text, -- Serialized state of algorithm at decision time
+  exploration boolean, -- Whether this was exploration or exploitation
+  cumulative_regret double, -- Estimated regret at this point
+  PRIMARY KEY ((tid), decision_time, decision_id)
+) WITH CLUSTERING ORDER BY (decision_time DESC, decision_id ASC);
+
+-- Algorithm Configurations
+create table abz_algorithms (
+  algorithm_id text, -- Unique algorithm identifier
+  name text, -- Algorithm name
+  description text, -- Algorithm description
+  type text, -- epsilon-greedy, UCB, Thompson sampling, etc.
+  parameters map<text, text>, -- Default parameters
+  exploration_parameter text, -- Parameter controlling exploration
+  supports_contextual boolean, -- Whether algorithm supports contextual bandits
+  supports_infinite_arms boolean, -- Whether algorithm supports infinite arms
+  model_based boolean, -- Whether algorithm is model-based
+  code_reference text, -- Reference to implementation
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (algorithm_id)
+);
+
+-- Multi-armed Bandit Tests
+create table abz_tests (
+  test_id timeuuid, -- Unique test identifier
+  tid timeuuid, -- Thread ID
+  name text, -- Test name
+  description text, -- Test description
+  algorithm_id text, -- Algorithm used
+  algorithm_params map<text, text>, -- Algorithm parameters for this test
+  reward_metric text, -- Metric used as reward
+  variants set<text>, -- Variants in test
+  start_time timestamp,
+  end_time timestamp,
+  status text, -- running, paused, completed
+  winner_variant text, -- Winning variant if test completed
+  confidence_level double, -- Confidence in result
+  min_sample_size bigint, -- Minimum sample size required
+  actual_sample_size bigint, -- Actual sample size achieved
+  exploration_rate double, -- Exploration rate used
+  auto_optimize boolean, -- Whether auto-optimization was enabled
+  optimization_start timestamp, -- When optimization began (after min sample)
+  contextual_features set<text>, -- Features used for contextual decisions
+  notes text,
+  infinite_armed boolean, -- Whether using infinite armed approach
+  parameter_space json, -- JSON description of parameter space
+  model_type text, -- Model type for infinite armed
+  acquisition_function text, -- Acquisition function for Bayesian optimization
+  vector_based boolean, -- Whether using vector-based approach
+  context_embedding_type text, -- Type of context embedding
+  arm_embedding_type text, -- Type of arm embedding
+  kernel_id text, -- Kernel function for similarity
+  embedding_model text, -- Model used for embeddings
+  similarity_threshold double, -- Threshold for similarity matching
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (test_id)
+);
+
+-- Contextual Bandit Features
+create table contextual_features (
+  feature_id text, -- Feature identifier
+  name text, -- Feature name
+  description text, -- Feature description
+  data_type text, -- numeric, categorical, boolean
+  source text, -- user, session, event, etc.
+  path text, -- Path to extract feature
+  preprocessing text, -- Preprocessing steps
+  importance double, -- Feature importance
+  buckets int, -- Number of buckets for discretization
+  active boolean, -- Whether feature is active
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (feature_id)
+);
+
+-- User Context for Contextual Bandits
+create table user_context (
+  uid timeuuid, -- User ID
+  vid timeuuid, -- Visitor ID
+  context_time timestamp, -- When context was captured
+  features map<text, text>, -- Feature values
+  segments set<text>, -- Computed segments
+  PRIMARY KEY ((uid, vid), context_time)
+) WITH CLUSTERING ORDER BY (context_time DESC);
+
+-- Add tables for infinite armed bandits
+
+-- Parameter Space Definitions
+create table parameter_spaces (
+  space_id text, -- Unique space identifier
+  name text, -- Space name
+  description text, -- Description
+  dimensions map<text, frozen<map<text, text>>>, -- Parameter dimensions with min, max, type, etc.
+  constraints text, -- Constraints on parameter combinations
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (space_id)
+);
+
+-- Continuous Parameter Trials
+create table parameter_trials (
+  trial_id timeuuid, -- Unique trial identifier
+  test_id timeuuid, -- Reference to abz_test
+  parameters map<text, double>, -- Parameter values for this trial
+  reward double, -- Observed reward
+  uncertainty double, -- Uncertainty estimate
+  iteration int, -- Iteration number
+  expected_improvement double, -- Expected improvement
+  trial_time timestamp, -- When trial was conducted
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((test_id), trial_id)
+) WITH CLUSTERING ORDER BY (trial_id DESC);
+
+-- Model States for Infinite Armed Bandits
+create table model_states (
+  test_id timeuuid, -- Reference to abz_test
+  iteration int, -- Iteration number
+  model_type text, -- GP, random forest, etc.
+  model_state text, -- Serialized model state
+  hyperparameters map<text, double>, -- Model hyperparameters
+  performance_metrics map<text, double>, -- Model performance metrics
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((test_id), iteration)
+) WITH CLUSTERING ORDER BY (iteration DESC);
+
+insert into sequences (name, seq) values('ABZ_TESTING_VER',1);
+
+-------------------END ALGORITHMIC TESTING FEATURES
+
+-------------------START PRODUCT MARKET FIT FEATURES
+
+-- User Satisfaction Surveys
+create table pmf_surveys (
+  survey_id timeuuid,
+  uid timeuuid, -- User ID
+  survey_type text, -- NPS, CSAT, PMF, etc.
+  score int, -- Numerical score (0-10 for NPS, etc.)
+  very_disappointed boolean, -- Sean Ellis "very disappointed" metric
+  primary_value text, -- Main value derived from product
+  primary_use_case text, -- Main use case
+  alternatives set<text>, -- Alternative solutions mentioned
+  feature_requests set<text>, -- Requested features
+  pain_points set<text>, -- Pain points mentioned
+  verbatim text, -- Raw feedback text
+  survey_sent timestamp,
+  survey_completed timestamp,
+  segment text, -- User segment
+  persona text, -- User persona
+  tenure int, -- Days as customer
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((uid), survey_id)
+) WITH CLUSTERING ORDER BY (survey_id DESC);
+
+-- Cohort Retention Analysis
+create table retention_cohorts (
+  cohort_date date, -- Acquisition date cohort
+  cohort_type text, -- acquisition_date, feature_adoption, etc.
+  cohort_id text, -- Identifier for this cohort
+  segment text, -- User segment
+  users set<timeuuid>, -- Users in cohort
+  size int, -- Number of users in cohort
+  day_1 int, -- Count of active users on day 1
+  day_3 int,
+  day_7 int,
+  day_14 int,
+  day_30 int,
+  day_60 int,
+  day_90 int,
+  retention map<int, double>, -- Day -> retention rate
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((cohort_type), cohort_date, cohort_id)
+) WITH CLUSTERING ORDER BY (cohort_date DESC, cohort_id ASC);
+
+-- Product Usage Metrics
+create table product_usage (
+  uid timeuuid, -- User ID
+  date date,
+  session_count int, -- Number of sessions
+  total_time bigint, -- Time spent in seconds
+  features_used set<text>, -- Features used
+  feature_usage map<text, int>, -- Feature -> usage count
+  core_action_count int, -- Count of core actions
+  depth_score double, -- Engagement depth score
+  frequency_score double, -- Usage frequency score
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((uid), date)
+) WITH CLUSTERING ORDER BY (date DESC);
+
+-- Feature Usage Analytics
+create table feature_usage (
+  feature_id text, -- Feature identifier
+  date date,
+  segment text, -- User segment
+  unique_users int, -- Number of unique users
+  total_uses int, -- Total usage count
+  avg_uses_per_user double, -- Average uses per user
+  adoption_rate double, -- % of users who use this feature
+  retention_impact double, -- Correlation with retention
+  satisfaction_impact double, -- Correlation with satisfaction
+  engagement_time bigint, -- Time spent with feature
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((feature_id), date, segment)
+) WITH CLUSTERING ORDER BY (date DESC, segment ASC);
+
+-- PMF Segment Analysis
+create table pmf_segments (
+  segment_id text, -- Segment identifier
+  segment_name text,
+  segment_description text,
+  criteria map<text, text>, -- Defining criteria
+  size int, -- Number of users in segment
+  very_disappointed_pct double, -- % who would be very disappointed
+  satisfaction_score double, -- Average satisfaction
+  growth_rate double, -- Growth rate
+  retention_rate double, -- Retention rate
+  revenue double, -- Revenue from segment
+  ltv double, -- Lifetime value
+  acquisition_cost double, -- Acquisition cost
+  feature_priorities set<text>, -- Priority features for segment
+  primary_value set<text>, -- Main value propositions
+  use_cases set<text>, -- Main use cases
+  updated_date date,
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY (segment_id)
+);
+
+-- Product-Channel Fit
+create table channel_fit (
+  channel text, -- Marketing channel
+  segment text, -- User segment
+  cac double, -- Customer acquisition cost
+  conversion_rate double, -- Conversion rate
+  activation_rate double, -- Activation rate
+  retention_rate double, -- Retention rate
+  ltv double, -- Lifetime value
+  roi double, -- Return on investment
+  payback_period int, -- Payback period in days
+  pmf_score double, -- Product-channel fit score (0-100)
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((channel), segment)
+);
+
+-- Pricing Analysis
+create table pricing_feedback (
+  uid timeuuid, -- User ID
+  price_point double, -- Tested price point
+  willingness boolean, -- Willing to pay this price
+  max_price double, -- Maximum price willing to pay
+  value_rating int, -- Value for money rating (1-10)
+  comparable_products set<text>, -- Products compared to
+  comparable_prices map<text, double>, -- Comparable product prices
+  features_worth_paying set<text>, -- Features worth paying for
+  deal_breakers set<text>, -- Deal breaker features
+  survey_id timeuuid, -- Related survey
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((uid), price_point)
+) WITH CLUSTERING ORDER BY (price_point ASC);
+
+-- Qualitative Feedback
+create table qualitative_feedback (
+  feedback_id timeuuid,
+  uid timeuuid, -- User ID
+  source text, -- survey, support, interview, etc.
+  category text, -- feature request, bug, praise, etc.
+  sentiment text, -- positive, negative, neutral
+  feedback_text text, -- The actual feedback
+  features set<text>, -- Related features
+  tags set<text>, -- Analysis tags
+  priority int, -- Priority (1-5)
+  status text, -- new, reviewed, actioned, closed
+  impact_score int, -- Estimated impact (1-10)
+  effort_score int, -- Estimated effort (1-10)
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY (feedback_id)
+);
+CREATE INDEX qualitative_feedback_uid_idx ON qualitative_feedback (uid);
+CREATE INDEX qualitative_feedback_category_idx ON qualitative_feedback (category);
+
+-- PMF Score Tracking
+create table pmf_scores (
+  date date,
+  segment text, -- User segment
+  very_disappointed_pct double, -- % who would be very disappointed
+  nps double, -- Net Promoter Score
+  active_user_pct double, -- % of users active
+  word_of_mouth_coefficient double, -- Virality measure
+  activation_rate double, -- % of users who activate
+  retention_rate double, -- % of users retained
+  feature_completion_rate double, -- % of core features used
+  session_frequency double, -- Sessions per week
+  pmf_score double, -- Composite PMF score (0-100)
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((date), segment)
+) WITH CLUSTERING ORDER BY (segment ASC);
+
+insert into sequences (name, seq) values('PMF_VER',1);
+
+-------------------END PRODUCT MARKET FIT FEATURES
+
+-------------------START VECTOR OPTIMIZATION FEATURES
+
+-- Embedding Model Registry
+create table embedding_models (
+  model_id text, -- Unique model identifier
+  model_name text, -- Model name
+  model_version text, -- Model version
+  vector_dimension int, -- Dimension of vectors produced
+  model_type text, -- semantic, user, content, etc.
+  model_provider text, -- OpenAI, Google, custom, etc.
+  model_description text,
+  model_parameters map<text, text>, -- Key parameters
+  active boolean, -- Whether model is currently active
+  default_for set<text>, -- Entity types this is default for
+  compatible_models set<text>, -- Models with compatible vectors
+  projection_to map<text, text>, -- How to project to other models
+  created timestamp,
+  deployment_date timestamp, -- When deployed to production
+  deprecated_date timestamp, -- When deprecated
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (model_id)
+);
+
+-- Vector Space Projections 
+create table vector_projections (
+  projection_id text, -- Unique projection identifier
+  source_model_id text, -- Source embedding model
+  target_model_id text, -- Target embedding model
+  projection_type text, -- linear, PCA, neural, etc.
+  projection_matrix text, -- Serialized projection matrix/parameters
+  source_dimension int,
+  target_dimension int,
+  loss double, -- Training loss
+  accuracy double, -- Projection accuracy
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY (projection_id)
+);
+
+-- Embedding Version History
+create table embedding_version_history (
+  entity_id timeuuid, -- Content, user, or segment ID
+  entity_type text, -- content, user, segment
+  model_id text, -- Model used
+  embedding_time timestamp, -- When embedding was created
+  vector_dimension int,
+  embedding vector<float, 768>, -- The actual embedding
+  replaced_by_model text, -- Which model replaced this
+  migration_status text, -- pending, completed, failed
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((entity_id, entity_type), embedding_time)
+) WITH CLUSTERING ORDER BY (embedding_time DESC);
+
+-- Migration Jobs
+create table embedding_migrations (
+  migration_id timeuuid,
+  source_model_id text,
+  target_model_id text,
+  entity_type text, -- content, user, segment
+  total_entities int,
+  processed_entities int,
+  failed_entities int,
+  status text, -- pending, in-progress, completed, failed
+  start_time timestamp,
+  completion_time timestamp,
+  error_log text,
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY (migration_id)
+);
+
+-- Enhanced content_embeddings table with multi-model support
+drop table if exists content_embeddings;
+create table content_embeddings (
+  content_id timeuuid, -- Content identifier
+  model_id text, -- Reference to embedding model
+  embedding_type text, -- Type of embedding (semantic, style, topic, etc.)
+  vector_dimension int, -- Dimension of vector
+  embedding vector<float, 1536>, -- Vector embedding with larger dimension to future-proof
+  quality_score double, -- Quality assessment of embedding
+  computation_time bigint, -- Time taken to compute in ms
+  is_current boolean, -- Whether this is the current version
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((content_id), model_id, embedding_type)
+);
+CREATE CUSTOM INDEX content_embeddings_ann_idx ON content_embeddings (embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' 
+WITH OPTIONS = {'similarity_function': 'dot_product'};
+
+-- Enhanced user_embeddings table with multi-model support
+drop table if exists user_embeddings;
+create table user_embeddings (
+  uid timeuuid, -- User ID
+  model_id text, -- Reference to embedding model
+  embedding_type text, -- Type of embedding (interests, behavior, etc.)
+  vector_dimension int, -- Dimension of vector
+  embedding vector<float, 1536>, -- Vector embedding with larger dimension
+  confidence double, -- Confidence in embedding
+  is_current boolean, -- Whether this is the current version
+  last_updated timestamp, -- When embedding was last updated
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((uid), model_id, embedding_type)
+);
+CREATE CUSTOM INDEX user_embeddings_ann_idx ON user_embeddings (embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' 
+WITH OPTIONS = {'similarity_function': 'dot_product'};
+
+-- Enhanced segment_embeddings table with multi-model support
+drop table if exists segment_embeddings;
+create table segment_embeddings (
+  segment_id text, -- Segment identifier
+  model_id text, -- Reference to embedding model
+  embedding_type text, -- Type of embedding
+  vector_dimension int, -- Dimension of vector
+  embedding vector<float, 1536>, -- Vector embedding with larger dimension
+  is_current boolean, -- Whether this is the current version
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((segment_id), model_id, embedding_type)
+);
+CREATE CUSTOM INDEX segment_embeddings_ann_idx ON segment_embeddings (embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' 
+WITH OPTIONS = {'similarity_function': 'dot_product'};
+
+-- Embedding Comparisons Across Models
+create table cross_model_similarity (
+  source_entity_id timeuuid,
+  source_model_id text,
+  target_entity_id timeuuid,
+  target_model_id text,
+  similarity_score double,
+  comparison_method text, -- direct, projection, etc.
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((source_entity_id, source_model_id), similarity_score, target_entity_id)
+) WITH CLUSTERING ORDER BY (similarity_score DESC, target_entity_id ASC);
+
+-- Update mthreads to track model versions
+alter table mthreads drop embedding_model;
+alter table mthreads add model_id text; -- Reference to embedding model in registry
+alter table mthreads add previous_model_ids set<text>; -- History of models used
+
+-- Vector-based Similarity Matches
+create table content_similarity (
+  content_id timeuuid, -- Source content
+  similar_content_id timeuuid, -- Similar content
+  similarity_score double, -- Similarity score (dot product or cosine)
+  embedding_type text, -- Type of embedding used for comparison
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((content_id), similarity_score, similar_content_id)
+) WITH CLUSTERING ORDER BY (similarity_score DESC, similar_content_id ASC);
+
+-- Vector-based Content Performance
+create table vector_performance (
+  embedding_region text, -- Region in vector space (can be cluster ID)
+  content_id timeuuid, -- Content in this region
+  segment_id text, -- User segment
+  impressions bigint, -- Number of impressions
+  conversions bigint, -- Number of conversions
+  conversion_rate double, -- Conversion rate
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((embedding_region), conversion_rate, content_id)
+) WITH CLUSTERING ORDER BY (conversion_rate DESC, content_id ASC);
+
+-- Vector-based Bandit Context
+create table vector_bandit_contexts (
+  context_id timeuuid, -- Unique context identifier
+  context_embedding vector<float, 768>, -- Context vector
+  context_features map<text, text>, -- Raw context features
+  embedding_model text, -- Model used for embedding
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY (context_id)
+);
+CREATE CUSTOM INDEX vector_bandit_contexts_ann_idx ON vector_bandit_contexts (context_embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' 
+WITH OPTIONS = {'similarity_function': 'dot_product'};
+
+-- Vector-based Bandit Arms
+create table vector_bandit_arms (
+  arm_id timeuuid, -- Unique arm identifier
+  test_id timeuuid, -- Reference to abz_test
+  arm_embedding vector<float, 768>, -- Arm vector representation
+  arm_params map<text, text>, -- Parameters that define this arm
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((test_id), arm_id)
+);
+CREATE CUSTOM INDEX vector_bandit_arms_ann_idx ON vector_bandit_arms (arm_embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' 
+WITH OPTIONS = {'similarity_function': 'dot_product'};
+
+-- Vector-based Bandit Rewards
+create table vector_bandit_rewards (
+  test_id timeuuid, -- Reference to abz_test
+  context_id timeuuid, -- Context when decision was made
+  arm_id timeuuid, -- Arm that was pulled
+  reward double, -- Observed reward
+  context_embedding vector<float, 768>, -- Context vector at time of decision
+  arm_embedding vector<float, 768>, -- Arm vector at time of decision
+  decision_time timestamp,
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((test_id), decision_time, context_id, arm_id)
+) WITH CLUSTERING ORDER BY (decision_time DESC, context_id ASC, arm_id ASC);
+
+-- Vector-based Content Clusters
+create table content_clusters (
+  cluster_id text, -- Cluster identifier
+  embedding_type text, -- Type of embedding used
+  centroid vector<float, 768>, -- Centroid of cluster
+  radius double, -- Radius of cluster
+  content_count int, -- Number of content items in cluster
+  performance_metrics map<text, double>, -- Performance metrics for this cluster
+  contents set<timeuuid>, -- Content in this cluster
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((embedding_type), cluster_id)
+);
+
+-- Vector-based Kernels for Bandits
+create table kernel_functions (
+  kernel_id text, -- Kernel identifier
+  name text, -- Kernel name (RBF, linear, polynomial, etc.)
+  parameters map<text, double>, -- Kernel parameters
+  description text,
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY (kernel_id)
+);
+
+-- Add to existing abz_tests table
+alter table abz_tests add vector_based boolean; -- Whether using vector-based approach
+alter table abz_tests add context_embedding_type text; -- Type of context embedding
+alter table abz_tests add arm_embedding_type text; -- Type of arm embedding
+alter table abz_tests add kernel_id text; -- Kernel function for similarity
+alter table abz_tests add embedding_model text; -- Model used for embeddings
+alter table abz_tests add similarity_threshold double; -- Threshold for similarity matching
+
+-- Add to mthreads table
+alter table mthreads add vector_optimization boolean; -- Whether using vector optimization
+alter table mthreads add similar_content set<timeuuid>; -- Similar content based on embeddings
+alter table mthreads add content_cluster text; -- Cluster this content belongs to
+alter table mthreads add semantic_topics map<text, double>; -- Topic distribution
+
+insert into sequences (name, seq) values('VECTOR_OPTIMIZATION_VER',1);
+
+-------------------END VECTOR OPTIMIZATION FEATURES
 
 
 
