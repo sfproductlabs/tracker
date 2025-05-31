@@ -1172,6 +1172,11 @@ create table abz_tests (
   parameter_space json, -- JSON description of parameter space
   model_type text, -- Model type for infinite armed
   acquisition_function text, -- Acquisition function for Bayesian optimization
+  parent_test_id timeuuid, -- Parent test for hierarchical experiments
+  optimization_level text, -- 'local', 'global', 'hybrid'
+  optimization_scope text, -- What's being optimized: 'content', 'targeting', 'timing', etc.
+  search_radius double, -- For local optimization: radius around current best point
+  knowledge_transfer boolean, -- Whether to transfer knowledge to/from related tests
   created timestamp,
   updated timestamp,
   updater timeuuid,
@@ -1252,6 +1257,93 @@ create table model_states (
 insert into sequences (name, seq) values('ABZ_TESTING_VER',1);
 
 -------------------END ALGORITHMIC TESTING FEATURES
+
+-------------------START HIERARCHICAL OPTIMIZATION FEATURES
+
+-- Hierarchical Experiment Structure
+create table experiment_hierarchy (
+  root_experiment_id timeuuid, -- Top-level experiment
+  experiment_id timeuuid, -- This experiment
+  parent_id timeuuid, -- Parent experiment (null for root)
+  level int, -- Hierarchy level (0 for root)
+  path text, -- Path from root e.g., "root/branch1/branch2"
+  description text, -- Purpose of this level
+  optimization_level text, -- 'local', 'global', 'hybrid'
+  optimization_scope text, -- What's being optimized at this level
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((root_experiment_id), experiment_id)
+) WITH CLUSTERING ORDER BY (experiment_id ASC);
+
+-- Knowledge Transfer Between Experiments
+create table experiment_knowledge (
+  source_experiment_id timeuuid, -- Source experiment
+  target_experiment_id timeuuid, -- Target experiment
+  transfer_type text, -- 'model', 'parameters', 'insights', etc.
+  transfer_time timestamp,
+  transfer_data text, -- Serialized knowledge being transferred
+  parameters_transferred map<text, text>, -- Parameters that were transferred
+  performance_before map<text, double>, -- Performance metrics before transfer
+  performance_after map<text, double>, -- Performance metrics after transfer
+  transfer_success boolean,
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((source_experiment_id, target_experiment_id), transfer_time)
+) WITH CLUSTERING ORDER BY (transfer_time DESC);
+
+-- Global vs Local Performance Comparison
+create table optimization_comparison (
+  root_experiment_id timeuuid, -- Top-level experiment
+  comparison_time timestamp,
+  global_best map<text, text>, -- Best global parameters
+  global_reward double, -- Best global reward
+  global_confidence double, -- Confidence in global result
+  local_experiments map<timeuuid, frozen<map<text, text>>>, -- Local experiment results
+  local_best map<text, text>, -- Best local parameters
+  local_reward double, -- Best local reward
+  local_confidence double, -- Confidence in local result
+  improvement_global_to_local double, -- Improvement from global to local
+  recommendation text, -- Recommended action based on comparison
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((root_experiment_id), comparison_time)
+) WITH CLUSTERING ORDER BY (comparison_time DESC);
+
+-- Parameter Space Regions
+create table parameter_regions (
+  experiment_id timeuuid, -- Experiment ID
+  region_id text, -- Region identifier
+  region_type text, -- 'promising', 'explored', 'unexplored', etc.
+  center_point map<text, double>, -- Center of region
+  radius double, -- Radius or size of region
+  dimensions map<text, frozen<map<text, double>>>, -- Min/max bounds for each dimension
+  performance_statistics map<text, double>, -- Stats about region performance
+  exploration_count int, -- How many times region was explored
+  priority double, -- Priority for future exploration
+  created timestamp,
+  updated timestamp,
+  PRIMARY KEY ((experiment_id), region_id)
+);
+
+-- Multi-level Optimization Strategy
+create table optimization_strategies (
+  strategy_id text, -- Strategy identifier
+  name text, -- Strategy name
+  description text, -- Strategy description
+  levels int, -- Number of hierarchy levels
+  level_config map<int, frozen<map<text, text>>>, -- Configuration for each level
+  exploration_allocation map<text, double>, -- Resource allocation between levels
+  knowledge_sharing_rules map<text, text>, -- Rules for sharing knowledge
+  termination_conditions map<text, text>, -- When to terminate strategy
+  created timestamp,
+  updated timestamp,
+  updater timeuuid,
+  PRIMARY KEY (strategy_id)
+);
+
+insert into sequences (name, seq) values('HIERARCHICAL_OPT_VER',1);
+
+-------------------END HIERARCHICAL OPTIMIZATION FEATURES
 
 -------------------START PRODUCT MARKET FIT FEATURES
 
