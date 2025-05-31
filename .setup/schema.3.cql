@@ -5,7 +5,7 @@
 
 -- SFPLA
 --drop keyspace sfpla;
-CREATE KEYSPACE sfpla WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '1'}  AND durable_writes = true;
+CREATE KEYSPACE sfpla WITH replication = {'class': 'NetworkTopologyStrategy'}  AND durable_writes = true;
 -- create keyspace sfpla WITH REPLICATION = {  'class':'NetworkTopologyStrategy', 'dc1':'1' }; --analytics
 --For a dev machine...
 -- CREATE KEYSPACE sfpla WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}
