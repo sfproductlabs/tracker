@@ -1773,7 +1773,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 			}
 
-			//users
+			//userhosts
 			if v["uid"] != nil {
 				if xerr := i.Session.Query(`INSERT into userhosts 
 					  (

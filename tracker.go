@@ -187,7 +187,7 @@ const (
 	TABLE_NODES     // 1 << 15 = 32768
 	TABLE_LOCATIONS // 1 << 16 = 65536
 	TABLE_ALIASES   // 1 << 17 = 131072
-	TABLE_USERS     // 1 << 18 = 262144
+	TABLE_USERHOSTS // 1 << 18 = 262144
 	TABLE_USERNAMES // 1 << 19 = 524288
 	TABLE_EMAILS    // 1 << 20 = 1048576
 	TABLE_CELLS     // 1 << 21 = 2097152
@@ -274,7 +274,7 @@ func (t TableType) String() string {
 		return "locations"
 	case TABLE_ALIASES:
 		return "aliases"
-	case TABLE_USERS:
+	case TABLE_USERHOSTS:
 		return "userhosts"
 	case TABLE_USERNAMES:
 		return "usernames"
