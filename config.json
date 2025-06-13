@@ -93,7 +93,7 @@
             ],
             "Retries": 3,
             "Secure": false,
-            "Service": "duckdb",
+            "Service": "duckdb_",
             "Timeout": 300,
             "ProxyRealtimeStorageServiceName" : "cassandra",
             "ProxyRealtimeStorageServiceTables" : 18446744060824649724
@@ -134,7 +134,7 @@
             ],
             "Retries": 3,
             "Secure": false,
-            "Service": "clickhouse_",
+            "Service": "clickhouse",
             "Timeout": 300
         },
         {
@@ -257,7 +257,7 @@
             "Retries": 3,
             "Secure": false,
             "Skip": true,
-            "Service": "cassandra",
+            "Service": "cassandra_",
             "Timeout": 300
         },
         {

@@ -51,9 +51,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"net"
 	"net/http"
@@ -249,8 +251,8 @@ func (cb *CircuitBreaker) recordSuccess() {
 // Utility Functions
 ////////////////////////////////////////
 
-// max returns the larger of two integers
-func max(a, b int) int {
+// maxInt returns the larger of two integers
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}
@@ -301,8 +303,8 @@ func (i *ClickhouseService) connect() error {
 			"http_zlib_compression_level":  1,
 		},
 		DialTimeout:          time.Duration(i.Configuration.Timeout) * time.Millisecond,
-		MaxOpenConns:         max(i.Configuration.Connections, 10),
-		MaxIdleConns:         max(i.Configuration.Connections/2, 5),
+		MaxOpenConns:         maxInt(i.Configuration.Connections, 10),
+		MaxIdleConns:         maxInt(i.Configuration.Connections/2, 5),
 		ConnMaxLifetime:      time.Hour * 2,
 		ConnOpenStrategy:     clickhouse.ConnOpenInOrder,
 		BlockBufferSize:      10,
@@ -311,7 +313,7 @@ func (i *ClickhouseService) connect() error {
 
 	// Add SSL configuration if provided
 	if i.Configuration.CACert != "" {
-		opts.TLS = &clickhouse.TLS{
+		opts.TLS = &tls.Config{
 			InsecureSkipVerify: !i.Configuration.Secure,
 		}
 	}
@@ -319,17 +321,19 @@ func (i *ClickhouseService) connect() error {
 	// Establish connection with circuit breaker protection
 	err = i.circuitBreaker.Execute(func() error {
 		var connErr error
-		if i.Session, connErr = clickhouse.Open(opts); connErr != nil {
+		if conn, connErr := clickhouse.Open(opts); connErr != nil {
 			globalMetrics.UpdateErrorCount()
 			fmt.Println("[ERROR] Connecting to ClickHouse:", connErr)
 			return NewTrackerError(ErrorTypeConnection, "connect", connErr.Error(), true)
+		} else {
+			i.Session = &conn
 		}
 
 		// Test connection with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		if connErr = i.Session.Ping(ctx); connErr != nil {
+		if connErr = (*i.Session).Ping(ctx); connErr != nil {
 			globalMetrics.UpdateErrorCount()
 			fmt.Println("[ERROR] Pinging ClickHouse:", connErr)
 			return NewTrackerError(ErrorTypeConnection, "ping", connErr.Error(), true)
@@ -357,7 +361,7 @@ func (i *ClickhouseService) connect() error {
 	// Initialize and start batch manager
 	i.batchingEnabled = true // TODO: Make configurable
 	if i.batchingEnabled {
-		i.batchManager = NewBatchManager(i.Session)
+		i.batchManager = NewBatchManager(*i.Session)
 		if err := i.batchManager.Start(); err != nil {
 			fmt.Printf("[WARNING] Failed to start batch manager: %v\n", err)
 			i.batchingEnabled = false
@@ -375,7 +379,7 @@ func (i *ClickhouseService) connect() error {
 	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CLICKHOUSE {
 		i.AppConfig.ProxyDailyLimitCheck = func(ip string) uint64 {
 			var total uint64
-			if err := i.Session.QueryRow(context.Background(), `SELECT total FROM dailies WHERE ip=? AND day=?`, ip, time.Now().UTC().Format("2006-01-02")).Scan(&total); err != nil {
+			if err := (*i.Session).QueryRow(context.Background(), `SELECT total FROM dailies WHERE ip=? AND day=?`, ip, time.Now().UTC().Format("2006-01-02")).Scan(&total); err != nil {
 				return 0xFFFFFFFFFFFFFFFF
 			}
 			return total
@@ -402,7 +406,7 @@ func (i *ClickhouseService) close() error {
 
 	// Close session
 	if i.Session != nil {
-		err := i.Session.Close()
+		err := (*i.Session).Close()
 		if err != nil {
 			globalMetrics.UpdateErrorCount()
 			return NewTrackerError(ErrorTypeConnection, "close", err.Error(), false)
@@ -451,7 +455,7 @@ func (i *ClickhouseService) performHealthCheck() {
 	defer cancel()
 
 	var result uint8
-	err := i.Session.QueryRow(ctx, "SELECT 1").Scan(&result)
+	err := (*i.Session).QueryRow(ctx, "SELECT 1").Scan(&result)
 
 	globalMetrics.mu.Lock()
 	if err != nil {
@@ -488,7 +492,7 @@ func (i *ClickhouseService) auth(s *ServiceArgs) error {
 		return fmt.Errorf("User pass not provided")
 	}
 	var pwd string
-	if err := i.Session.QueryRow(context.Background(), `SELECT pwd FROM accounts WHERE uid=?`, uid).Scan(&pwd); err == nil {
+	if err := (*i.Session).QueryRow(context.Background(), `SELECT pwd FROM accounts WHERE uid=?`, uid).Scan(&pwd); err == nil {
 		if pwd != sha(password) {
 			return fmt.Errorf("Bad pass")
 		}
@@ -643,7 +647,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 				}
 
 				// Insert into agreements table
-				if err := i.Session.Exec(ctx, `INSERT INTO agreements (
+				if err := (*i.Session).Exec(ctx, `INSERT INTO agreements (
 					vid, created_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
 					country, region, culture, source, medium, campaign, term, ref, rcode, aff, 
 					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, org
@@ -656,7 +660,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 				}
 
 				// Insert into agreed table (history)
-				if err := i.Session.Exec(ctx, `INSERT INTO agreed (
+				if err := (*i.Session).Exec(ctx, `INSERT INTO agreed (
 					vid, created_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
 					country, region, culture, source, medium, campaign, term, ref, rcode, aff, 
 					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, org
@@ -680,7 +684,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		var vid string
 		if len(r.URL.Query()["vid"]) > 0 {
 			vid = r.URL.Query()["vid"][0]
-			rows, err := i.Session.Query(ctx, `SELECT * FROM agreements WHERE vid=?`, vid)
+			rows, err := (*i.Session).Query(ctx, `SELECT * FROM agreements WHERE vid=?`, vid)
 			if err != nil {
 				return err
 			}
@@ -707,7 +711,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		}
 		return nil
 	case SVC_GET_JURISDICTIONS:
-		rows, err := i.Session.Query(ctx, `SELECT * FROM jurisdictions`)
+		rows, err := (*i.Session).Query(ctx, `SELECT * FROM jurisdictions`)
 		if err != nil {
 			return err
 		}
@@ -748,7 +752,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		if err := i.auth(s); err != nil {
 			return err
 		}
-		rows, err := i.Session.Query(ctx, `SELECT * FROM redirect_history`)
+		rows, err := (*i.Session).Query(ctx, `SELECT * FROM redirect_history`)
 		if err != nil {
 			return err
 		}
@@ -771,7 +775,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 	case SVC_GET_REDIRECT:
 		//TODO: AG ADD CACHE
 		var redirect string
-		if err := i.Session.QueryRow(ctx, `SELECT urlto FROM redirects WHERE urlfrom=?`, fmt.Sprintf("%s%s", r.Host, r.URL.Path)).Scan(&redirect); err == nil {
+		if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM redirects WHERE urlfrom=?`, fmt.Sprintf("%s%s", r.Host, r.URL.Path)).Scan(&redirect); err == nil {
 			s.Values = &map[string]string{"Redirect": redirect}
 			http.Redirect(*w, r, redirect, http.StatusFound)
 			return nil
@@ -844,7 +848,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 				}
 
 				// Insert into redirects table
-				if err := i.Session.Exec(ctx, `INSERT INTO redirects (
+				if err := (*i.Session).Exec(ctx, `INSERT INTO redirects (
 					hhash, urlfrom, urlto, updated_at, updater, org
 				) VALUES (?, ?, ?, ?, ?, ?)`,
 					hhash,
@@ -858,7 +862,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 				}
 
 				// Insert into redirect_history table
-				if err := i.Session.Exec(ctx, `INSERT INTO redirect_history (
+				if err := (*i.Session).Exec(ctx, `INSERT INTO redirect_history (
 					urlfrom, hostfrom, slugfrom, urlto, hostto, pathto, searchto, updated_at, 
 					updater, org
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -913,7 +917,7 @@ func (i *ClickhouseService) prune() error {
 			}
 
 			for {
-				rows, queryErr := i.Session.Query(ctx, query)
+				rows, queryErr := (*i.Session).Query(ctx, query)
 				if queryErr != nil {
 					fmt.Printf("[[WARNING]] ERROR READING ROWS [%s] %v\n", p.Table, queryErr)
 					break
@@ -947,11 +951,11 @@ func (i *ClickhouseService) prune() error {
 						if p.ClearAll {
 							switch p.Table {
 							case "visitors":
-								i.Session.Exec(ctx, `ALTER TABLE visitors DELETE WHERE vid=?`, row["vid"])
+								(*i.Session).Exec(ctx, `ALTER TABLE visitors DELETE WHERE vid=?`, row["vid"])
 							case "sessions":
-								i.Session.Exec(ctx, `ALTER TABLE sessions DELETE WHERE vid=? AND sid=?`, row["vid"], row["sid"])
+								(*i.Session).Exec(ctx, `ALTER TABLE sessions DELETE WHERE vid=? AND sid=?`, row["vid"], row["sid"])
 							case "events", "events_recent":
-								i.Session.Exec(ctx, `ALTER TABLE ? DELETE WHERE eid=?`, p.Table, row["eid"])
+								(*i.Session).Exec(ctx, `ALTER TABLE ? DELETE WHERE eid=?`, p.Table, row["eid"])
 							}
 						} else {
 							// Update with nullified fields
@@ -963,11 +967,11 @@ func (i *ClickhouseService) prune() error {
 								updateSQL := strings.Join(update, ",")
 								switch p.Table {
 								case "visitors":
-									i.Session.Exec(ctx, fmt.Sprintf(`ALTER TABLE visitors UPDATE updated_at=?, %s WHERE vid=?`, updateSQL), time.Now().UTC(), row["vid"])
+									(*i.Session).Exec(ctx, fmt.Sprintf(`ALTER TABLE visitors UPDATE updated_at=?, %s WHERE vid=?`, updateSQL), time.Now().UTC(), row["vid"])
 								case "sessions":
-									i.Session.Exec(ctx, fmt.Sprintf(`ALTER TABLE sessions UPDATE updated_at=?, %s WHERE vid=? AND sid=?`, updateSQL), time.Now().UTC(), row["vid"], row["sid"])
+									(*i.Session).Exec(ctx, fmt.Sprintf(`ALTER TABLE sessions UPDATE updated_at=?, %s WHERE vid=? AND sid=?`, updateSQL), time.Now().UTC(), row["vid"], row["sid"])
 								case "events", "events_recent":
-									i.Session.Exec(ctx, fmt.Sprintf(`ALTER TABLE %s UPDATE updated_at=?, %s WHERE eid=?`, p.Table, updateSQL), time.Now().UTC(), row["eid"])
+									(*i.Session).Exec(ctx, fmt.Sprintf(`ALTER TABLE %s UPDATE updated_at=?, %s WHERE eid=?`, p.Table, updateSQL), time.Now().UTC(), row["eid"])
 								}
 							}
 						}
@@ -1017,7 +1021,7 @@ func (i *ClickhouseService) prune() error {
 
 		query := fmt.Sprintf(`SELECT id, created_at FROM logs ORDER BY created_at LIMIT %d OFFSET %d`, pageSize, total)
 		for {
-			rows, queryErr := i.Session.Query(ctx, query)
+			rows, queryErr := (*i.Session).Query(ctx, query)
 			if queryErr != nil {
 				break
 			}
@@ -1036,7 +1040,7 @@ func (i *ClickhouseService) prune() error {
 				expired := checkIdExpiredClickHouse(&id, &createdAt, ttl)
 				if expired {
 					pruned += 1
-					i.Session.Exec(ctx, `ALTER TABLE logs DELETE WHERE id=?`, id)
+					(*i.Session).Exec(ctx, `ALTER TABLE logs DELETE WHERE id=?`, id)
 				}
 			}
 			rows.Close()
@@ -1064,7 +1068,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 			if i.AppConfig.Debug {
 				fmt.Printf("COUNT %s\n", w)
 			}
-			return i.Session.Exec(ctx, `INSERT INTO counters (id, total, date) VALUES (?, 1, today())`,
+			return (*i.Session).Exec(ctx, `INSERT INTO counters (id, total, date) VALUES (?, 1, today())`,
 				v["id"])
 		}
 		return nil
@@ -1081,7 +1085,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 					timestamp = time.Unix(0, millis*int64(time.Millisecond))
 				}
 			}
-			return i.Session.Exec(ctx, `INSERT INTO updates (id, updated_at, msg) VALUES (?, ?, ?)`,
+			return (*i.Session).Exec(ctx, `INSERT INTO updates (id, updated_at, msg) VALUES (?, ?, ?)`,
 				v["id"],
 				timestamp,
 				v["msg"])
@@ -1150,7 +1154,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				}
 			}
 
-			return i.Session.Exec(ctx, `INSERT INTO logs
+			return (*i.Session).Exec(ctx, `INSERT INTO logs
 			  (
 				  id,
 				  ldate,
@@ -1201,14 +1205,14 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 }
 
 // Helper function for expired row checking in ClickHouse
-func checkRowExpiredClickHouse(row map[string]interface{}, p PruneConfig, skipTimestamp int64) (bool, *time.Time) {
+func checkRowExpiredClickHouse(row map[string]interface{}, p Prune, skipTimestamp int64) (bool, *time.Time) {
 	// Simplified expiration check - implement according to your pruning logic
 	if createdAt, ok := row["created_at"].(time.Time); ok {
 		if createdAt.Unix() < skipTimestamp {
 			return false, &createdAt
 		}
 		// Check if row is older than configured retention period
-		if time.Since(createdAt) > time.Duration(p.RetentionDays)*24*time.Hour {
+		if time.Since(createdAt) > time.Duration(p.TTL)*time.Second {
 			return true, &createdAt
 		}
 	}
@@ -1249,12 +1253,12 @@ func (i *ClickhouseService) handleMetricsEndpoint(w *http.ResponseWriter, r *htt
 			"last_flush_time":      time.Unix(batchMetrics.LastFlushTime, 0).Format(time.RFC3339),
 		},
 		"calculated": map[string]interface{}{
-			"avg_latency_ms":      float64(metrics.TotalLatency) / float64(time.Millisecond) / max(float64(metrics.EventCount), 1),
-			"error_rate":          float64(metrics.ErrorCount) / max(float64(metrics.EventCount), 1),
+			"avg_latency_ms":      float64(metrics.TotalLatency) / float64(time.Millisecond) / math.Max(float64(metrics.EventCount), 1),
+			"error_rate":          float64(metrics.ErrorCount) / math.Max(float64(metrics.EventCount), 1),
 			"uptime_seconds":      time.Now().Unix() - metrics.StartTime,
-			"events_per_second":   float64(metrics.EventCount) / max(float64(time.Now().Unix()-metrics.StartTime), 1),
-			"batch_success_rate":  float64(batchMetrics.TotalBatches-batchMetrics.FailedBatches) / max(float64(batchMetrics.TotalBatches), 1),
-			"avg_items_per_batch": float64(batchMetrics.TotalItems) / max(float64(batchMetrics.TotalBatches), 1),
+			"events_per_second":   float64(metrics.EventCount) / math.Max(float64(time.Now().Unix()-metrics.StartTime), 1),
+			"batch_success_rate":  float64(batchMetrics.TotalBatches-batchMetrics.FailedBatches) / math.Max(float64(batchMetrics.TotalBatches), 1),
+			"avg_items_per_batch": float64(batchMetrics.TotalItems) / math.Max(float64(batchMetrics.TotalBatches), 1),
 		},
 		"timestamp": time.Now().UTC(),
 	}
@@ -1308,7 +1312,7 @@ func (i *ClickhouseService) batchInsert(tableName, sql string, args []interface{
 	// Fallback to direct insert
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return i.Session.Exec(ctx, sql, args...)
+	return (*i.Session).Exec(ctx, sql, args...)
 }
 
 func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[string]interface{}) error {
@@ -1764,13 +1768,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//////////////////////////////////////////////
 
 	//ips
-	if xerr := i.Session.Exec(ctx, `INSERT INTO ips (hhash, ip, total, date) VALUES (?, ?, 1, today())`,
+	if xerr := (*i.Session).Exec(ctx, `INSERT INTO ips (hhash, ip, total, date) VALUES (?, ?, 1, today())`,
 		hhash, w.IP); xerr != nil && i.AppConfig.Debug {
 		fmt.Println("CH[ips]:", xerr)
 	}
 
 	//routed
-	if xerr := i.Session.Exec(ctx, `INSERT INTO routed (hhash, ip, url, updated_at) VALUES (?, ?, ?, ?)`,
+	if xerr := (*i.Session).Exec(ctx, `INSERT INTO routed (hhash, ip, url, updated_at) VALUES (?, ?, ?, ?)`,
 		v["url"], hhash, w.IP, updated); xerr != nil && i.AppConfig.Debug {
 		fmt.Println("CH[routed]:", xerr)
 	}
@@ -1852,27 +1856,27 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//hits
 		if _, ok := v["url"].(string); ok {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO hits (hhash, url, total, date) VALUES (?, ?, 1, today())`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO hits (hhash, url, total, date) VALUES (?, ?, 1, today())`,
 				hhash, v["url"]); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[hits]:", xerr)
 			}
 		}
 
 		//daily
-		if xerr := i.Session.Exec(ctx, `INSERT INTO dailies (ip, day, total) VALUES (?, today(), 1)`, w.IP); xerr != nil && i.AppConfig.Debug {
+		if xerr := (*i.Session).Exec(ctx, `INSERT INTO dailies (ip, day, total) VALUES (?, today(), 1)`, w.IP); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[dailies]:", xerr)
 		}
 
 		//unknown vid
 		if isNew {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO counters (id, total, date) VALUES ('vids_created', 1, today())`); xerr != nil && i.AppConfig.Debug {
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO counters (id, total, date) VALUES ('vids_created', 1, today())`); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[counters]vids_created:", xerr)
 			}
 		}
 
 		//outcome
 		if outcome, ok := v["outcome"].(string); ok {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO outcomes (hhash, outcome, sink, created, url, total) VALUES (?, ?, ?, ?, ?, 1)`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO outcomes (hhash, outcome, sink, created, url, total) VALUES (?, ?, ?, ?, ?, 1)`,
 				hhash, outcome, v["sink"], updated.Format("2006-01-02"), v["url"]); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[outcomes]:", xerr)
 			}
@@ -1880,7 +1884,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//referrers
 		if _, ok := v["last"].(string); ok {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO referrers (hhash, url, total, date) VALUES (?, ?, 1, today())`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO referrers (hhash, url, total, date) VALUES (?, ?, 1, today())`,
 				hhash, v["last"]); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[referrers]:", xerr)
 			}
@@ -1888,7 +1892,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//referrals
 		if v["ref"] != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO referrals (hhash, ref, vid, gen) VALUES (?, ?, ?, 0)`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO referrals (hhash, ref, vid, gen) VALUES (?, ?, ?, 0)`,
 				hhash, v["ref"], vid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[referrals]:", xerr)
 			}
@@ -1896,7 +1900,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//referred
 		if v["rcode"] != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO referred (hhash, rcode, vid, gen) VALUES (?, ?, ?, 0)`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO referred (hhash, rcode, vid, gen) VALUES (?, ?, ?, 0)`,
 				hhash, v["rcode"], vid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[referred]:", xerr)
 			}
@@ -1904,27 +1908,27 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//hosts
 		if w.Host != "" {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO hosts (hhash, hostname) VALUES (?, ?)`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO hosts (hhash, hostname) VALUES (?, ?)`,
 				hhash, w.Host); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[hosts]:", xerr)
 			}
 		}
 
 		//browsers
-		if xerr := i.Session.Exec(ctx, `INSERT INTO browsers (hhash, bhash, browser, total, date) VALUES (?, ?, ?, 1, today())`,
+		if xerr := (*i.Session).Exec(ctx, `INSERT INTO browsers (hhash, bhash, browser, total, date) VALUES (?, ?, ?, 1, today())`,
 			hhash, bhash, w.Browser); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[browsers]:", xerr)
 		}
 
 		//nodes
-		if xerr := i.Session.Exec(ctx, `INSERT INTO nodes (hhash, vid, uid, iphash, ip, sid) VALUES (?, ?, ?, ?, ?, ?)`,
+		if xerr := (*i.Session).Exec(ctx, `INSERT INTO nodes (hhash, vid, uid, iphash, ip, sid) VALUES (?, ?, ?, ?, ?, ?)`,
 			hhash, vid, uid, iphash, w.IP, sid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[nodes]:", xerr)
 		}
 
 		//locations
 		if lat != nil && lon != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO locations (hhash, vid, lat, lon, uid, sid) VALUES (?, ?, ?, ?, ?, ?)`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO locations (hhash, vid, lat, lon, uid, sid) VALUES (?, ?, ?, ?, ?, ?)`,
 				hhash, vid, lat, lon, uid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[locations]:", xerr)
 			}
@@ -1932,7 +1936,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//alias
 		if uid != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO aliases (hhash, vid, uid, sid) VALUES (?, ?, ?, ?)`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO aliases (hhash, vid, uid, sid) VALUES (?, ?, ?, ?)`,
 				hhash, vid, uid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[aliases]:", xerr)
 			}
@@ -1940,7 +1944,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//userhosts
 		if uid != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
 				hhash, uid, vid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[userhosts]:", xerr)
 			}
@@ -1948,7 +1952,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//uhash
 		if uhash != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
 				hhash, uhash, vid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[usernames]:", xerr)
 			}
@@ -1956,7 +1960,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//ehash
 		if ehash != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
 				hhash, ehash, vid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[emails]:", xerr)
 			}
@@ -1964,21 +1968,21 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//chash
 		if chash != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO cells (hhash, chash, vid, sid) VALUES (?, ?, ?, ?)`,
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO cells (hhash, chash, vid, sid) VALUES (?, ?, ?, ?)`,
 				hhash, chash, vid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[cells]:", xerr)
 			}
 		}
 
 		//reqs
-		if xerr := i.Session.Exec(ctx, `INSERT INTO reqs (hhash, vid, total, date) VALUES (?, ?, 1, today())`,
+		if xerr := (*i.Session).Exec(ctx, `INSERT INTO reqs (hhash, vid, total, date) VALUES (?, ?, 1, today())`,
 			hhash, vid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[reqs]:", xerr)
 		}
 
 		if isNew || isFirst {
 			//visitors
-			if xerr := i.Session.Exec(ctx, `INSERT INTO visitors (
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO visitors (
 				vid, did, sid, hhash, app, rel, cflags, 
 				created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
@@ -1994,7 +1998,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			}
 
 			//sessions
-			if xerr := i.Session.Exec(ctx, `INSERT INTO sessions (
+			if xerr := (*i.Session).Exec(ctx, `INSERT INTO sessions (
 				vid, did, sid, hhash, app, rel, cflags, 
 				created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, duration, xid, split, ename, etyp, ver, sink, score, 
@@ -2011,7 +2015,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		}
 
 		// Update visitors_latest
-		if xerr := i.Session.Exec(ctx, `INSERT INTO visitors_latest (
+		if xerr := (*i.Session).Exec(ctx, `INSERT INTO visitors_latest (
 			vid, did, sid, hhash, app, rel, cflags, 
 			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
 			ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
@@ -2090,7 +2094,7 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 	}
 
 	// Insert into payments table
-	if err := i.Session.Exec(ctx, `INSERT INTO payments (
+	if err := (*i.Session).Exec(ctx, `INSERT INTO payments (
 		id, uid, org, amount, currency, status, product, 
 		created_at, updated_at, hhash
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -2101,7 +2105,7 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 
 	// Update LTV calculations (simplified version)
 	if payment.Amount != nil {
-		if err := i.Session.Exec(ctx, `INSERT INTO ltv (
+		if err := (*i.Session).Exec(ctx, `INSERT INTO ltv (
 			uid, org, total_revenue, payment_count, 
 			last_payment, created_at, updated_at, hhash
 		) VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,

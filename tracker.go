@@ -67,8 +67,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -87,16 +85,6 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
-}
-
-// Circuit breaker for handling connection failures
-type CircuitBreaker struct {
-	maxFailures   int
-	resetTimeout  time.Duration
-	failures      int32
-	lastFailTime  int64
-	state         int32 // 0=closed, 1=open, 2=half-open
-	mu            sync.RWMutex
 }
 
 // //////////////////////////////////////
@@ -333,6 +321,8 @@ type Service struct {
 	CACert   string
 	Cert     string
 	Key      string
+	Username string
+	Password string
 	Secure   bool
 	Critical bool
 
@@ -549,7 +539,7 @@ var kv = (*KV)(nil)
 func main() {
 	fmt.Println("\n\n//////////////////////////////////////////////////////////////")
 	fmt.Println("Tracker.")
-	fmt.Println("Software to track growth and visitor usage")
+	fmt.Println("User telemetry software")
 	fmt.Println("https://github.com/sfproductlabs/tracker")
 	fmt.Println("(c) Copyright 2018-2021 SF Product Labs LLC.")
 	fmt.Println("Use of this software is subject to the LICENSE agreement.")

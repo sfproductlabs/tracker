@@ -527,9 +527,8 @@ func (bm *BatchManager) executeBatch(tableName string, items []BatchItem) error 
 		atomic.StoreInt64(&bm.metrics.AvgBatchSize, avgSize)
 	}
 	
-	if globalMetrics != nil && globalMetrics.AppConfig != nil && globalMetrics.AppConfig.Debug {
-		fmt.Printf("[BATCH] Flushed %d items to table %s in %v\n", len(items), tableName, latency)
-	}
+	// Debug logging for batch flush
+	fmt.Printf("[BATCH] Flushed %d items to table %s in %v\n", len(items), tableName, latency)
 	
 	return nil
 }
