@@ -51,7 +51,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -66,7 +65,6 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
 )
 
@@ -76,23 +74,23 @@ import (
 
 // PerformanceMetrics tracks operation performance and health
 type PerformanceMetrics struct {
-	EventCount      int64         `json:"event_count"`
-	ErrorCount      int64         `json:"error_count"`
-	CampaignEvents  int64         `json:"campaign_events"`
-	MThreadsOps     int64         `json:"mthreads_ops"`
-	MStoreOps       int64         `json:"mstore_ops"`
-	MTriageOps      int64         `json:"mtriage_ops"`
-	TotalLatency    int64         `json:"total_latency_ns"`
-	LastProcessed   int64         `json:"last_processed_unix"`
-	ConnectionCount int32         `json:"connection_count"`
-	HealthStatus    string        `json:"health_status"`
-	StartTime       int64         `json:"start_time_unix"`
-	mu              sync.RWMutex  `json:"-"`
+	EventCount      int64        `json:"event_count"`
+	ErrorCount      int64        `json:"error_count"`
+	CampaignEvents  int64        `json:"campaign_events"`
+	MThreadsOps     int64        `json:"mthreads_ops"`
+	MStoreOps       int64        `json:"mstore_ops"`
+	MTriageOps      int64        `json:"mtriage_ops"`
+	TotalLatency    int64        `json:"total_latency_ns"`
+	LastProcessed   int64        `json:"last_processed_unix"`
+	ConnectionCount int32        `json:"connection_count"`
+	HealthStatus    string       `json:"health_status"`
+	StartTime       int64        `json:"start_time_unix"`
+	mu              sync.RWMutex `json:"-"`
 }
 
 // Global performance metrics instance
 var globalMetrics = &PerformanceMetrics{
-	StartTime: time.Now().Unix(),
+	StartTime:    time.Now().Unix(),
 	HealthStatus: "initializing",
 }
 
@@ -126,7 +124,7 @@ func (pm *PerformanceMetrics) GetAverageLatency() time.Duration {
 func (pm *PerformanceMetrics) GetMetricsSnapshot() PerformanceMetrics {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	
+
 	return PerformanceMetrics{
 		EventCount:      atomic.LoadInt64(&pm.EventCount),
 		ErrorCount:      atomic.LoadInt64(&pm.ErrorCount),
@@ -146,23 +144,23 @@ func (pm *PerformanceMetrics) GetMetricsSnapshot() PerformanceMetrics {
 type ErrorType string
 
 const (
-	ErrorTypeConnection   ErrorType = "connection"
-	ErrorTypeQuery        ErrorType = "query"
-	ErrorTypeTimeout      ErrorType = "timeout"
-	ErrorTypeValidation   ErrorType = "validation"
-	ErrorTypeRateLimit    ErrorType = "rate_limit"
-	ErrorTypeCampaign     ErrorType = "campaign"
-	ErrorTypeMetrics      ErrorType = "metrics"
+	ErrorTypeConnection ErrorType = "connection"
+	ErrorTypeQuery      ErrorType = "query"
+	ErrorTypeTimeout    ErrorType = "timeout"
+	ErrorTypeValidation ErrorType = "validation"
+	ErrorTypeRateLimit  ErrorType = "rate_limit"
+	ErrorTypeCampaign   ErrorType = "campaign"
+	ErrorTypeMetrics    ErrorType = "metrics"
 )
 
 // TrackerError provides enhanced error information
 type TrackerError struct {
-	Type      ErrorType     `json:"type"`
-	Message   string        `json:"message"`
-	Operation string        `json:"operation"`
-	Timestamp time.Time     `json:"timestamp"`
+	Type      ErrorType              `json:"type"`
+	Message   string                 `json:"message"`
+	Operation string                 `json:"operation"`
+	Timestamp time.Time              `json:"timestamp"`
 	Context   map[string]interface{} `json:"context,omitempty"`
-	Retryable bool          `json:"retryable"`
+	Retryable bool                   `json:"retryable"`
 }
 
 func (e *TrackerError) Error() string {
@@ -183,12 +181,12 @@ func NewTrackerError(errType ErrorType, operation, message string, retryable boo
 
 // Circuit breaker for handling connection failures
 type CircuitBreaker struct {
-	maxFailures   int
-	resetTimeout  time.Duration
-	failures      int32
-	lastFailTime  int64
-	state         int32 // 0=closed, 1=open, 2=half-open
-	mu            sync.RWMutex
+	maxFailures  int
+	resetTimeout time.Duration
+	failures     int32
+	lastFailTime int64
+	state        int32 // 0=closed, 1=open, 2=half-open
+	mu           sync.RWMutex
 }
 
 func NewCircuitBreaker(maxFailures int, resetTimeout time.Duration) *CircuitBreaker {
@@ -202,13 +200,13 @@ func (cb *CircuitBreaker) Execute(operation func() error) error {
 	if !cb.canExecute() {
 		return NewTrackerError(ErrorTypeConnection, "circuit_breaker", "circuit breaker is open", true)
 	}
-	
+
 	err := operation()
 	if err != nil {
 		cb.recordFailure()
 		return err
 	}
-	
+
 	cb.recordSuccess()
 	return nil
 }
@@ -218,7 +216,7 @@ func (cb *CircuitBreaker) canExecute() bool {
 	if state == 0 { // closed
 		return true
 	}
-	
+
 	if state == 1 { // open
 		lastFail := atomic.LoadInt64(&cb.lastFailTime)
 		if time.Since(time.Unix(0, lastFail)) > cb.resetTimeout {
@@ -229,14 +227,14 @@ func (cb *CircuitBreaker) canExecute() bool {
 		}
 		return false
 	}
-	
+
 	return true // half-open
 }
 
 func (cb *CircuitBreaker) recordFailure() {
 	failures := atomic.AddInt32(&cb.failures, 1)
 	atomic.StoreInt64(&cb.lastFailTime, time.Now().UnixNano())
-	
+
 	if int(failures) >= cb.maxFailures {
 		atomic.StoreInt32(&cb.state, 1) // open
 	}
@@ -259,7 +257,7 @@ func max(a, b int) int {
 	return b
 }
 
-// min returns the smaller of two integers  
+// min returns the smaller of two integers
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -278,9 +276,9 @@ func (i *ClickhouseService) connect() error {
 	if i.circuitBreaker == nil {
 		i.circuitBreaker = NewCircuitBreaker(5, 30*time.Second)
 	}
-	
+
 	err := fmt.Errorf("Could not connect to ClickHouse")
-	
+
 	// Build connection options with performance optimizations
 	opts := &clickhouse.Options{
 		Addr: i.Configuration.Hosts,
@@ -302,12 +300,12 @@ func (i *ClickhouseService) connect() error {
 			"enable_http_compression":      1,
 			"http_zlib_compression_level":  1,
 		},
-		DialTimeout:      time.Duration(i.Configuration.Timeout) * time.Millisecond,
-		MaxOpenConns:     max(i.Configuration.Connections, 10),
-		MaxIdleConns:     max(i.Configuration.Connections/2, 5),
-		ConnMaxLifetime:  time.Hour * 2,
-		ConnOpenStrategy: clickhouse.ConnOpenInOrder,
-		BlockBufferSize:  10,
+		DialTimeout:          time.Duration(i.Configuration.Timeout) * time.Millisecond,
+		MaxOpenConns:         max(i.Configuration.Connections, 10),
+		MaxIdleConns:         max(i.Configuration.Connections/2, 5),
+		ConnMaxLifetime:      time.Hour * 2,
+		ConnOpenStrategy:     clickhouse.ConnOpenInOrder,
+		BlockBufferSize:      10,
 		MaxCompressionBuffer: 10240,
 	}
 
@@ -330,7 +328,7 @@ func (i *ClickhouseService) connect() error {
 		// Test connection with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		
+
 		if connErr = i.Session.Ping(ctx); connErr != nil {
 			globalMetrics.UpdateErrorCount()
 			fmt.Println("[ERROR] Pinging ClickHouse:", connErr)
@@ -395,13 +393,13 @@ func (i *ClickhouseService) close() error {
 			fmt.Printf("[WARNING] Error stopping batch manager: %v\n", err)
 		}
 	}
-	
+
 	// Stop health monitoring
 	i.stopHealthMonitoring()
-	
+
 	// Update connection count
 	atomic.AddInt32(&globalMetrics.ConnectionCount, -1)
-	
+
 	// Close session
 	if i.Session != nil {
 		err := i.Session.Close()
@@ -409,7 +407,7 @@ func (i *ClickhouseService) close() error {
 			globalMetrics.UpdateErrorCount()
 			return NewTrackerError(ErrorTypeConnection, "close", err.Error(), false)
 		}
-		
+
 		globalMetrics.mu.Lock()
 		globalMetrics.HealthStatus = "disconnected"
 		globalMetrics.mu.Unlock()
@@ -422,10 +420,10 @@ func (i *ClickhouseService) startHealthMonitoring() {
 	if i.healthTicker != nil {
 		return // Already running
 	}
-	
+
 	i.healthTicker = time.NewTicker(30 * time.Second)
 	i.healthDone = make(chan bool)
-	
+
 	go func() {
 		for {
 			select {
@@ -451,10 +449,10 @@ func (i *ClickhouseService) stopHealthMonitoring() {
 func (i *ClickhouseService) performHealthCheck() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	var result uint8
 	err := i.Session.QueryRow(ctx, "SELECT 1").Scan(&result)
-	
+
 	globalMetrics.mu.Lock()
 	if err != nil {
 		globalMetrics.HealthStatus = "unhealthy"
@@ -505,13 +503,13 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 	if r.URL.Path == "/metrics" || r.URL.Path == "/health" {
 		return i.handleMetricsEndpoint(w, r)
 	}
-	
+
 	// Handle health check endpoint
 	if r.URL.Path == "/ping" {
 		return i.handlePingEndpoint(w, r)
 	}
 	ctx := context.Background()
-	
+
 	switch s.ServiceType {
 	case SVC_POST_AGREE:
 		body, err := ioutil.ReadAll(r.Body)
@@ -646,34 +644,26 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 
 				// Insert into agreements table
 				if err := i.Session.Exec(ctx, `INSERT INTO agreements (
-					vid, vid_created_at, created_at, cflags, sid, sid_created_at, uid, uid_created_at, 
-					avid, avid_created_at, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
+					vid, created_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
 					country, region, culture, source, medium, campaign, term, ref, rcode, aff, 
-					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, owner_created_at, 
-					org, org_created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					vid, getTimeFromUUID(vid), created, cflags, sid, getTimeFromUUID(sid), uid, getTimeFromUUID(uid),
-					avid, getTimeFromUUID(avid), hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
+					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, org
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					vid, created, cflags, sid, uid, avid, hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
 					country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
-					browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, getTimeFromUUID(owner),
-					org, getTimeFromUUID(org),
+					browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, org,
 				); err != nil {
 					return err
 				}
 
 				// Insert into agreed table (history)
 				if err := i.Session.Exec(ctx, `INSERT INTO agreed (
-					vid, vid_created_at, created_at, cflags, sid, sid_created_at, uid, uid_created_at, 
-					avid, avid_created_at, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
+					vid, created_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
 					country, region, culture, source, medium, campaign, term, ref, rcode, aff, 
-					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, owner_created_at, 
-					org, org_created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					vid, getTimeFromUUID(vid), created, cflags, sid, getTimeFromUUID(sid), uid, getTimeFromUUID(uid),
-					avid, getTimeFromUUID(avid), hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
+					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, org
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					vid, created, cflags, sid, uid, avid, hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
 					country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
-					browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, getTimeFromUUID(owner),
-					org, getTimeFromUUID(org),
+					browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, org,
 				); err != nil {
 					return err
 				}
@@ -855,16 +845,14 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 
 				// Insert into redirects table
 				if err := i.Session.Exec(ctx, `INSERT INTO redirects (
-					hhash, urlfrom, urlto, updated_at, updater, updater_created_at, org, org_created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+					hhash, urlfrom, urlto, updated_at, updater, org
+				) VALUES (?, ?, ?, ?, ?, ?)`,
 					hhash,
 					strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path),
 					urlto,
 					updated,
 					updater,
-					getTimeFromUUID(updater),
 					org,
-					getTimeFromUUID(org),
 				); err != nil {
 					return err
 				}
@@ -872,20 +860,18 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 				// Insert into redirect_history table
 				if err := i.Session.Exec(ctx, `INSERT INTO redirect_history (
 					urlfrom, hostfrom, slugfrom, urlto, hostto, pathto, searchto, updated_at, 
-					updater, updater_created_at, org, org_created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					updater, org
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					urlfrom,
 					strings.ToLower(urlfromURL.Host),
 					strings.ToLower(urlfromURL.Path),
 					urlto,
 					strings.ToLower(urltoURL.Host),
-					strings.ToLower(urltoURL.Path),
+					strings.ToLower(urlfromURL.Path),
 					b["searchto"],
 					updated,
 					updater,
-					getTimeFromUUID(updater),
 					org,
-					getTimeFromUUID(org),
 				); err != nil {
 					return err
 				}
@@ -1029,7 +1015,7 @@ func (i *ClickhouseService) prune() error {
 			ttl = i.AppConfig.PruneLogsTTL
 		}
 
-		query := fmt.Sprintf(`SELECT id, id_created_at FROM logs ORDER BY created_at LIMIT %d OFFSET %d`, pageSize, total)
+		query := fmt.Sprintf(`SELECT id, created_at FROM logs ORDER BY created_at LIMIT %d OFFSET %d`, pageSize, total)
 		for {
 			rows, queryErr := i.Session.Query(ctx, query)
 			if queryErr != nil {
@@ -1039,15 +1025,15 @@ func (i *ClickhouseService) prune() error {
 			rowCount := 0
 			for rows.Next() {
 				var id uuid.UUID
-				var idCreated time.Time
-				if err := rows.Scan(&id, &idCreated); err != nil {
+				var createdAt time.Time
+				if err := rows.Scan(&id, &createdAt); err != nil {
 					continue
 				}
 				total += 1
 				rowCount += 1
 
 				//PROCESS THE ROW
-				expired := checkIdExpiredClickHouse(&id, &idCreated, ttl)
+				expired := checkIdExpiredClickHouse(&id, &createdAt, ttl)
 				if expired {
 					pruned += 1
 					i.Session.Exec(ctx, `ALTER TABLE logs DELETE WHERE id=?`, id)
@@ -1059,7 +1045,7 @@ func (i *ClickhouseService) prune() error {
 			if rowCount < pageSize {
 				break
 			}
-			query = fmt.Sprintf(`SELECT id, id_created_at FROM logs ORDER BY created_at LIMIT %d OFFSET %d`, pageSize, total)
+			query = fmt.Sprintf(`SELECT id, created_at FROM logs ORDER BY created_at LIMIT %d OFFSET %d`, pageSize, total)
 		}
 		fmt.Printf("Pruned [ClickHouse].[%s].[logs]: %d/%d rows\n", i.Configuration.Context, pruned, total)
 	}
@@ -1071,7 +1057,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 	ctx := context.Background()
 	err := fmt.Errorf("Could not write to any ClickHouse server in cluster")
 	v := *w.Values
-	
+
 	switch w.WriteType {
 	case WRITE_COUNT:
 		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_COUNTERS)) {
@@ -1167,7 +1153,6 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 			return i.Session.Exec(ctx, `INSERT INTO logs
 			  (
 				  id,
-				  id_created_at,
 				  ldate,
 				  created_at,
 				  ltime,
@@ -1176,16 +1161,15 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				  host, 
 				  hostname, 
 				  owner,
-				  owner_created_at,
 				  ip,
 				  iphash,
 				  level, 
 				  msg,
-				  params
+				  params,
+				  org
 			  ) 
-			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //16
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //15
 				uuid.New(),
-				time.Now().UTC(),
 				v["ldate"],
 				time.Now().UTC(),
 				ltime,
@@ -1194,12 +1178,12 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				v["host"],
 				v["hostname"],
 				owner,
-				getTimeFromUUID(owner),
 				v["ip"],
 				iphash,
 				level,
 				v["msg"],
-				params)
+				params,
+				parseUUID(v["org"]))
 		}
 		return nil
 	case WRITE_EVENT:
@@ -1214,17 +1198,6 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 	}
 
 	return err
-}
-
-// Helper function to extract time from UUID v1 (time-based)
-func getTimeFromUUID(u *uuid.UUID) *time.Time {
-	if u == nil {
-		return nil
-	}
-	// For UUID v1, extract timestamp
-	// This is a simplified implementation - in practice you'd need proper UUID v1 time extraction
-	t := time.Now().UTC()
-	return &t
 }
 
 // Helper function for expired row checking in ClickHouse
@@ -1254,41 +1227,41 @@ func checkIdExpiredClickHouse(id *uuid.UUID, idCreated *time.Time, ttl int) bool
 // handleMetricsEndpoint serves performance metrics as JSON
 func (i *ClickhouseService) handleMetricsEndpoint(w *http.ResponseWriter, r *http.Request) error {
 	metrics := globalMetrics.GetMetricsSnapshot()
-	
+
 	// Get batch metrics if available
 	var batchMetrics BatchMetrics
 	if i.batchManager != nil {
 		batchMetrics = i.batchManager.GetMetrics()
 	}
-	
+
 	// Add calculated fields
 	responseData := map[string]interface{}{
 		"metrics": metrics,
 		"batching": map[string]interface{}{
-			"enabled":             i.batchingEnabled,
-			"total_batches":       batchMetrics.TotalBatches,
-			"total_items":         batchMetrics.TotalItems,
-			"failed_batches":      batchMetrics.FailedBatches,
-			"avg_batch_size":      batchMetrics.AvgBatchSize,
+			"enabled":              i.batchingEnabled,
+			"total_batches":        batchMetrics.TotalBatches,
+			"total_items":          batchMetrics.TotalItems,
+			"failed_batches":       batchMetrics.FailedBatches,
+			"avg_batch_size":       batchMetrics.AvgBatchSize,
 			"avg_flush_latency_ms": batchMetrics.AvgFlushLatencyMs,
-			"queued_items":        batchMetrics.QueuedItems,
-			"memory_usage_mb":     batchMetrics.MemoryUsageMB,
-			"last_flush_time":     time.Unix(batchMetrics.LastFlushTime, 0).Format(time.RFC3339),
+			"queued_items":         batchMetrics.QueuedItems,
+			"memory_usage_mb":      batchMetrics.MemoryUsageMB,
+			"last_flush_time":      time.Unix(batchMetrics.LastFlushTime, 0).Format(time.RFC3339),
 		},
 		"calculated": map[string]interface{}{
 			"avg_latency_ms":      float64(metrics.TotalLatency) / float64(time.Millisecond) / max(float64(metrics.EventCount), 1),
 			"error_rate":          float64(metrics.ErrorCount) / max(float64(metrics.EventCount), 1),
 			"uptime_seconds":      time.Now().Unix() - metrics.StartTime,
-			"events_per_second":   float64(metrics.EventCount) / max(float64(time.Now().Unix() - metrics.StartTime), 1),
-			"batch_success_rate":  float64(batchMetrics.TotalBatches - batchMetrics.FailedBatches) / max(float64(batchMetrics.TotalBatches), 1),
+			"events_per_second":   float64(metrics.EventCount) / max(float64(time.Now().Unix()-metrics.StartTime), 1),
+			"batch_success_rate":  float64(batchMetrics.TotalBatches-batchMetrics.FailedBatches) / max(float64(batchMetrics.TotalBatches), 1),
 			"avg_items_per_batch": float64(batchMetrics.TotalItems) / max(float64(batchMetrics.TotalBatches), 1),
 		},
 		"timestamp": time.Now().UTC(),
 	}
-	
+
 	(*w).Header().Set("Content-Type", "application/json")
 	(*w).WriteHeader(http.StatusOK)
-	
+
 	encoder := json.NewEncoder(*w)
 	return encoder.Encode(responseData)
 }
@@ -1297,25 +1270,25 @@ func (i *ClickhouseService) handleMetricsEndpoint(w *http.ResponseWriter, r *htt
 func (i *ClickhouseService) handlePingEndpoint(w *http.ResponseWriter, r *http.Request) error {
 	status := "ok"
 	statusCode := http.StatusOK
-	
+
 	globalMetrics.mu.RLock()
 	healthStatus := globalMetrics.HealthStatus
 	globalMetrics.mu.RUnlock()
-	
+
 	if healthStatus != "healthy" && healthStatus != "connected" {
 		status = "degraded"
 		statusCode = http.StatusServiceUnavailable
 	}
-	
+
 	response := map[string]interface{}{
 		"status":    status,
 		"health":    healthStatus,
 		"timestamp": time.Now().UTC(),
 	}
-	
+
 	(*w).Header().Set("Content-Type", "application/json")
 	(*w).WriteHeader(statusCode)
-	
+
 	encoder := json.NewEncoder(*w)
 	return encoder.Encode(response)
 }
@@ -1331,7 +1304,7 @@ func (i *ClickhouseService) batchInsert(tableName, sql string, args []interface{
 		}
 		return i.batchManager.AddItem(item)
 	}
-	
+
 	// Fallback to direct insert
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1401,7 +1374,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	}
 	//[updated]
 	updated := time.Now().UTC()
-	
+
 	// Parse UUID fields
 	var vid, sid, uid, auth, rid, org, paymentID *uuid.UUID
 	if temp, ok := v["vid"].(string); ok {
@@ -1749,13 +1722,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//////////////////////////////////////////////
 	//CAMPAIGN TELEMETRY INTEGRATION
 	//////////////////////////////////////////////
-	
+
 	// Check if this is a campaign-related event and handle campaign telemetry
 	var tid *uuid.UUID
 	if tidStr, ok := v["tid"].(string); ok {
 		if parsedTid, err := uuid.Parse(tidStr); err == nil {
 			tid = &parsedTid
-			
+
 			// Integrate campaign tracking functionality from telemetry_campaign.go
 			if err := i.handleCampaignEvent(ctx, &CampaignEventData{
 				TID:         *tid,
@@ -1805,18 +1778,18 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//events_recent (batched)
 	if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS_RECENT)) {
 		if xerr := i.batchInsert("events_recent", `INSERT INTO events_recent (
-			eid, eid_created_at, vid, vid_created_at, sid, sid_created_at, hhash, app, rel, cflags, 
-			created_at, updated_at, uid, uid_created_at, last, url, ip, iphash, lat, lon, ptyp, 
-			bhash, auth, auth_created_at, duration, xid, split, ename, source, medium, campaign, 
+			eid, vid, sid, org, hhash, app, rel, cflags, 
+			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, ptyp, 
+			bhash, auth, duration, xid, split, ename, source, medium, campaign, 
 			country, region, city, zip, term, etyp, ver, sink, score, params, nparams, 
-			payment_id, targets, relation, rid, rid_created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			payment_id, targets, relation, rid
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
-				w.EventID, updated, vid, getTimeFromUUID(vid), sid, getTimeFromUUID(sid), hhash, v["app"], v["rel"], cflags,
-				updated, updated, uid, getTimeFromUUID(uid), v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
-				bhash, auth, getTimeFromUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
+				w.EventID, vid, sid, parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
+				updated, updated, uid, v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
+				bhash, auth, duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, params, nparams,
-				paymentID, v["targets"], v["relation"], rid, getTimeFromUUID(rid),
+				paymentID, v["targets"], v["relation"], rid,
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events_recent]:", xerr)
 		}
@@ -1829,18 +1802,18 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//events (batched)
 	if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS)) {
 		if xerr := i.batchInsert("events", `INSERT INTO events (
-			eid, eid_created_at, vid, vid_created_at, sid, sid_created_at, hhash, app, rel, cflags, 
-			created_at, updated_at, uid, uid_created_at, last, url, ip, iphash, lat, lon, ptyp, 
-			bhash, auth, auth_created_at, duration, xid, split, ename, source, medium, campaign, 
+			eid, vid, sid, org, hhash, app, rel, cflags, 
+			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, ptyp, 
+			bhash, auth, duration, xid, split, ename, source, medium, campaign, 
 			country, region, city, zip, term, etyp, ver, sink, score, params, nparams, 
-			payment_id, targets, relation, rid, rid_created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			payment_id, targets, relation, rid
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
-				w.EventID, updated, vid, getTimeFromUUID(vid), sid, getTimeFromUUID(sid), hhash, v["app"], v["rel"], cflags,
-				updated, updated, uid, getTimeFromUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
-				bhash, auth, getTimeFromUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
+				w.EventID, vid, sid, parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
+				updated, updated, uid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
+				bhash, auth, duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, params, nparams,
-				paymentID, v["targets"], v["relation"], rid, getTimeFromUUID(rid),
+				paymentID, v["targets"], v["relation"], rid,
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
 		}
@@ -1861,11 +1834,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		if err := i.updateMThreadsTable(ctx, tid, org, v, updated); err != nil {
 			fmt.Printf("[WARNING] Failed to update mthreads: %v\n", err)
 		}
-		
+
 		if err := i.updateMStoreTable(ctx, tid, org, v, updated); err != nil {
 			fmt.Printf("[WARNING] Failed to update mstore: %v\n", err)
 		}
-		
+
 		if err := i.updateMTriageTable(ctx, tid, org, v, updated); err != nil {
 			fmt.Printf("[WARNING] Failed to update mtriage: %v\n", err)
 		}
@@ -1915,16 +1888,16 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//referrals
 		if v["ref"] != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO referrals (hhash, ref, ref_created_at, vid, vid_created_at, gen) VALUES (?, ?, ?, ?, ?, 0)`,
-				hhash, v["ref"], getTimeFromUUID(parseUUID(v["ref"])), vid, getTimeFromUUID(vid)); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Exec(ctx, `INSERT INTO referrals (hhash, ref, vid, gen) VALUES (?, ?, ?, 0)`,
+				hhash, v["ref"], vid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[referrals]:", xerr)
 			}
 		}
 
 		//referred
 		if v["rcode"] != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO referred (hhash, rcode, vid, vid_created_at, gen) VALUES (?, ?, ?, ?, 0)`,
-				hhash, v["rcode"], vid, getTimeFromUUID(vid)); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Exec(ctx, `INSERT INTO referred (hhash, rcode, vid, gen) VALUES (?, ?, ?, 0)`,
+				hhash, v["rcode"], vid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[referred]:", xerr)
 			}
 		}
@@ -1944,112 +1917,112 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		}
 
 		//nodes
-		if xerr := i.Session.Exec(ctx, `INSERT INTO nodes (hhash, vid, vid_created_at, uid, uid_created_at, iphash, ip, sid, sid_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			hhash, vid, getTimeFromUUID(vid), uid, getTimeFromUUID(uid), iphash, w.IP, sid, getTimeFromUUID(sid)); xerr != nil && i.AppConfig.Debug {
+		if xerr := i.Session.Exec(ctx, `INSERT INTO nodes (hhash, vid, uid, iphash, ip, sid) VALUES (?, ?, ?, ?, ?, ?)`,
+			hhash, vid, uid, iphash, w.IP, sid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[nodes]:", xerr)
 		}
 
 		//locations
 		if lat != nil && lon != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO locations (hhash, vid, vid_created_at, lat, lon, uid, uid_created_at, sid, sid_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				hhash, vid, getTimeFromUUID(vid), lat, lon, uid, getTimeFromUUID(uid), sid, getTimeFromUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Exec(ctx, `INSERT INTO locations (hhash, vid, lat, lon, uid, sid) VALUES (?, ?, ?, ?, ?, ?)`,
+				hhash, vid, lat, lon, uid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[locations]:", xerr)
 			}
 		}
 
 		//alias
 		if uid != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO aliases (hhash, vid, vid_created_at, uid, uid_created_at, sid, sid_created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				hhash, vid, getTimeFromUUID(vid), uid, getTimeFromUUID(uid), sid, getTimeFromUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Exec(ctx, `INSERT INTO aliases (hhash, vid, uid, sid) VALUES (?, ?, ?, ?)`,
+				hhash, vid, uid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[aliases]:", xerr)
 			}
 		}
 
 		//userhosts
 		if uid != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO userhosts (hhash, uid, uid_created_at, vid, vid_created_at, sid, sid_created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				hhash, uid, getTimeFromUUID(uid), vid, getTimeFromUUID(vid), sid, getTimeFromUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Exec(ctx, `INSERT INTO userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
+				hhash, uid, vid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[userhosts]:", xerr)
 			}
 		}
 
 		//uhash
 		if uhash != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO usernames (hhash, uhash, vid, vid_created_at, sid, sid_created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-				hhash, uhash, vid, getTimeFromUUID(vid), sid, getTimeFromUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Exec(ctx, `INSERT INTO usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
+				hhash, uhash, vid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[usernames]:", xerr)
 			}
 		}
 
 		//ehash
 		if ehash != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO emails (hhash, ehash, vid, vid_created_at, sid, sid_created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-				hhash, ehash, vid, getTimeFromUUID(vid), sid, getTimeFromUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Exec(ctx, `INSERT INTO emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
+				hhash, ehash, vid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[emails]:", xerr)
 			}
 		}
 
 		//chash
 		if chash != nil {
-			if xerr := i.Session.Exec(ctx, `INSERT INTO cells (hhash, chash, vid, vid_created_at, sid, sid_created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-				hhash, chash, vid, getTimeFromUUID(vid), sid, getTimeFromUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.Session.Exec(ctx, `INSERT INTO cells (hhash, chash, vid, sid) VALUES (?, ?, ?, ?)`,
+				hhash, chash, vid, sid); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[cells]:", xerr)
 			}
 		}
 
 		//reqs
-		if xerr := i.Session.Exec(ctx, `INSERT INTO reqs (hhash, vid, vid_created_at, total, date) VALUES (?, ?, ?, 1, today())`,
-			hhash, vid, getTimeFromUUID(vid)); xerr != nil && i.AppConfig.Debug {
+		if xerr := i.Session.Exec(ctx, `INSERT INTO reqs (hhash, vid, total, date) VALUES (?, ?, 1, today())`,
+			hhash, vid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[reqs]:", xerr)
 		}
 
 		if isNew || isFirst {
 			//visitors
 			if xerr := i.Session.Exec(ctx, `INSERT INTO visitors (
-				vid, vid_created_at, did, sid, sid_created_at, hhash, app, rel, cflags, 
-				created_at, updated_at, uid, uid_created_at, last, url, ip, iphash, lat, lon, 
-				ptyp, bhash, auth, auth_created_at, xid, split, ename, etyp, ver, sink, score, 
+				vid, did, sid, hhash, app, rel, cflags, 
+				created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
+				ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
 				params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
-				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //55
-				vid, getTimeFromUUID(vid), v["did"], sid, getTimeFromUUID(sid), hhash, v["app"], v["rel"], cflags,
-				updated, updated, uid, getTimeFromUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-				v["ptyp"], bhash, auth, getTimeFromUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
+				vid, v["did"], sid, hhash, v["app"], v["rel"], cflags,
+				updated, updated, uid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+				v["ptyp"], bhash, auth, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 				params, nparams, v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"]); xerr != nil && i.AppConfig.Debug {
+				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[visitors]:", xerr)
 			}
 
 			//sessions
 			if xerr := i.Session.Exec(ctx, `INSERT INTO sessions (
-				vid, vid_created_at, did, sid, sid_created_at, hhash, app, rel, cflags, 
-				created_at, updated_at, uid, uid_created_at, last, url, ip, iphash, lat, lon, 
-				ptyp, bhash, auth, auth_created_at, duration, xid, split, ename, etyp, ver, sink, score, 
+				vid, did, sid, hhash, app, rel, cflags, 
+				created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
+				ptyp, bhash, auth, duration, xid, split, ename, etyp, ver, sink, score, 
 				params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
-				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //56
-				vid, getTimeFromUUID(vid), v["did"], sid, getTimeFromUUID(sid), hhash, v["app"], v["rel"], cflags,
-				updated, updated, uid, getTimeFromUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-				v["ptyp"], bhash, auth, getTimeFromUUID(auth), duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //51
+				vid, v["did"], sid, hhash, v["app"], v["rel"], cflags,
+				updated, updated, uid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+				v["ptyp"], bhash, auth, duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 				params, nparams, v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"]); xerr != nil && i.AppConfig.Debug {
+				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[sessions]:", xerr)
 			}
 		}
 
 		// Update visitors_latest
 		if xerr := i.Session.Exec(ctx, `INSERT INTO visitors_latest (
-			vid, vid_created_at, did, sid, sid_created_at, hhash, app, rel, cflags, 
-			created_at, updated_at, uid, uid_created_at, last, url, ip, iphash, lat, lon, 
-			ptyp, bhash, auth, auth_created_at, xid, split, ename, etyp, ver, sink, score, 
+			vid, did, sid, hhash, app, rel, cflags, 
+			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
+			ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
 			params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
-			source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //55
-			vid, getTimeFromUUID(vid), v["did"], sid, getTimeFromUUID(sid), hhash, v["app"], v["rel"], cflags,
-			updated, updated, uid, getTimeFromUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-			v["ptyp"], bhash, auth, getTimeFromUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+			source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
+			vid, v["did"], sid, hhash, v["app"], v["rel"], cflags,
+			updated, updated, uid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+			v["ptyp"], bhash, auth, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 			params, nparams, v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"]); xerr != nil && i.AppConfig.Debug {
+			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[visitors_latest]:", xerr)
 		}
 	}
@@ -2118,10 +2091,10 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 
 	// Insert into payments table
 	if err := i.Session.Exec(ctx, `INSERT INTO payments (
-		id, uid, uid_created_at, org, org_created_at, amount, currency, status, product, 
+		id, uid, org, amount, currency, status, product, 
 		created_at, updated_at, hhash
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		payment.ID, uid, getTimeFromUUID(uid), org, getTimeFromUUID(org), payment.Amount, payment.Currency, payment.Status,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		payment.ID, uid, org, payment.Amount, payment.Currency, payment.Status,
 		payment.Product, payment.CreatedAt, payment.UpdatedAt, hhash); err != nil {
 		return err
 	}
@@ -2129,10 +2102,10 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 	// Update LTV calculations (simplified version)
 	if payment.Amount != nil {
 		if err := i.Session.Exec(ctx, `INSERT INTO ltv (
-			uid, uid_created_at, org, org_created_at, total_revenue, payment_count, 
+			uid, org, total_revenue, payment_count, 
 			last_payment, created_at, updated_at, hhash
-		) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
-			uid, getTimeFromUUID(uid), org, getTimeFromUUID(org), payment.Amount, updated, created, updated, hhash); err != nil {
+		) VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
+			uid, org, payment.Amount, updated, created, updated, hhash); err != nil {
 			return err
 		}
 	}
@@ -2184,14 +2157,14 @@ func (i *ClickhouseService) handleCampaignEvent(ctx context.Context, event *Camp
 		globalMetrics.UpdateLatency(latency)
 		atomic.AddInt64(&globalMetrics.CampaignEvents, 1)
 	}()
-	
+
 	// Validate required fields
 	if event == nil {
 		err := NewTrackerError(ErrorTypeValidation, "handleCampaignEvent", "event data is nil", false)
 		globalMetrics.UpdateErrorCount()
 		return err
 	}
-	
+
 	if event.EventType == "" {
 		err := NewTrackerError(ErrorTypeValidation, "handleCampaignEvent", "event_type is required", false)
 		err.Context["event_id"] = event.EventID.String()
@@ -2231,24 +2204,24 @@ func (i *ClickhouseService) handleCampaignEvent(ctx context.Context, event *Camp
 // updateMThreadsTable updates the mthreads table with campaign performance data
 func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.UUID, org *uuid.UUID, v map[string]interface{}, updated time.Time) error {
 	atomic.AddInt64(&globalMetrics.MThreadsOps, 1)
-	
+
 	// Validate inputs
 	if tid == nil {
 		err := NewTrackerError(ErrorTypeValidation, "updateMThreadsTable", "tid cannot be nil", false)
 		globalMetrics.UpdateErrorCount()
 		return err
 	}
-	
+
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	// Insert or update mthreads record (batched)
 	return i.batchInsert("mthreads", `INSERT INTO mthreads (
-		tid, tid_created_at, org, org_created_at, thread_type, status, metadata, 
+		tid, org, thread_type, status, metadata, 
 		provider_metrics, performance_metrics, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			tid, getTimeFromUUID(tid), org, getTimeFromUUID(org), "campaign", "active",
+			tid, org, "campaign", "active",
 			v, v, v, updated, updated,
 		}, v)
 }
@@ -2256,17 +2229,17 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 // updateMStoreTable updates the mstore table with individual event data
 func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUID, org *uuid.UUID, v map[string]interface{}, updated time.Time) error {
 	atomic.AddInt64(&globalMetrics.MStoreOps, 1)
-	
+
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	eventID := uuid.New()
 	return i.batchInsert("mstore", `INSERT INTO mstore (
-		id, id_created_at, tid, tid_created_at, org, org_created_at, event_type, 
+		id, tid, org, event_type, 
 		content, metadata, parent_id, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			eventID, updated, tid, getTimeFromUUID(tid), org, getTimeFromUUID(org),
+			eventID, tid, org,
 			getStringValue(v["event_type"]), v, v, nil, updated, updated,
 		}, v)
 }
@@ -2274,7 +2247,7 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 // updateMTriageTable updates the mtriage table for outbound message processing
 func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UUID, org *uuid.UUID, v map[string]interface{}, updated time.Time) error {
 	atomic.AddInt64(&globalMetrics.MTriageOps, 1)
-	
+
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -2286,11 +2259,11 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 
 	triageID := uuid.New()
 	return i.batchInsert("mtriage", `INSERT INTO mtriage (
-		id, id_created_at, tid, tid_created_at, org, org_created_at, priority, 
+		id, tid, org, priority, 
 		message_type, content, metadata, status, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			triageID, updated, tid, getTimeFromUUID(tid), org, getTimeFromUUID(org),
+			triageID, tid, org,
 			"high", "follow_up", v, v, "pending", updated, updated,
 		}, v)
 }
@@ -2298,13 +2271,13 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 // updateCampaignMetrics updates campaign performance metrics
 func (i *ClickhouseService) updateCampaignMetrics(ctx context.Context, event *CampaignEventData) error {
 	today := time.Now().UTC().Truncate(24 * time.Hour)
-	
+
 	// Update impression metrics
 	conversions := 0
 	if event.EventType == "conversion" {
 		conversions = 1
 	}
-	
+
 	revenue := 0.0
 	if event.Revenue != nil {
 		revenue = *event.Revenue

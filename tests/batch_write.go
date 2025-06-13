@@ -49,6 +49,7 @@ type WriteArgs struct {
 	URI            string
 	Host           string
 	EventID        uuid.UUID
+	OrgID          *uuid.UUID
 	CallingService *Service
 }
 
@@ -91,7 +92,7 @@ func main() {
 	// Find ClickHouse service
 	var clickhouseConfig *Service
 	for i, service := range config.Notify {
-		if service.Service == "clickhouse" {
+		if service.Service == "clickhouse_" {
 			clickhouseConfig = &config.Notify[i]
 			break
 		}
@@ -260,13 +261,12 @@ func (service *TestClickhouseService) writeEvent(writeArgs *WriteArgs) error {
 	
 	// Insert into events table using actual schema
 	err := service.Session.Exec(ctx, `INSERT INTO events (
-		eid, eid_created_at, vid, vid_created_at, sid, sid_created_at,
-		created_at, updated_at, uid, uid_created_at,
+		eid, vid, sid, org, created_at, updated_at, uid,
 		url, ip, source, medium, campaign, country, region, city, lat, lon,
 		app, ver, ename, params
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		writeArgs.EventID, now, visitorID, now, sessionID, now,
-		now, now, userID, now,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		writeArgs.EventID, visitorID, sessionID, writeArgs.OrgID,
+		now, now, userID,
 		getStringValue(values, "url", ""),
 		writeArgs.IP,
 		getStringValue(values, "utm_source", ""),
@@ -365,9 +365,11 @@ func testSingleEventWrite(service *TestClickhouseService) error {
 		"ver": 1,
 	}
 	
+	testOrgID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
 	writeArgs := &WriteArgs{
 		WriteType: WRITE_EVENT,
 		EventID:   eventID,
+		OrgID:     &testOrgID,
 		IP:        "203.0.113.10",
 		Browser:   "Test-Browser/1.0",
 		Language:  "en-US",
@@ -390,6 +392,7 @@ func testSingleEventWrite(service *TestClickhouseService) error {
 func testSingleLTVWrite(service *TestClickhouseService) error {
 	eventID := uuid.New()
 	paymentID := uuid.New()
+	testOrgID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
 	
 	ltvParams := map[string]interface{}{
 		"payment_id": paymentID.String(),
@@ -403,6 +406,7 @@ func testSingleLTVWrite(service *TestClickhouseService) error {
 	writeArgs := &WriteArgs{
 		WriteType: WRITE_LTV,
 		EventID:   eventID,
+		OrgID:     &testOrgID,
 		IP:        "203.0.113.20",
 		Browser:   "Test-Browser/1.0",
 		Language:  "en-US",
@@ -424,6 +428,7 @@ func testSingleLTVWrite(service *TestClickhouseService) error {
 
 func testBatchWrite(service *TestClickhouseService, batchSize int) error {
 	fmt.Printf("   🚀 Writing %d events in batch...\n", batchSize)
+	testOrgID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
 	
 	startTime := time.Now()
 	
@@ -457,6 +462,7 @@ func testBatchWrite(service *TestClickhouseService, batchSize int) error {
 		writeArgs := &WriteArgs{
 			WriteType: WRITE_EVENT,
 			EventID:   eventID,
+			OrgID:     &testOrgID,
 			IP:        fmt.Sprintf("203.0.113.%d", 50+(i%200)),
 			Browser:   "Batch-Test-Browser/2.0",
 			Language:  "en-US",
@@ -486,6 +492,7 @@ func testBatchWrite(service *TestClickhouseService, batchSize int) error {
 
 func testMixedBatch(service *TestClickhouseService, count int) error {
 	fmt.Printf("   🔄 Writing %d mixed events and LTV records...\n", count*2)
+	testOrgID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
 	
 	startTime := time.Now()
 	
@@ -511,6 +518,7 @@ func testMixedBatch(service *TestClickhouseService, count int) error {
 		eventWriteArgs := &WriteArgs{
 			WriteType: WRITE_EVENT,
 			EventID:   eventID,
+			OrgID:     &testOrgID,
 			IP:        fmt.Sprintf("203.0.113.%d", 100+(i%150)),
 			Browser:   "Mixed-Test-Browser/1.0",
 			URI:       fmt.Sprintf("/mixed-event/%d", i),
@@ -536,6 +544,7 @@ func testMixedBatch(service *TestClickhouseService, count int) error {
 		ltvWriteArgs := &WriteArgs{
 			WriteType: WRITE_LTV,
 			EventID:   uuid.New(),
+			OrgID:     &testOrgID,
 			IP:        fmt.Sprintf("203.0.113.%d", 100+(i%150)),
 			Browser:   "Mixed-Test-Browser/1.0",
 			URI:       fmt.Sprintf("/mixed-ltv/%d", i),
