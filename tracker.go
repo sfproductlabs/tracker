@@ -147,7 +147,18 @@ type WriteArgs struct {
 	URI            string
 	Host           string
 	EventID        uuid.UUID
+	OrgID          *uuid.UUID
 	CallingService *Service
+}
+
+// String implements the Stringer interface for WriteArgs
+func (w WriteArgs) String() string {
+	orgStr := "<nil>"
+	if w.OrgID != nil {
+		orgStr = w.OrgID.String()
+	}
+	return fmt.Sprintf("WriteArgs{Type:%d, EventID:%s, OrgID:%s, IP:%s, Host:%s, URI:%s}", 
+		w.WriteType, w.EventID.String(), orgStr, w.IP, w.Host, w.URI)
 }
 
 type ServiceArgs struct {
@@ -543,7 +554,7 @@ func main() {
 	fmt.Println("https://github.com/sfproductlabs/tracker")
 	fmt.Println("(c) Copyright 2018-2021 SF Product Labs LLC.")
 	fmt.Println("Use of this software is subject to the LICENSE agreement.")
-	fmt.Println("//////////////////////////////////////////////////////////////\n\n")
+	fmt.Println("//////////////////////////////////////////////////////////////")
 
 	//////////////////////////////////////// LOAD CONFIG
 	fmt.Println("Starting services...")

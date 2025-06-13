@@ -759,7 +759,7 @@ func (i *DuckService) exportAndTruncateTable(tableName string, incrementVersion 
 
 	//Remove the old version if we've ticked over to a new day
 	if lastModified.Day() != currentTime.Day() {
-		oldKey := fmt.Sprintf("%s/%s/year=%d/month=%d/day=%d/%s_v%d.parquet",
+		oldKey := fmt.Sprintf("%s/%s/%s/year=%d/month=%d/day=%d/%s_v%d.parquet",
 			i.AppConfig.S3Bucket,
 			i.AppConfig.S3Prefix,
 			tableName,
