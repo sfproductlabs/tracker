@@ -67,6 +67,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -85,6 +87,16 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
+}
+
+// Circuit breaker for handling connection failures
+type CircuitBreaker struct {
+	maxFailures   int
+	resetTimeout  time.Duration
+	failures      int32
+	lastFailTime  int64
+	state         int32 // 0=closed, 1=open, 2=half-open
+	mu            sync.RWMutex
 }
 
 // //////////////////////////////////////
@@ -348,9 +360,14 @@ type Service struct {
 }
 
 type ClickhouseService struct { //Implements 'session'
-	Configuration *Service
-	Session       *clickhouse.Conn
-	AppConfig     *Configuration
+	Configuration   *Service
+	Session         *clickhouse.Conn
+	AppConfig       *Configuration
+	circuitBreaker  *CircuitBreaker
+	healthTicker    *time.Ticker
+	healthDone      chan bool
+	batchManager    *BatchManager
+	batchingEnabled bool
 }
 
 type DuckService struct { //Implements 'session'

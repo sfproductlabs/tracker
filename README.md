@@ -221,3 +221,18 @@ curl -w "\n" -k -H 'Content-Type: application/json'  -XPOST  "https://localhost:
 #or privacy
 curl -w "\n" -k -H 'Content-Type: application/json' -XPOST  "https://localhost:8443/tr/v1/ppi/agree" -d '{"vid": "5ae3c890-5e55-11ea-9283-4fa18a847130", "cflags": 1024}'
 ```
+
+
+### Testing ClickHouse
+
+```bash
+go run tests/clickhouse.go
+```
+
+Note: You may need to flush the insert queue and wait for 2 seconds before querying the table.
+
+```bash
+clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2 && clickhouse client --query "SELECT COUNT(*)
+      FROM sfpla.events"
+```
+

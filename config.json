@@ -102,12 +102,18 @@
             "CACert": null,
             "Cert": null,
             "Key": null,
-            "Connections": 2,
-            "Context": "default",
+            "Connections": 5,
+            "Context": "sfpla",
             "Critical": true,
+            "Username": "default",
+            "Password": "",
             "Hosts": [
-                "127.0.0.1"
-            ],            
+                "127.0.0.1:9000"
+            ],
+            "BatchingEnabled": true,
+            "MaxBatchSize": 1000,
+            "BatchFlushInterval": 1000,
+            "EnableCompression": true,
             "Prune": [
                 {
                     "ClearAll": false,
@@ -128,7 +134,7 @@
             ],
             "Retries": 3,
             "Secure": false,
-            "Service": "clickhouse_",
+            "Service": "clickhouse",
             "Timeout": 300
         },
         {
