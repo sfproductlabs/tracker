@@ -69,7 +69,7 @@
         {
             "Connections": 1,
             "Context": "default", 
-            "Critical": true,
+            "Critical": false,
             "Hosts": [
                 "127.0.0.1"
             ],
@@ -94,6 +94,7 @@
             "Retries": 3,
             "Secure": false,
             "Service": "duckdb_",
+            "Skip": true,
             "Timeout": 300,
             "ProxyRealtimeStorageServiceName" : "cassandra",
             "ProxyRealtimeStorageServiceTables" : 18446744060824649724

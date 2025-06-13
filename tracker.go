@@ -663,6 +663,13 @@ func main() {
 	for idx := range configuration.Notify {
 		s := &configuration.Notify[idx]
 		notification_services[s.Service] = s
+		
+		// Skip service if marked for skipping
+		if s.Skip {
+			fmt.Printf("Notify #%d: Skipping %s service\n", idx, s.Service)
+			continue
+		}
+		
 		switch s.Service {
 		case SERVICE_TYPE_CLICKHOUSE:
 			fmt.Printf("Notify #%d: Connecting to ClickHouse: %s\n", idx, s.Hosts)
