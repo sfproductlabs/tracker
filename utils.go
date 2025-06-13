@@ -386,3 +386,114 @@ func SetValueInJSON(iface interface{}, path string, value interface{}) interface
 	}
 	return m
 }
+
+// //////////////////////////////////////
+// Mathematical utility functions
+// //////////////////////////////////////
+
+// maxInt returns the larger of two integers
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// min returns the smaller of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// //////////////////////////////////////
+// String/Type conversion utilities
+// //////////////////////////////////////
+
+// getStringValue converts interface{} to string with nil safety
+func getStringValue(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if str, ok := v.(string); ok {
+		return str
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+// getStringPtr converts interface{} to *string with nil safety
+func getStringPtr(v interface{}) *string {
+	if v == nil {
+		return nil
+	}
+	str := getStringValue(v)
+	if str == "" {
+		return nil
+	}
+	return &str
+}
+
+// parseUUID converts interface{} to *uuid.UUID with error handling
+func parseUUID(v interface{}) *uuid.UUID {
+	str := getStringValue(v)
+	if str == "" {
+		return nil
+	}
+	if parsed, err := uuid.Parse(str); err == nil {
+		return &parsed
+	}
+	return nil
+}
+
+// //////////////////////////////////////
+// Metrics manipulation utilities
+// //////////////////////////////////////
+
+// incrementMetric increments a metric value in a map by 1, handling type conversion
+func incrementMetric(metrics map[string]interface{}, key string) float64 {
+	if value, exists := metrics[key]; exists {
+		if floatValue, ok := value.(float64); ok {
+			return floatValue + 1
+		}
+		if intValue, ok := value.(int); ok {
+			return float64(intValue) + 1
+		}
+		if intValue, ok := value.(int64); ok {
+			return float64(intValue) + 1
+		}
+	}
+	return 1
+}
+
+// addToMetric adds a value to a metric in a map, handling type conversion
+func addToMetric(metrics map[string]interface{}, key string, addition float64) float64 {
+	if value, exists := metrics[key]; exists {
+		if floatValue, ok := value.(float64); ok {
+			return floatValue + addition
+		}
+		if intValue, ok := value.(int); ok {
+			return float64(intValue) + addition
+		}
+		if intValue, ok := value.(int64); ok {
+			return float64(intValue) + addition
+		}
+	}
+	return addition
+}
+
+// getMetricValue gets a metric value from a map as float64, handling type conversion
+func getMetricValue(metrics map[string]interface{}, key string) float64 {
+	if value, exists := metrics[key]; exists {
+		if floatValue, ok := value.(float64); ok {
+			return floatValue
+		}
+		if intValue, ok := value.(int); ok {
+			return float64(intValue)
+		}
+		if intValue, ok := value.(int64); ok {
+			return float64(intValue)
+		}
+	}
+	return 0
+}

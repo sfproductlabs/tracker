@@ -226,7 +226,7 @@ curl -w "\n" -k -H 'Content-Type: application/json' -XPOST  "https://localhost:8
 ### Testing ClickHouse
 
 ```bash
-go run tests/clickhouse.go
+go test -v -run TestBatchWrite tests/batch_write_test.go
 ```
 
 Note: You may need to flush the insert queue and wait for 2 seconds before querying the table.
