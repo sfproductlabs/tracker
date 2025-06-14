@@ -308,14 +308,14 @@ func (i *ClickhouseService) connect() error {
 	if i.AppConfig.Debug {
 		fmt.Printf("[DEBUG] Starting ClickHouse connection to hosts: %v\n", i.Configuration.Hosts)
 		fmt.Printf("[DEBUG] Using database: %s, username: %s\n", i.Configuration.Context, i.Configuration.Username)
-		fmt.Printf("[DEBUG] Connection timeout: %v\n", time.Duration(i.Configuration.Timeout) * time.Millisecond)
+		fmt.Printf("[DEBUG] Connection timeout: %v\n", time.Duration(i.Configuration.Timeout)*time.Millisecond)
 	}
-	
+
 	err = i.circuitBreaker.Execute(func() error {
 		if i.AppConfig.Debug {
 			fmt.Println("[DEBUG] Creating ClickHouse connection...")
 		}
-		
+
 		var connErr error
 		if conn, connErr := clickhouse.Open(opts); connErr != nil {
 			globalMetrics.UpdateErrorCount()
@@ -335,7 +335,7 @@ func (i *ClickhouseService) connect() error {
 		if i.AppConfig.Debug {
 			fmt.Println("[DEBUG] Testing ClickHouse connection with ping...")
 		}
-		
+
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -347,7 +347,7 @@ func (i *ClickhouseService) connect() error {
 			}
 			return NewTrackerError(ErrorTypeConnection, "ping", connErr.Error(), true)
 		}
-		
+
 		if i.AppConfig.Debug {
 			fmt.Println("[DEBUG] ClickHouse ping successful")
 		}
@@ -1319,14 +1319,6 @@ func (i *ClickhouseService) handlePingEndpoint(w *http.ResponseWriter, r *http.R
 	return encoder.Encode(response)
 }
 
-// uuidOrNull converts a UUID pointer to either the UUID value or nil for proper ClickHouse handling
-func uuidOrNull(u *uuid.UUID) interface{} {
-	if u == nil {
-		return nil
-	}
-	return *u
-}
-
 // jsonOrNull converts a map to JSON string or nil for ClickHouse compatibility
 func jsonOrNull(m interface{}) interface{} {
 	if m == nil {
@@ -1871,11 +1863,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			payment_id, targets, relation, rid
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
-				w.EventID, uuidOrNull(vid), uuidOrNull(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
-				updated, updated, uuidOrNull(uid), v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
-				bhash, uuidOrNull(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
+				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
+				updated, updated, parseUUID(uid), v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
+				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params), jsonOrNull(nparams),
-				uuidOrNull(paymentID), v["targets"], v["relation"], uuidOrNull(rid),
+				parseUUID(paymentID), v["targets"], v["relation"], parseUUID(rid),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events_recent]:", xerr)
 		}
@@ -1895,11 +1887,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			payment_id, targets, relation, rid
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
-				w.EventID, uuidOrNull(vid), uuidOrNull(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
-				updated, updated, uuidOrNull(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
-				bhash, uuidOrNull(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
+				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
+				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
+				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params), jsonOrNull(nparams),
-				uuidOrNull(paymentID), v["targets"], v["relation"], uuidOrNull(rid),
+				parseUUID(paymentID), v["targets"], v["relation"], parseUUID(rid),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
 		}
@@ -2004,14 +1996,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//nodes
 		if xerr := (*i.Session).Exec(ctx, `INSERT INTO nodes (hhash, vid, uid, iphash, ip, sid) VALUES (?, ?, ?, ?, ?, ?)`,
-			hhash, uuidOrNull(vid), uuidOrNull(uid), iphash, w.IP, uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
+			hhash, parseUUID(vid), parseUUID(uid), iphash, w.IP, parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[nodes]:", xerr)
 		}
 
 		//locations
 		if lat != nil && lon != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO locations (hhash, vid, lat, lon, uid, sid) VALUES (?, ?, ?, ?, ?, ?)`,
-				hhash, uuidOrNull(vid), lat, lon, uuidOrNull(uid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
+				hhash, parseUUID(vid), lat, lon, parseUUID(uid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[locations]:", xerr)
 			}
 		}
@@ -2019,7 +2011,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//alias
 		if uid != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO aliases (hhash, vid, uid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, uuidOrNull(vid), uuidOrNull(uid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
+				hhash, parseUUID(vid), parseUUID(uid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[aliases]:", xerr)
 			}
 		}
@@ -2027,7 +2019,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//userhosts
 		if uid != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, uuidOrNull(uid), uuidOrNull(vid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
+				hhash, parseUUID(uid), parseUUID(vid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[userhosts]:", xerr)
 			}
 		}
@@ -2035,7 +2027,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//uhash
 		if uhash != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, uhash, uuidOrNull(vid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
+				hhash, uhash, parseUUID(vid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[usernames]:", xerr)
 			}
 		}
@@ -2043,7 +2035,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//ehash
 		if ehash != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, ehash, uuidOrNull(vid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
+				hhash, ehash, parseUUID(vid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[emails]:", xerr)
 			}
 		}
@@ -2051,14 +2043,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//chash
 		if chash != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO cells (hhash, chash, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, chash, uuidOrNull(vid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
+				hhash, chash, parseUUID(vid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[cells]:", xerr)
 			}
 		}
 
 		//reqs
 		if xerr := (*i.Session).Exec(ctx, `INSERT INTO reqs (hhash, vid, total, date) VALUES (?, ?, 1, today())`,
-			hhash, uuidOrNull(vid)); xerr != nil && i.AppConfig.Debug {
+			hhash, parseUUID(vid)); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[reqs]:", xerr)
 		}
 
@@ -2071,10 +2063,10 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
-				vid, v["did"], sid, hhash, v["app"], v["rel"], cflags,
-				updated, updated, uid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-				v["ptyp"], bhash, auth, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-				params, nparams, v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
+				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
+				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+				v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+				jsonOrNull(params), jsonOrNull(nparams), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[visitors]:", xerr)
 			}
@@ -2087,9 +2079,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //51
-				uuidOrNull(vid), v["did"], uuidOrNull(sid), hhash, v["app"], v["rel"], cflags,
-				updated, updated, uuidOrNull(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-				v["ptyp"], bhash, uuidOrNull(auth), duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
+				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+				v["ptyp"], bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 				jsonOrNull(params), jsonOrNull(nparams), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[sessions]:", xerr)
@@ -2104,9 +2096,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 			source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
-			uuidOrNull(vid), v["did"], uuidOrNull(sid), hhash, v["app"], v["rel"], cflags,
-			updated, updated, uuidOrNull(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-			v["ptyp"], bhash, uuidOrNull(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+			parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
+			updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+			v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 			jsonOrNull(params), jsonOrNull(nparams), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[visitors_latest]:", xerr)
@@ -2382,4 +2374,3 @@ func (i *ClickhouseService) updateCampaignMetrics(ctx context.Context, event *Ca
 }
 
 // Helper functions for campaign telemetry integration
-
