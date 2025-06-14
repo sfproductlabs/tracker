@@ -236,3 +236,9 @@ clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2 && clickh
       FROM sfpla.events"
 ```
 
+```sql
+SELECT
+    dynamicType(params.go),
+    params, params.go
+FROM sfpla.events where params.go = 6;
+```
