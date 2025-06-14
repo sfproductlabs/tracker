@@ -435,13 +435,13 @@ func getStringPtr(v interface{}) *string {
 }
 
 // parseUUID converts interface{} to *uuid.UUID with error handling
-func parseUUID(v interface{}) *uuid.UUID {
+func parseUUID(v interface{}) interface{} {
 	str := getStringValue(v)
 	if str == "" {
 		return nil
 	}
 	if parsed, err := uuid.Parse(str); err == nil {
-		return &parsed
+		return parsed // Return UUID value, not pointer
 	}
 	return nil
 }

@@ -1327,6 +1327,36 @@ func uuidOrNull(u *uuid.UUID) interface{} {
 	return *u
 }
 
+// jsonOrNull converts a map to JSON string or nil for ClickHouse compatibility
+func jsonOrNull(m interface{}) interface{} {
+	if m == nil {
+		return nil
+	}
+	switch v := m.(type) {
+	case *map[string]interface{}:
+		if v == nil {
+			return nil
+		}
+		if jsonBytes, err := json.Marshal(*v); err == nil {
+			return string(jsonBytes)
+		}
+		return nil
+	case *map[string]float64:
+		if v == nil {
+			return nil
+		}
+		if jsonBytes, err := json.Marshal(*v); err == nil {
+			return string(jsonBytes)
+		}
+		return nil
+	default:
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			return string(jsonBytes)
+		}
+		return nil
+	}
+}
+
 // batchInsert adds an item to the batch manager or executes directly if batching is disabled
 func (i *ClickhouseService) batchInsert(tableName, sql string, args []interface{}, data map[string]interface{}) error {
 	if i.batchingEnabled && i.batchManager != nil {
@@ -1844,7 +1874,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				w.EventID, uuidOrNull(vid), uuidOrNull(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
 				updated, updated, uuidOrNull(uid), v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
 				bhash, uuidOrNull(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
-				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, params, nparams,
+				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params), jsonOrNull(nparams),
 				uuidOrNull(paymentID), v["targets"], v["relation"], uuidOrNull(rid),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events_recent]:", xerr)
@@ -1868,7 +1898,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				w.EventID, uuidOrNull(vid), uuidOrNull(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
 				updated, updated, uuidOrNull(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
 				bhash, uuidOrNull(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
-				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, params, nparams,
+				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params), jsonOrNull(nparams),
 				uuidOrNull(paymentID), v["targets"], v["relation"], uuidOrNull(rid),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
@@ -1974,14 +2004,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//nodes
 		if xerr := (*i.Session).Exec(ctx, `INSERT INTO nodes (hhash, vid, uid, iphash, ip, sid) VALUES (?, ?, ?, ?, ?, ?)`,
-			hhash, vid, uid, iphash, w.IP, sid); xerr != nil && i.AppConfig.Debug {
+			hhash, uuidOrNull(vid), uuidOrNull(uid), iphash, w.IP, uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[nodes]:", xerr)
 		}
 
 		//locations
 		if lat != nil && lon != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO locations (hhash, vid, lat, lon, uid, sid) VALUES (?, ?, ?, ?, ?, ?)`,
-				hhash, vid, lat, lon, uid, sid); xerr != nil && i.AppConfig.Debug {
+				hhash, uuidOrNull(vid), lat, lon, uuidOrNull(uid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[locations]:", xerr)
 			}
 		}
@@ -1989,7 +2019,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//alias
 		if uid != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO aliases (hhash, vid, uid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, vid, uid, sid); xerr != nil && i.AppConfig.Debug {
+				hhash, uuidOrNull(vid), uuidOrNull(uid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[aliases]:", xerr)
 			}
 		}
@@ -1997,7 +2027,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//userhosts
 		if uid != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, uid, vid, sid); xerr != nil && i.AppConfig.Debug {
+				hhash, uuidOrNull(uid), uuidOrNull(vid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[userhosts]:", xerr)
 			}
 		}
@@ -2005,7 +2035,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//uhash
 		if uhash != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, uhash, vid, sid); xerr != nil && i.AppConfig.Debug {
+				hhash, uhash, uuidOrNull(vid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[usernames]:", xerr)
 			}
 		}
@@ -2013,7 +2043,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//ehash
 		if ehash != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, ehash, vid, sid); xerr != nil && i.AppConfig.Debug {
+				hhash, ehash, uuidOrNull(vid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[emails]:", xerr)
 			}
 		}
@@ -2021,14 +2051,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//chash
 		if chash != nil {
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO cells (hhash, chash, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, chash, vid, sid); xerr != nil && i.AppConfig.Debug {
+				hhash, chash, uuidOrNull(vid), uuidOrNull(sid)); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[cells]:", xerr)
 			}
 		}
 
 		//reqs
 		if xerr := (*i.Session).Exec(ctx, `INSERT INTO reqs (hhash, vid, total, date) VALUES (?, ?, 1, today())`,
-			hhash, vid); xerr != nil && i.AppConfig.Debug {
+			hhash, uuidOrNull(vid)); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[reqs]:", xerr)
 		}
 
@@ -2057,10 +2087,10 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //51
-				vid, v["did"], sid, hhash, v["app"], v["rel"], cflags,
-				updated, updated, uid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-				v["ptyp"], bhash, auth, duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-				params, nparams, v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
+				uuidOrNull(vid), v["did"], uuidOrNull(sid), hhash, v["app"], v["rel"], cflags,
+				updated, updated, uuidOrNull(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+				v["ptyp"], bhash, uuidOrNull(auth), duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+				jsonOrNull(params), jsonOrNull(nparams), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[sessions]:", xerr)
 			}
@@ -2074,10 +2104,10 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 			source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
-			vid, v["did"], sid, hhash, v["app"], v["rel"], cflags,
-			updated, updated, uid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-			v["ptyp"], bhash, auth, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-			params, nparams, v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
+			uuidOrNull(vid), v["did"], uuidOrNull(sid), hhash, v["app"], v["rel"], cflags,
+			updated, updated, uuidOrNull(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+			v["ptyp"], bhash, uuidOrNull(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+			jsonOrNull(params), jsonOrNull(nparams), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[visitors_latest]:", xerr)
 		}
