@@ -501,9 +501,11 @@ func (bm *BatchManager) executeBatch(tableName string, items []BatchItem) error 
 	}
 	
 	// Add all items to batch
-	for _, item := range items {
+	for i, item := range items {
 		if err := batch.Append(item.Args...); err != nil {
 			atomic.AddInt64(&bm.metrics.FailedBatches, 1)
+			fmt.Printf("[ERROR] Batch append failed for table %s, item %d: %v\n", tableName, i, err)
+			fmt.Printf("[DEBUG] Failed item args: %+v\n", item.Args)
 			return NewTrackerError(ErrorTypeQuery, "executeBatch", 
 				fmt.Sprintf("failed to append to batch for table %s: %v", tableName, err), true)
 		}
@@ -524,6 +526,21 @@ func (bm *BatchManager) executeBatch(tableName string, items []BatchItem) error 
 	
 	if execErr != nil {
 		atomic.AddInt64(&bm.metrics.FailedBatches, 1)
+		
+		// Log detailed error information
+		fmt.Printf("[ERROR] Batch execution failed for table %s: %v\n", tableName, execErr)
+		fmt.Printf("[DEBUG] SQL: %s\n", bm.buildBatchSQL(tableName, items[0]))
+		fmt.Printf("[DEBUG] Number of items: %d\n", len(items))
+		
+		// Log first few items for debugging
+		for i, item := range items {
+			if i >= 3 { // Only log first 3 items to avoid spam
+				fmt.Printf("[DEBUG] ... and %d more items\n", len(items)-3)
+				break
+			}
+			fmt.Printf("[DEBUG] Item %d args: %+v\n", i, item.Args)
+		}
+		
 		return NewTrackerError(ErrorTypeQuery, "executeBatch", 
 			fmt.Sprintf("failed to execute batch for table %s after %d attempts: %v", 
 				tableName, config.RetryAttempts+1, execErr), true)

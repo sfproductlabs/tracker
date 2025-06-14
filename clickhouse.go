@@ -1319,33 +1319,56 @@ func (i *ClickhouseService) handlePingEndpoint(w *http.ResponseWriter, r *http.R
 	return encoder.Encode(response)
 }
 
-// jsonOrNull converts a map to JSON string or nil for ClickHouse compatibility
+// jsonOrNull converts a map to JSON string for ClickHouse JSON type
 func jsonOrNull(m interface{}) interface{} {
 	if m == nil {
-		return nil
+		return "{}"  // Return string, not RawMessage
 	}
 	switch v := m.(type) {
 	case *map[string]interface{}:
 		if v == nil {
-			return nil
+			return "{}"
 		}
 		if jsonBytes, err := json.Marshal(*v); err == nil {
-			return string(jsonBytes)
+			return string(jsonBytes)  // Return string, not RawMessage
 		}
-		return nil
+		return "{}"
 	case *map[string]float64:
 		if v == nil {
-			return nil
+			return "{}"
 		}
 		if jsonBytes, err := json.Marshal(*v); err == nil {
-			return string(jsonBytes)
+			return string(jsonBytes)  // Return string, not RawMessage
 		}
-		return nil
-	default:
+		return "{}"
+	case map[string]interface{}:
 		if jsonBytes, err := json.Marshal(v); err == nil {
-			return string(jsonBytes)
+			return string(jsonBytes)  // Return string, not RawMessage
 		}
-		return nil
+		return "{}"
+	case map[string]float64:
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			return string(jsonBytes)  // Return string, not RawMessage
+		}
+		return "{}"
+	case string:
+		// If it's already a JSON string
+		if v == "" {
+			return "{}"
+		}
+		return v  // Return string as-is
+	case json.RawMessage:
+		// Convert RawMessage to string
+		return string(v)
+	default:
+		if v == nil {
+			return "{}"
+		}
+		// Try to marshal other types
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			return string(jsonBytes)  // Return string, not RawMessage
+		}
+		return "{}"
 	}
 }
 
@@ -1867,7 +1890,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				updated, updated, parseUUID(uid), v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params), jsonOrNull(nparams),
-				parseUUID(paymentID), v["targets"], v["relation"], parseUUID(rid),
+				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events_recent]:", xerr)
 		}
@@ -1891,7 +1914,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params), jsonOrNull(nparams),
-				parseUUID(paymentID), v["targets"], v["relation"], parseUUID(rid),
+				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
 		}
