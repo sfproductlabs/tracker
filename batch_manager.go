@@ -38,105 +38,105 @@ const (
 
 // BatchConfig defines configuration for a specific table's batching behavior
 type BatchConfig struct {
-	TableName        string        `json:"table_name"`
-	Strategy         BatchStrategy `json:"strategy"`
-	MaxBatchSize     int           `json:"max_batch_size"`     // Number of rows
-	MaxBatchTime     time.Duration `json:"max_batch_time"`     // Time threshold
-	MaxMemoryMB      int           `json:"max_memory_mb"`      // Memory threshold in MB
-	Priority         int           `json:"priority"`           // 1=highest, 10=lowest
-	RetryAttempts    int           `json:"retry_attempts"`     // Number of retry attempts
-	RetryBackoffMs   int           `json:"retry_backoff_ms"`   // Backoff between retries
-	EnableCompression bool         `json:"enable_compression"` // Compress batch data
+	TableName         string        `json:"table_name"`
+	Strategy          BatchStrategy `json:"strategy"`
+	MaxBatchSize      int           `json:"max_batch_size"`     // Number of rows
+	MaxBatchTime      time.Duration `json:"max_batch_time"`     // Time threshold
+	MaxMemoryMB       int           `json:"max_memory_mb"`      // Memory threshold in MB
+	Priority          int           `json:"priority"`           // 1=highest, 10=lowest
+	RetryAttempts     int           `json:"retry_attempts"`     // Number of retry attempts
+	RetryBackoffMs    int           `json:"retry_backoff_ms"`   // Backoff between retries
+	EnableCompression bool          `json:"enable_compression"` // Compress batch data
 }
 
 // DefaultBatchConfigs provides optimized defaults for different table types
 var DefaultBatchConfigs = map[string]BatchConfig{
 	"events": {
-		TableName:        "events",
-		Strategy:         StrategyHybridBatch,
-		MaxBatchSize:     1000,
-		MaxBatchTime:     2 * time.Second,
-		MaxMemoryMB:      10,
-		Priority:         3,
-		RetryAttempts:    3,
-		RetryBackoffMs:   100,
+		TableName:         "events",
+		Strategy:          StrategyHybridBatch,
+		MaxBatchSize:      1000,
+		MaxBatchTime:      2 * time.Second,
+		MaxMemoryMB:       10,
+		Priority:          3,
+		RetryAttempts:     3,
+		RetryBackoffMs:    100,
 		EnableCompression: true,
 	},
 	"events_recent": {
-		TableName:        "events_recent",
-		Strategy:         StrategyHybridBatch,
-		MaxBatchSize:     500,
-		MaxBatchTime:     1 * time.Second,
-		MaxMemoryMB:      8,
-		Priority:         2, // Higher priority for recent events
-		RetryAttempts:    3,
-		RetryBackoffMs:   100,
+		TableName:         "events_recent",
+		Strategy:          StrategyHybridBatch,
+		MaxBatchSize:      500,
+		MaxBatchTime:      1 * time.Second,
+		MaxMemoryMB:       8,
+		Priority:          2, // Higher priority for recent events
+		RetryAttempts:     3,
+		RetryBackoffMs:    100,
 		EnableCompression: true,
 	},
 	"mthreads": {
-		TableName:        "mthreads",
-		Strategy:         StrategyTimeBasedBatch,
-		MaxBatchSize:     100,
-		MaxBatchTime:     5 * time.Second,
-		MaxMemoryMB:      5,
-		Priority:         2,
-		RetryAttempts:    3,
-		RetryBackoffMs:   200,
+		TableName:         "mthreads",
+		Strategy:          StrategyTimeBasedBatch,
+		MaxBatchSize:      100,
+		MaxBatchTime:      5 * time.Second,
+		MaxMemoryMB:       5,
+		Priority:          2,
+		RetryAttempts:     3,
+		RetryBackoffMs:    200,
 		EnableCompression: false,
 	},
 	"mstore": {
-		TableName:        "mstore",
-		Strategy:         StrategyHybridBatch,
-		MaxBatchSize:     500,
-		MaxBatchTime:     3 * time.Second,
-		MaxMemoryMB:      8,
-		Priority:         4,
-		RetryAttempts:    2,
-		RetryBackoffMs:   150,
+		TableName:         "mstore",
+		Strategy:          StrategyHybridBatch,
+		MaxBatchSize:      500,
+		MaxBatchTime:      3 * time.Second,
+		MaxMemoryMB:       8,
+		Priority:          4,
+		RetryAttempts:     2,
+		RetryBackoffMs:    150,
 		EnableCompression: true,
 	},
 	"mtriage": {
-		TableName:        "mtriage",
-		Strategy:         StrategyImmediateBatch,
-		MaxBatchSize:     1,
-		MaxBatchTime:     0,
-		MaxMemoryMB:      1,
-		Priority:         1, // Highest priority - critical for follow-ups
-		RetryAttempts:    5,
-		RetryBackoffMs:   50,
+		TableName:         "mtriage",
+		Strategy:          StrategyImmediateBatch,
+		MaxBatchSize:      1,
+		MaxBatchTime:      0,
+		MaxMemoryMB:       1,
+		Priority:          1, // Highest priority - critical for follow-ups
+		RetryAttempts:     5,
+		RetryBackoffMs:    50,
 		EnableCompression: false,
 	},
 	"visitors": {
-		TableName:        "visitors",
-		Strategy:         StrategySizeBasedBatch,
-		MaxBatchSize:     200,
-		MaxBatchTime:     10 * time.Second,
-		MaxMemoryMB:      3,
-		Priority:         5,
-		RetryAttempts:    2,
-		RetryBackoffMs:   300,
+		TableName:         "visitors",
+		Strategy:          StrategySizeBasedBatch,
+		MaxBatchSize:      200,
+		MaxBatchTime:      10 * time.Second,
+		MaxMemoryMB:       3,
+		Priority:          5,
+		RetryAttempts:     2,
+		RetryBackoffMs:    300,
 		EnableCompression: true,
 	},
 	"payments": {
-		TableName:        "payments",
-		Strategy:         StrategyImmediateBatch,
-		MaxBatchSize:     1,
-		MaxBatchTime:     0,
-		MaxMemoryMB:      1,
-		Priority:         1, // Critical financial data
-		RetryAttempts:    5,
-		RetryBackoffMs:   100,
+		TableName:         "payments",
+		Strategy:          StrategyImmediateBatch,
+		MaxBatchSize:      1,
+		MaxBatchTime:      0,
+		MaxMemoryMB:       1,
+		Priority:          1, // Critical financial data
+		RetryAttempts:     5,
+		RetryBackoffMs:    100,
 		EnableCompression: false,
 	},
 	"impression_daily": {
-		TableName:        "impression_daily",
-		Strategy:         StrategyHybridBatch,
-		MaxBatchSize:     250,
-		MaxBatchTime:     4 * time.Second,
-		MaxMemoryMB:      6,
-		Priority:         3,
-		RetryAttempts:    3,
-		RetryBackoffMs:   200,
+		TableName:         "impression_daily",
+		Strategy:          StrategyHybridBatch,
+		MaxBatchSize:      250,
+		MaxBatchTime:      4 * time.Second,
+		MaxMemoryMB:       6,
+		Priority:          3,
+		RetryAttempts:     3,
+		RetryBackoffMs:    200,
 		EnableCompression: true,
 	},
 }
@@ -167,13 +167,13 @@ type BatchMetrics struct {
 
 // TableBatch represents a batch for a specific table
 type TableBatch struct {
-	Config      BatchConfig   `json:"config"`
-	Items       []BatchItem   `json:"items"`
-	Size        int           `json:"size"`         // Total memory size in bytes
-	CreatedAt   time.Time     `json:"created_at"`
-	LastItemAt  time.Time     `json:"last_item_at"`
-	mu          sync.RWMutex  `json:"-"`
-	flushTimer  *time.Timer   `json:"-"`
+	Config     BatchConfig  `json:"config"`
+	Items      []BatchItem  `json:"items"`
+	Size       int          `json:"size"` // Total memory size in bytes
+	CreatedAt  time.Time    `json:"created_at"`
+	LastItemAt time.Time    `json:"last_item_at"`
+	mu         sync.RWMutex `json:"-"`
+	flushTimer *time.Timer  `json:"-"`
 }
 
 // BatchManager orchestrates all batching operations
@@ -183,17 +183,17 @@ type BatchManager struct {
 	configs      map[string]BatchConfig
 	metrics      *BatchMetrics
 	stopChan     chan bool
-	flushChan    chan string // Table name to flush
+	flushChan    chan string    // Table name to flush
 	priorityChan chan BatchItem // High priority items
 	mu           sync.RWMutex
 	running      bool
 	adaptiveMode bool
 	AppConfig    *Configuration
-	
+
 	// Adaptive batching variables
-	lastLoad     int64
-	avgLatency   int64
-	loadSamples  []int64
+	lastLoad    int64
+	avgLatency  int64
+	loadSamples []int64
 }
 
 // NewBatchManager creates a new batch manager with default configurations
@@ -210,7 +210,7 @@ func NewBatchManager(session clickhouse.Conn, appConfig *Configuration) *BatchMa
 		loadSamples:  make([]int64, 0, 100),
 		AppConfig:    appConfig,
 	}
-	
+
 	// Initialize with default configurations
 	for tableName, config := range DefaultBatchConfigs {
 		bm.configs[tableName] = config
@@ -220,35 +220,35 @@ func NewBatchManager(session clickhouse.Conn, appConfig *Configuration) *BatchMa
 			CreatedAt: time.Now(),
 		}
 	}
-	
+
 	return bm
 }
 
 // Start begins the batch processing goroutines
 func (bm *BatchManager) Start() error {
 	bm.mu.Lock()
-	
+
 	if bm.running {
 		bm.mu.Unlock()
 		return fmt.Errorf("batch manager is already running")
 	}
-	
+
 	bm.running = true
-	
+
 	// Start main batch processor
 	go bm.processBatches()
-	
+
 	// Start priority item processor
 	go bm.processPriorityItems()
-	
+
 	// Start adaptive optimizer (if enabled)
 	if bm.adaptiveMode {
 		go bm.adaptiveOptimizer()
 	}
-	
+
 	// Release write lock before acquiring read lock to avoid deadlock
 	bm.mu.Unlock()
-	
+
 	// Start flush timers for each table
 	bm.mu.RLock()
 	for tableName, batch := range bm.batches {
@@ -257,7 +257,7 @@ func (bm *BatchManager) Start() error {
 		}
 	}
 	bm.mu.RUnlock()
-	
+
 	fmt.Println("✅ Batch Manager started with", len(bm.configs), "table configurations")
 	return nil
 }
@@ -266,27 +266,27 @@ func (bm *BatchManager) Start() error {
 func (bm *BatchManager) Stop() error {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
-	
+
 	if !bm.running {
 		return nil
 	}
-	
+
 	fmt.Println("🛑 Stopping Batch Manager...")
-	
+
 	// Stop all timers
 	for _, batch := range bm.batches {
 		if batch.flushTimer != nil {
 			batch.flushTimer.Stop()
 		}
 	}
-	
+
 	// Flush all remaining batches
 	bm.flushAllBatches()
-	
+
 	// Signal stop
 	close(bm.stopChan)
 	bm.running = false
-	
+
 	fmt.Println("✅ Batch Manager stopped gracefully")
 	return nil
 }
@@ -298,28 +298,28 @@ func (bm *BatchManager) AddItem(item BatchItem) error {
 		latency := time.Since(start).Milliseconds()
 		atomic.AddInt64(&bm.metrics.AvgFlushLatencyMs, latency)
 	}()
-	
+
 	// Validate item
 	if item.TableName == "" {
 		return NewTrackerError(ErrorTypeValidation, "AddItem", "table_name is required", false)
 	}
-	
+
 	// Check if table is configured
 	config, exists := bm.configs[item.TableName]
 	if !exists {
 		return NewTrackerError(ErrorTypeValidation, "AddItem", fmt.Sprintf("no configuration for table %s", item.TableName), false)
 	}
-	
+
 	// Set defaults
 	item.ID = uuid.New()
 	item.Timestamp = time.Now()
 	if item.Priority == 0 {
 		item.Priority = config.Priority
 	}
-	
+
 	// Estimate memory size
 	item.Size = bm.estimateItemSize(item)
-	
+
 	// Handle immediate strategy or high priority items
 	if config.Strategy == StrategyImmediateBatch || item.Priority == 1 {
 		select {
@@ -330,7 +330,7 @@ func (bm *BatchManager) AddItem(item BatchItem) error {
 			return bm.processItemImmediately(item)
 		}
 	}
-	
+
 	// Add to batch
 	return bm.addToBatch(item)
 }
@@ -340,41 +340,41 @@ func (bm *BatchManager) addToBatch(item BatchItem) error {
 	bm.mu.RLock()
 	batch, exists := bm.batches[item.TableName]
 	bm.mu.RUnlock()
-	
+
 	if !exists {
 		return NewTrackerError(ErrorTypeValidation, "addToBatch", fmt.Sprintf("batch not found for table %s", item.TableName), false)
 	}
-	
+
 	batch.mu.Lock()
 	defer batch.mu.Unlock()
-	
+
 	// Add item to batch
 	batch.Items = append(batch.Items, item)
 	batch.Size += item.Size
 	batch.LastItemAt = time.Now()
-	
+
 	// Update metrics
 	atomic.AddInt64(&bm.metrics.QueuedItems, 1)
 	atomic.AddInt64(&bm.metrics.MemoryUsageMB, int64(item.Size/1024/1024))
-	
+
 	// Check if batch should be flushed
 	shouldFlush := false
-	
+
 	switch batch.Config.Strategy {
 	case StrategySizeBasedBatch:
 		shouldFlush = len(batch.Items) >= batch.Config.MaxBatchSize
-		
+
 	case StrategyMemoryBasedBatch:
 		shouldFlush = batch.Size >= (batch.Config.MaxMemoryMB * 1024 * 1024)
-		
+
 	case StrategyHybridBatch:
 		shouldFlush = len(batch.Items) >= batch.Config.MaxBatchSize ||
 			batch.Size >= (batch.Config.MaxMemoryMB*1024*1024)
-		
+
 	case StrategyAdaptiveBatch:
 		shouldFlush = bm.shouldFlushAdaptive(batch)
 	}
-	
+
 	if shouldFlush {
 		// Trigger async flush - completely non-blocking to prevent HTTP hangs
 		select {
@@ -385,7 +385,7 @@ func (bm *BatchManager) addToBatch(item BatchItem) error {
 			// The timeout-based flush or next batch will handle it
 		}
 	}
-	
+
 	return nil
 }
 
@@ -395,13 +395,13 @@ func (bm *BatchManager) processBatches() {
 		select {
 		case <-bm.stopChan:
 			return
-			
+
 		case tableName := <-bm.flushChan:
 			if err := bm.flushBatch(tableName); err != nil {
 				globalMetrics.UpdateErrorCount()
 				fmt.Printf("[ERROR] Failed to flush batch for table %s: %v\n", tableName, err)
 			}
-			
+
 		case <-time.After(100 * time.Millisecond):
 			// Check for timeout-based flushes
 			bm.checkTimeoutFlushes()
@@ -415,7 +415,7 @@ func (bm *BatchManager) processPriorityItems() {
 		select {
 		case <-bm.stopChan:
 			return
-			
+
 		case item := <-bm.priorityChan:
 			if err := bm.processItemImmediately(item); err != nil {
 				globalMetrics.UpdateErrorCount()
@@ -429,21 +429,21 @@ func (bm *BatchManager) processPriorityItems() {
 func (bm *BatchManager) processItemImmediately(item BatchItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	start := time.Now()
 	err := bm.session.Exec(ctx, item.SQL, item.Args...)
 	latency := time.Since(start)
-	
+
 	if err != nil {
-		return NewTrackerError(ErrorTypeQuery, "processItemImmediately", 
+		return NewTrackerError(ErrorTypeQuery, "processItemImmediately",
 			fmt.Sprintf("failed to execute immediate query for table %s: %v", item.TableName, err), true)
 	}
-	
+
 	// Update metrics
 	atomic.AddInt64(&bm.metrics.TotalBatches, 1)
 	atomic.AddInt64(&bm.metrics.TotalItems, 1)
 	atomic.AddInt64(&bm.metrics.AvgFlushLatencyMs, latency.Milliseconds())
-	
+
 	return nil
 }
 
@@ -452,29 +452,29 @@ func (bm *BatchManager) flushBatch(tableName string) error {
 	bm.mu.RLock()
 	batch, exists := bm.batches[tableName]
 	bm.mu.RUnlock()
-	
+
 	if !exists {
 		return fmt.Errorf("batch not found for table %s", tableName)
 	}
-	
+
 	batch.mu.Lock()
-	
+
 	// Check if batch is empty
 	if len(batch.Items) == 0 {
 		batch.mu.Unlock()
 		return nil
 	}
-	
+
 	// Copy items and reset batch
 	items := make([]BatchItem, len(batch.Items))
 	copy(items, batch.Items)
-	
+
 	batch.Items = batch.Items[:0] // Reset slice but keep capacity
 	batch.Size = 0
 	batch.CreatedAt = time.Now()
-	
+
 	batch.mu.Unlock()
-	
+
 	// Process batch
 	return bm.executeBatch(tableName, items)
 }
@@ -484,33 +484,33 @@ func (bm *BatchManager) executeBatch(tableName string, items []BatchItem) error 
 	if len(items) == 0 {
 		return nil
 	}
-	
+
 	start := time.Now()
 	config := bm.configs[tableName]
-	
+
 	// Create batch context with timeout (reduced to prevent hanging)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	// Prepare batch insert
 	batch, err := bm.session.PrepareBatch(ctx, bm.buildBatchSQL(tableName, items[0]))
 	if err != nil {
 		atomic.AddInt64(&bm.metrics.FailedBatches, 1)
-		return NewTrackerError(ErrorTypeQuery, "executeBatch", 
+		return NewTrackerError(ErrorTypeQuery, "executeBatch",
 			fmt.Sprintf("failed to prepare batch for table %s: %v", tableName, err), true)
 	}
-	
+
 	// Add all items to batch
 	for i, item := range items {
 		if err := batch.Append(item.Args...); err != nil {
 			atomic.AddInt64(&bm.metrics.FailedBatches, 1)
 			fmt.Printf("[ERROR] Batch append failed for table %s, item %d: %v\n", tableName, i, err)
 			fmt.Printf("[DEBUG] Failed item args: %+v\n", item.Args)
-			return NewTrackerError(ErrorTypeQuery, "executeBatch", 
+			return NewTrackerError(ErrorTypeQuery, "executeBatch",
 				fmt.Sprintf("failed to append to batch for table %s: %v", tableName, err), true)
 		}
 	}
-	
+
 	// Execute batch with retry logic
 	var execErr error
 	for attempt := 0; attempt <= config.RetryAttempts; attempt++ {
@@ -518,20 +518,20 @@ func (bm *BatchManager) executeBatch(tableName string, items []BatchItem) error 
 		if execErr == nil {
 			break
 		}
-		
+
 		if attempt < config.RetryAttempts {
 			time.Sleep(time.Duration(config.RetryBackoffMs) * time.Millisecond)
 		}
 	}
-	
+
 	if execErr != nil {
 		atomic.AddInt64(&bm.metrics.FailedBatches, 1)
-		
+
 		// Log detailed error information
 		fmt.Printf("[ERROR] Batch execution failed for table %s: %v\n", tableName, execErr)
 		fmt.Printf("[DEBUG] SQL: %s\n", bm.buildBatchSQL(tableName, items[0]))
 		fmt.Printf("[DEBUG] Number of items: %d\n", len(items))
-		
+
 		// Log first few items for debugging
 		for i, item := range items {
 			if i >= 3 { // Only log first 3 items to avoid spam
@@ -540,12 +540,12 @@ func (bm *BatchManager) executeBatch(tableName string, items []BatchItem) error 
 			}
 			fmt.Printf("[DEBUG] Item %d args: %+v\n", i, item.Args)
 		}
-		
-		return NewTrackerError(ErrorTypeQuery, "executeBatch", 
-			fmt.Sprintf("failed to execute batch for table %s after %d attempts: %v", 
+
+		return NewTrackerError(ErrorTypeQuery, "executeBatch",
+			fmt.Sprintf("failed to execute batch for table %s after %d attempts: %v",
 				tableName, config.RetryAttempts+1, execErr), true)
 	}
-	
+
 	// Update metrics
 	latency := time.Since(start)
 	atomic.AddInt64(&bm.metrics.TotalBatches, 1)
@@ -553,17 +553,19 @@ func (bm *BatchManager) executeBatch(tableName string, items []BatchItem) error 
 	atomic.AddInt64(&bm.metrics.AvgFlushLatencyMs, latency.Milliseconds())
 	atomic.AddInt64(&bm.metrics.QueuedItems, -int64(len(items)))
 	atomic.StoreInt64(&bm.metrics.LastFlushTime, time.Now().Unix())
-	
+
 	// Update average batch size
 	totalBatches := atomic.LoadInt64(&bm.metrics.TotalBatches)
 	if totalBatches > 0 {
 		avgSize := atomic.LoadInt64(&bm.metrics.TotalItems) / totalBatches
 		atomic.StoreInt64(&bm.metrics.AvgBatchSize, avgSize)
 	}
-	
+
 	// Debug logging for batch flush
-	fmt.Printf("[BATCH] Flushed %d items to table %s in %v\n", len(items), tableName, latency)
-	
+	if bm.AppConfig.Debug {
+		fmt.Printf("[BATCH] Flushed %d items to table %s in %v\n", len(items), tableName, latency)
+	}
+
 	return nil
 }
 
@@ -577,17 +579,17 @@ func (bm *BatchManager) buildBatchSQL(tableName string, sampleItem BatchItem) st
 // checkTimeoutFlushes checks for batches that have exceeded their time threshold
 func (bm *BatchManager) checkTimeoutFlushes() {
 	now := time.Now()
-	
+
 	bm.mu.RLock()
 	defer bm.mu.RUnlock()
-	
+
 	for tableName, batch := range bm.batches {
 		if batch.Config.Strategy == StrategyTimeBasedBatch || batch.Config.Strategy == StrategyHybridBatch {
 			batch.mu.RLock()
-			shouldFlush := len(batch.Items) > 0 && 
+			shouldFlush := len(batch.Items) > 0 &&
 				now.Sub(batch.CreatedAt) >= batch.Config.MaxBatchTime
 			batch.mu.RUnlock()
-			
+
 			if shouldFlush {
 				select {
 				case bm.flushChan <- tableName:
@@ -607,7 +609,7 @@ func (bm *BatchManager) flushAllBatches() {
 		tableNames = append(tableNames, tableName)
 	}
 	bm.mu.RUnlock()
-	
+
 	for _, tableName := range tableNames {
 		if err := bm.flushBatch(tableName); err != nil {
 			fmt.Printf("[ERROR] Failed to flush batch during shutdown for table %s: %v\n", tableName, err)
@@ -621,7 +623,7 @@ func (bm *BatchManager) startFlushTimer(tableName string) {
 	if batch.flushTimer != nil {
 		batch.flushTimer.Stop()
 	}
-	
+
 	batch.flushTimer = time.AfterFunc(batch.Config.MaxBatchTime, func() {
 		select {
 		case bm.flushChan <- tableName:
@@ -637,7 +639,7 @@ func (bm *BatchManager) estimateItemSize(item BatchItem) int {
 	// Basic estimation - could be enhanced with more accurate measurement
 	size := len(item.SQL)
 	size += len(item.TableName)
-	
+
 	// Estimate args size
 	for _, arg := range item.Args {
 		switch v := arg.(type) {
@@ -649,14 +651,14 @@ func (bm *BatchManager) estimateItemSize(item BatchItem) int {
 			size += 8 // Rough estimate for other types
 		}
 	}
-	
+
 	// Estimate data size (JSON approximation)
 	if item.Data != nil {
 		if jsonData, err := json.Marshal(item.Data); err == nil {
 			size += len(jsonData)
 		}
 	}
-	
+
 	return size
 }
 
@@ -665,7 +667,7 @@ func (bm *BatchManager) shouldFlushAdaptive(batch *TableBatch) bool {
 	// Load-based adaptive batching
 	currentLoad := atomic.LoadInt64(&globalMetrics.EventCount)
 	loadDiff := currentLoad - bm.lastLoad
-	
+
 	// High load = smaller batches for lower latency
 	// Low load = larger batches for better throughput
 	if loadDiff > 100 { // High load
@@ -673,7 +675,7 @@ func (bm *BatchManager) shouldFlushAdaptive(batch *TableBatch) bool {
 	} else if loadDiff < 10 { // Low load
 		return len(batch.Items) >= batch.Config.MaxBatchSize
 	}
-	
+
 	// Normal load - use hybrid approach
 	return len(batch.Items) >= batch.Config.MaxBatchSize ||
 		batch.Size >= (batch.Config.MaxMemoryMB*1024*1024)
@@ -683,12 +685,12 @@ func (bm *BatchManager) shouldFlushAdaptive(batch *TableBatch) bool {
 func (bm *BatchManager) adaptiveOptimizer() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-bm.stopChan:
 			return
-			
+
 		case <-ticker.C:
 			bm.optimizeBatchParameters()
 		}
@@ -701,35 +703,35 @@ func (bm *BatchManager) optimizeBatchParameters() {
 	avgLatency := atomic.LoadInt64(&bm.metrics.AvgFlushLatencyMs)
 	totalBatches := atomic.LoadInt64(&bm.metrics.TotalBatches)
 	failedBatches := atomic.LoadInt64(&bm.metrics.FailedBatches)
-	
+
 	if totalBatches == 0 {
 		return
 	}
-	
+
 	errorRate := float64(failedBatches) / float64(totalBatches)
-	
+
 	// Adjust parameters based on performance
 	bm.mu.Lock()
 	for tableName, config := range bm.configs {
 		newConfig := config
-		
+
 		// If error rate is high, reduce batch sizes
 		if errorRate > 0.05 { // 5% error rate
 			newConfig.MaxBatchSize = max(newConfig.MaxBatchSize/2, 10)
 			newConfig.MaxMemoryMB = max(newConfig.MaxMemoryMB/2, 1)
 		}
-		
+
 		// If latency is high, reduce batch sizes
 		if avgLatency > 1000 { // 1 second
 			newConfig.MaxBatchSize = max(newConfig.MaxBatchSize*3/4, 10)
 		}
-		
+
 		// If latency is low and error rate is low, can increase batch sizes
 		if avgLatency < 100 && errorRate < 0.01 { // 100ms, 1% error rate
 			newConfig.MaxBatchSize = min(newConfig.MaxBatchSize*5/4, 5000)
 			newConfig.MaxMemoryMB = min(newConfig.MaxMemoryMB*5/4, 50)
 		}
-		
+
 		// Update if changed
 		if newConfig != config {
 			bm.configs[tableName] = newConfig
@@ -759,9 +761,9 @@ func (bm *BatchManager) GetMetrics() BatchMetrics {
 func (bm *BatchManager) UpdateConfig(tableName string, config BatchConfig) error {
 	bm.mu.Lock()
 	defer bm.mu.Unlock()
-	
+
 	bm.configs[tableName] = config
-	
+
 	if batch, exists := bm.batches[tableName]; exists {
 		batch.mu.Lock()
 		batch.Config = config
@@ -774,6 +776,6 @@ func (bm *BatchManager) UpdateConfig(tableName string, config BatchConfig) error
 			CreatedAt: time.Now(),
 		}
 	}
-	
+
 	return nil
 }

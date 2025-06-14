@@ -1320,55 +1320,59 @@ func (i *ClickhouseService) handlePingEndpoint(w *http.ResponseWriter, r *http.R
 }
 
 // jsonOrNull converts a map to JSON string for ClickHouse JSON type
+// TODO: could use []byte("null") or json.RawMessage("null") in the place of json.RawMessage("{}")
 func jsonOrNull(m interface{}) interface{} {
 	if m == nil {
-		return "{}" // Return string, not RawMessage
+		return json.RawMessage("{}")
 	}
 	switch v := m.(type) {
 	case *map[string]interface{}:
 		if v == nil {
-			return "{}"
+			return json.RawMessage("{}")
 		}
 		if jsonBytes, err := json.Marshal(*v); err == nil {
-			return string(jsonBytes) // Return string, not RawMessage
+			return json.RawMessage(jsonBytes)
 		}
-		return "{}"
+		return json.RawMessage("{}")
 	case *map[string]float64:
 		if v == nil {
-			return "{}"
+			return json.RawMessage("{}")
 		}
 		if jsonBytes, err := json.Marshal(*v); err == nil {
-			return string(jsonBytes) // Return string, not RawMessage
+			return json.RawMessage(jsonBytes)
 		}
-		return "{}"
+		return json.RawMessage("{}")
 	case map[string]interface{}:
 		if jsonBytes, err := json.Marshal(v); err == nil {
-			return string(jsonBytes) // Return string, not RawMessage
+			return json.RawMessage(jsonBytes)
 		}
-		return "{}"
+		return json.RawMessage("{}")
 	case map[string]float64:
 		if jsonBytes, err := json.Marshal(v); err == nil {
-			return string(jsonBytes) // Return string, not RawMessage
+			return json.RawMessage(jsonBytes)
 		}
-		return "{}"
+		return json.RawMessage("{}")
 	case string:
 		// If it's already a JSON string
 		if v == "" {
-			return "{}"
+			return json.RawMessage("{}")
 		}
-		return v // Return string as-is
+		return json.RawMessage(v)
 	case json.RawMessage:
-		// Convert RawMessage to string
-		return string(v)
+		// Return RawMessage as-is
+		if len(v) == 0 {
+			return json.RawMessage("{}")
+		}
+		return v
 	default:
 		if v == nil {
-			return "{}"
+			return json.RawMessage("{}")
 		}
 		// Try to marshal other types
 		if jsonBytes, err := json.Marshal(v); err == nil {
-			return string(jsonBytes) // Return string, not RawMessage
+			return json.RawMessage(jsonBytes)
 		}
-		return "{}"
+		return json.RawMessage("{}")
 	}
 }
 
