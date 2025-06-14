@@ -1322,7 +1322,7 @@ func (i *ClickhouseService) handlePingEndpoint(w *http.ResponseWriter, r *http.R
 // jsonOrNull converts a map to JSON string for ClickHouse JSON type
 func jsonOrNull(m interface{}) interface{} {
 	if m == nil {
-		return "{}"  // Return string, not RawMessage
+		return "{}" // Return string, not RawMessage
 	}
 	switch v := m.(type) {
 	case *map[string]interface{}:
@@ -1330,7 +1330,7 @@ func jsonOrNull(m interface{}) interface{} {
 			return "{}"
 		}
 		if jsonBytes, err := json.Marshal(*v); err == nil {
-			return string(jsonBytes)  // Return string, not RawMessage
+			return string(jsonBytes) // Return string, not RawMessage
 		}
 		return "{}"
 	case *map[string]float64:
@@ -1338,17 +1338,17 @@ func jsonOrNull(m interface{}) interface{} {
 			return "{}"
 		}
 		if jsonBytes, err := json.Marshal(*v); err == nil {
-			return string(jsonBytes)  // Return string, not RawMessage
+			return string(jsonBytes) // Return string, not RawMessage
 		}
 		return "{}"
 	case map[string]interface{}:
 		if jsonBytes, err := json.Marshal(v); err == nil {
-			return string(jsonBytes)  // Return string, not RawMessage
+			return string(jsonBytes) // Return string, not RawMessage
 		}
 		return "{}"
 	case map[string]float64:
 		if jsonBytes, err := json.Marshal(v); err == nil {
-			return string(jsonBytes)  // Return string, not RawMessage
+			return string(jsonBytes) // Return string, not RawMessage
 		}
 		return "{}"
 	case string:
@@ -1356,7 +1356,7 @@ func jsonOrNull(m interface{}) interface{} {
 		if v == "" {
 			return "{}"
 		}
-		return v  // Return string as-is
+		return v // Return string as-is
 	case json.RawMessage:
 		// Convert RawMessage to string
 		return string(v)
@@ -1366,7 +1366,7 @@ func jsonOrNull(m interface{}) interface{} {
 		}
 		// Try to marshal other types
 		if jsonBytes, err := json.Marshal(v); err == nil {
-			return string(jsonBytes)  // Return string, not RawMessage
+			return string(jsonBytes) // Return string, not RawMessage
 		}
 		return "{}"
 	}
