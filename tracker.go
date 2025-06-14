@@ -157,7 +157,7 @@ func (w WriteArgs) String() string {
 	if w.OrgID != nil {
 		orgStr = w.OrgID.String()
 	}
-	return fmt.Sprintf("WriteArgs{Type:%d, EventID:%s, OrgID:%s, IP:%s, Host:%s, URI:%s}", 
+	return fmt.Sprintf("WriteArgs{Type:%d, EventID:%s, OrgID:%s, IP:%s, Host:%s, URI:%s}",
 		w.WriteType, w.EventID.String(), orgStr, w.IP, w.Host, w.URI)
 }
 
@@ -663,13 +663,13 @@ func main() {
 	for idx := range configuration.Notify {
 		s := &configuration.Notify[idx]
 		notification_services[s.Service] = s
-		
+
 		// Skip service if marked for skipping
 		if s.Skip {
 			fmt.Printf("Notify #%d: Skipping %s service\n", idx, s.Service)
 			continue
 		}
-		
+
 		switch s.Service {
 		case SERVICE_TYPE_CLICKHOUSE:
 			fmt.Printf("Notify #%d: Connecting to ClickHouse: %s\n", idx, s.Hosts)
@@ -999,7 +999,7 @@ func main() {
 				proxy.ServeHTTP(w, r)
 				//Track
 				if configuration.ProxyUrlFilter != "" && !proxyFilter.MatchString(r.URL.Path) {
-					track(&configuration, &w, r)
+					track(&configuration, &w, r, nil)
 				}
 				connc <- struct{}{}
 			default:
@@ -1038,7 +1038,7 @@ func main() {
 	http.HandleFunc(pubSlug, func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
-			track(&configuration, &w, r)
+			track(&configuration, &w, r, nil)
 			http.StripPrefix(pubSlug, fs).ServeHTTP(w, r)
 			connc <- struct{}{}
 		default:
@@ -1051,7 +1051,7 @@ func main() {
 	http.HandleFunc("/tr/"+apiVersion+"/img/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
-			track(&configuration, &w, r)
+			track(&configuration, &w, r, nil)
 			w.Header().Set("content-type", "image/gif")
 			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 			w.Write(TRACKING_GIF)
@@ -1074,7 +1074,7 @@ func main() {
 		} else {
 			select {
 			case <-connc:
-				track(&configuration, &w, r)
+				track(&configuration, &w, r, nil)
 				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
 				w.WriteHeader(http.StatusOK)
 				connc <- struct{}{}
@@ -1143,7 +1143,7 @@ func main() {
 	http.HandleFunc("/tr/"+apiVersion+"/rdr/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
-			track(&configuration, &w, r)
+			track(&configuration, &w, r, &TrackOptions{IsServer: false})
 			rURL := r.URL.Query()["url"]
 			if len(rURL) > 0 {
 				http.Redirect(w, r, rURL[0], http.StatusFound)
@@ -1196,66 +1196,66 @@ func main() {
 			configuration.UseGeoIP = false
 		} else {
 			kv.GetValue([]byte("DB_VER"), func(val []byte) error {
-			if len(val) == 0 || val[0] != byte(configuration.GeoIPVersion) {
-				fmt.Println("Restoring Geoip Database...")
-				Unzip(configuration.IPv4GeoIPZip, configuration.TempDirectory)
-				Unzip(configuration.IPv6GeoIPZip, configuration.TempDirectory)
-				wb := kv.GetWriteBatch()
-				i := 0
-				load := func(src string, keyprefix string, pad int) {
-					file, _ := os.Open(src)
-					defer file.Close()
-					r := csv.NewReader(file)
-					for {
-						i++
-						rec, err := r.Read()
-						if err == io.EOF {
-							break
-						}
-						if err != nil {
-							log.Fatal(err)
-						}
-						if rec[0] == "" || rec[1] == "" || rec[0] == "-" || rec[1] == "-" {
-							continue
-						}
-						for g := 0; g < len(rec); g++ {
-							if rec[g] == "-" {
-								rec[g] = ""
+				if len(val) == 0 || val[0] != byte(configuration.GeoIPVersion) {
+					fmt.Println("Restoring Geoip Database...")
+					Unzip(configuration.IPv4GeoIPZip, configuration.TempDirectory)
+					Unzip(configuration.IPv6GeoIPZip, configuration.TempDirectory)
+					wb := kv.GetWriteBatch()
+					i := 0
+					load := func(src string, keyprefix string, pad int) {
+						file, _ := os.Open(src)
+						defer file.Close()
+						r := csv.NewReader(file)
+						for {
+							i++
+							rec, err := r.Read()
+							if err == io.EOF {
+								break
 							}
+							if err != nil {
+								log.Fatal(err)
+							}
+							if rec[0] == "" || rec[1] == "" || rec[0] == "-" || rec[1] == "-" {
+								continue
+							}
+							for g := 0; g < len(rec); g++ {
+								if rec[g] == "-" {
+									rec[g] = ""
+								}
+							}
+							//Ipv4 has 10 decimal places
+							//Ipv6 has 39 decimal places
+							lat, _ := strconv.ParseFloat(rec[6], 64)
+							lon, _ := strconv.ParseFloat(rec[7], 64)
+							geoip := GeoIP{
+								IPStart:     rec[0],
+								IPEnd:       rec[1],
+								CountryISO2: rec[2],
+								Country:     rec[3],
+								Region:      rec[4],
+								City:        rec[5],
+								Latitude:    lat,
+								Longitude:   lon,
+								Zip:         rec[8],
+								Timezone:    rec[9],
+							}
+							if i%100000 == 0 {
+								fmt.Print(".")
+								kv.CommitWriteBatch(wb)
+								wb.Clear()
+							}
+							js, err := json.Marshal(geoip)
+							wb.Put([]byte(keyprefix+FixedLengthNumberString(pad, rec[0])), js)
 						}
-						//Ipv4 has 10 decimal places
-						//Ipv6 has 39 decimal places
-						lat, _ := strconv.ParseFloat(rec[6], 64)
-						lon, _ := strconv.ParseFloat(rec[7], 64)
-						geoip := GeoIP{
-							IPStart:     rec[0],
-							IPEnd:       rec[1],
-							CountryISO2: rec[2],
-							Country:     rec[3],
-							Region:      rec[4],
-							City:        rec[5],
-							Latitude:    lat,
-							Longitude:   lon,
-							Zip:         rec[8],
-							Timezone:    rec[9],
-						}
-						if i%100000 == 0 {
-							fmt.Print(".")
-							kv.CommitWriteBatch(wb)
-							wb.Clear()
-						}
-						js, err := json.Marshal(geoip)
-						wb.Put([]byte(keyprefix+FixedLengthNumberString(pad, rec[0])), js)
+						kv.CommitWriteBatch(wb)
+						wb.wb.Close()
 					}
-					kv.CommitWriteBatch(wb)
-					wb.wb.Close()
+					load(configuration.TempDirectory+configuration.IPv4GeoIPCSVDest, IDX_PREFIX_IPV4, 10)
+					load(configuration.TempDirectory+configuration.IPv6GeoIPCSVDest, IDX_PREFIX_IPV6, 39)
+					kv.SaveValue([]byte("DB_VER"), []byte{byte(configuration.GeoIPVersion)})
 				}
-				load(configuration.TempDirectory+configuration.IPv4GeoIPCSVDest, IDX_PREFIX_IPV4, 10)
-				load(configuration.TempDirectory+configuration.IPv6GeoIPCSVDest, IDX_PREFIX_IPV6, 39)
-				kv.SaveValue([]byte("DB_VER"), []byte{byte(configuration.GeoIPVersion)})
-			}
-			return nil
-		})
+				return nil
+			})
 		}
 	}
 
@@ -1433,8 +1433,16 @@ func ltv(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 // //////////////////////////////////////
 // Telemetry
 // //////////////////////////////////////
-func track(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
+type TrackOptions struct {
+	IsServer bool
+}
+
+func track(c *Configuration, w *http.ResponseWriter, r *http.Request, opts *TrackOptions) error {
 	//Setup
+	isServer := true
+	if opts != nil {
+		isServer = opts.IsServer
+	}
 	wargs := WriteArgs{
 		WriteType: WRITE_EVENT,
 		IP:        getIP(r),
@@ -1443,6 +1451,7 @@ func track(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 		URI:       r.RequestURI,
 		Host:      getHost(r),
 		EventID:   uuid.Must(uuid.NewUUID()),
+		IsServer:  isServer,
 	}
 	return trackWithArgs(c, w, r, &wargs)
 }
