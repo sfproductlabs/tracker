@@ -1646,7 +1646,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			"bhash", "auth", "duration", "xid", "split", "etyp", "ver", "sink", "score",
 			"gaid", "idfa", "msid", "fbid", "country", "region", "city", "zip", "culture",
 			"ref", "aff", "browser", "device", "os", "tz", "vp", "targets", "rid", "relation",
-			"rcode", "ename", "source", "content", "medium", "campaign", "term",
+			"rcode", "ename", "source", "content", "medium", "campaign", "term", "v1",
 		}
 		for _, field := range excludeFields {
 			delete(*params, field)
