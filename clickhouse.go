@@ -1319,6 +1319,118 @@ func (i *ClickhouseService) handlePingEndpoint(w *http.ResponseWriter, r *http.R
 	return encoder.Encode(response)
 }
 
+// convertParamsToTypes converts param values to proper Go types in place
+func convertParamsToTypes(params *map[string]interface{}) {
+	for npk, npv := range *params {
+		// Handle existing numeric types - keep as-is
+		if _, ok := npv.(float64); ok {
+			continue
+		}
+		if _, ok := npv.(int); ok {
+			continue
+		}
+		if _, ok := npv.(int64); ok {
+			continue
+		}
+		
+		// Handle existing bool values - keep as boolean
+		if _, ok := npv.(bool); ok {
+			continue
+		}
+		
+		// Handle string values - attempt type conversion
+		if nps, ok := npv.(string); ok {
+			nps = strings.TrimSpace(nps)
+			if nps == "" {
+				(*params)[npk] = ""
+				continue
+			}
+			
+			// Try boolean conversion
+			if strings.ToLower(nps) == "true" {
+				(*params)[npk] = true
+				continue
+			}
+			if strings.ToLower(nps) == "false" {
+				(*params)[npk] = false
+				continue
+			}
+			
+			// Try integer conversion first
+			if npint, err := strconv.ParseInt(nps, 10, 64); err == nil {
+				// Check if it might be a timestamp (large number)
+				if npint > 946684800000 { // Milliseconds after year 2000
+					(*params)[npk] = npint // Keep as timestamp
+				} else if npint > 946684800 { // Seconds after year 2000
+					(*params)[npk] = npint * 1000 // Convert to milliseconds
+				} else {
+					(*params)[npk] = npint // Regular integer
+				}
+				continue
+			}
+			
+			// Try float conversion
+			if npf, err := strconv.ParseFloat(nps, 64); err == nil {
+				(*params)[npk] = npf
+				continue
+			}
+			
+			// Try date/time conversion to UTC milliseconds
+			if t, err := time.Parse(time.RFC3339, nps); err == nil {
+				(*params)[npk] = t.UTC().UnixMilli()
+				continue
+			}
+			
+			// Try other common date formats
+			dateFormats := []string{
+				"2006-01-02T15:04:05Z",     // RFC3339 without nanoseconds
+				"2006-01-02 15:04:05",      // SQL datetime
+				"2006-01-02T15:04:05",      // ISO without timezone
+				"2006-01-02",               // Date only
+				"01/02/2006",               // US format
+				"02/01/2006",               // EU format
+			}
+			
+			for _, format := range dateFormats {
+				if t, err := time.Parse(format, nps); err == nil {
+					(*params)[npk] = t.UTC().UnixMilli()
+					goto nextParam
+				}
+			}
+			
+			nextParam:
+			// Try to parse as JSON object/array
+			if len(nps) > 1 && ((nps[0] == '{' && nps[len(nps)-1] == '}') || (nps[0] == '[' && nps[len(nps)-1] == ']')) {
+				var jsonObj interface{}
+				if err := json.Unmarshal([]byte(nps), &jsonObj); err == nil {
+					// Recursively convert nested objects
+					if subMap, ok := jsonObj.(map[string]interface{}); ok {
+						convertParamsToTypes(&subMap)
+						(*params)[npk] = subMap
+					} else {
+						(*params)[npk] = jsonObj
+					}
+					continue
+				}
+			}
+			
+			// Keep as string if no conversion possible
+			(*params)[npk] = nps
+		} else {
+			// Handle maps and slices recursively
+			if subMap, ok := npv.(map[string]interface{}); ok {
+				// Recursively convert nested map
+				convertParamsToTypes(&subMap)
+				(*params)[npk] = subMap
+				continue
+			}
+			
+			// Handle other types - convert to string
+			(*params)[npk] = fmt.Sprintf("%+v", npv)
+		}
+	}
+}
+
 // jsonOrNull converts a map to JSON string for ClickHouse JSON type
 // TODO: could use []byte("null") or json.RawMessage("null") in the place of json.RawMessage("{}")
 func jsonOrNull(m interface{}) interface{} {
@@ -1656,44 +1768,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		}
 	}
 
-	var nparams *map[string]float64
+	// Convert param values to proper types in place
 	if params != nil {
-		tparams := make(map[string]float64)
-		for npk, npv := range *params {
-			if d, ok := npv.(float64); ok {
-				tparams[npk] = d
-				(*params)[npk] = fmt.Sprintf("%f", d) //let's keep both string and numerical
-				continue
-			}
-			if npb, ok := npv.(bool); ok {
-				if npb {
-					tparams[npk] = 1
-				} else {
-					tparams[npk] = 0
-				}
-				(*params)[npk] = fmt.Sprintf("%v", npb)
-				continue
-			}
-			if nps, ok := npv.(string); !ok {
-				//UNKNOWN TYPE
-				(*params)[npk] = fmt.Sprintf("%+v", npv) //clean up instead
-			} else {
-				if strings.TrimSpace(strings.ToLower(nps)) == "true" {
-					tparams[npk] = 1
-					continue
-				}
-				if strings.TrimSpace(strings.ToLower(nps)) == "false" {
-					tparams[npk] = 0
-					continue
-				}
-				if npf, err := strconv.ParseFloat(nps, 64); err == nil && len(nps) > 0 {
-					tparams[npk] = npf
-				}
-			}
-		}
-		if len(tparams) > 0 {
-			nparams = &tparams
-		}
+		convertParamsToTypes(params)
 	}
 
 	//[culture]
@@ -1886,14 +1963,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			eid, vid, sid, org, hhash, app, rel, cflags, 
 			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, ptyp, 
 			bhash, auth, duration, xid, split, ename, source, medium, campaign, 
-			country, region, city, zip, term, etyp, ver, sink, score, params, nparams, 
+			country, region, city, zip, term, etyp, ver, sink, score, params, 
 			payment_id, targets, relation, rid
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
 				updated, updated, parseUUID(uid), v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
-				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params), jsonOrNull(nparams),
+				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
 				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events_recent]:", xerr)
@@ -1910,14 +1987,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			eid, vid, sid, org, hhash, app, rel, cflags, 
 			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, ptyp, 
 			bhash, auth, duration, xid, split, ename, source, medium, campaign, 
-			country, region, city, zip, term, etyp, ver, sink, score, params, nparams, 
+			country, region, city, zip, term, etyp, ver, sink, score, params, 
 			payment_id, targets, relation, rid
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
 				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
-				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params), jsonOrNull(nparams),
+				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
 				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
@@ -2087,13 +2164,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				vid, did, sid, hhash, app, rel, cflags, 
 				created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
-				params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
+				params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
 				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
 				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 				v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-				jsonOrNull(params), jsonOrNull(nparams), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
+				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[visitors]:", xerr)
 			}
@@ -2103,13 +2180,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				vid, did, sid, hhash, app, rel, cflags, 
 				created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, duration, xid, split, ename, etyp, ver, sink, score, 
-				params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
+				params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //51
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //51
 				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
 				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 				v["ptyp"], bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-				jsonOrNull(params), jsonOrNull(nparams), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
+				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[sessions]:", xerr)
 			}
@@ -2120,13 +2197,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			vid, did, sid, hhash, app, rel, cflags, 
 			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
 			ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
-			params, nparams, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
+			params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 			source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
 			parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
 			updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 			v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-			jsonOrNull(params), jsonOrNull(nparams), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
+			jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[visitors_latest]:", xerr)
 		}
