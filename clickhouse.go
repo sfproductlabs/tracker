@@ -1208,7 +1208,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				iphash,
 				level,
 				v["msg"],
-				params,
+				jsonOrNull(params),
 				parseUUID(v["org"]))
 		}
 		return nil
@@ -2323,7 +2323,7 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
 			tid, org, "campaign", "active",
-			v, v, v, updated, updated,
+			jsonOrNull(v), jsonOrNull(v), jsonOrNull(v), updated, updated,
 		}, v)
 }
 
@@ -2341,7 +2341,7 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
 			eventID, tid, org,
-			getStringValue(v["event_type"]), v, v, nil, updated, updated,
+			getStringValue(v["event_type"]), jsonOrNull(v), jsonOrNull(v), nil, updated, updated,
 		}, v)
 }
 
@@ -2365,7 +2365,7 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
 			triageID, tid, org,
-			"high", "follow_up", v, v, "pending", updated, updated,
+			"high", "follow_up", jsonOrNull(v), jsonOrNull(v), "pending", updated, updated,
 		}, v)
 }
 
