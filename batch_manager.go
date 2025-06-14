@@ -62,6 +62,17 @@ var DefaultBatchConfigs = map[string]BatchConfig{
 		RetryBackoffMs:   100,
 		EnableCompression: true,
 	},
+	"events_recent": {
+		TableName:        "events_recent",
+		Strategy:         StrategyHybridBatch,
+		MaxBatchSize:     500,
+		MaxBatchTime:     1 * time.Second,
+		MaxMemoryMB:      8,
+		Priority:         2, // Higher priority for recent events
+		RetryAttempts:    3,
+		RetryBackoffMs:   100,
+		EnableCompression: true,
+	},
 	"mthreads": {
 		TableName:        "mthreads",
 		Strategy:         StrategyTimeBasedBatch,
@@ -177,6 +188,7 @@ type BatchManager struct {
 	mu           sync.RWMutex
 	running      bool
 	adaptiveMode bool
+	AppConfig    *Configuration
 	
 	// Adaptive batching variables
 	lastLoad     int64
@@ -185,17 +197,18 @@ type BatchManager struct {
 }
 
 // NewBatchManager creates a new batch manager with default configurations
-func NewBatchManager(session clickhouse.Conn) *BatchManager {
+func NewBatchManager(session clickhouse.Conn, appConfig *Configuration) *BatchManager {
 	bm := &BatchManager{
 		session:      session,
 		batches:      make(map[string]*TableBatch),
 		configs:      make(map[string]BatchConfig),
 		metrics:      &BatchMetrics{},
 		stopChan:     make(chan bool),
-		flushChan:    make(chan string, 100),
+		flushChan:    make(chan string, 500),
 		priorityChan: make(chan BatchItem, 1000),
 		adaptiveMode: true,
 		loadSamples:  make([]int64, 0, 100),
+		AppConfig:    appConfig,
 	}
 	
 	// Initialize with default configurations
@@ -214,9 +227,9 @@ func NewBatchManager(session clickhouse.Conn) *BatchManager {
 // Start begins the batch processing goroutines
 func (bm *BatchManager) Start() error {
 	bm.mu.Lock()
-	defer bm.mu.Unlock()
 	
 	if bm.running {
+		bm.mu.Unlock()
 		return fmt.Errorf("batch manager is already running")
 	}
 	
@@ -232,6 +245,9 @@ func (bm *BatchManager) Start() error {
 	if bm.adaptiveMode {
 		go bm.adaptiveOptimizer()
 	}
+	
+	// Release write lock before acquiring read lock to avoid deadlock
+	bm.mu.Unlock()
 	
 	// Start flush timers for each table
 	bm.mu.RLock()
@@ -360,12 +376,13 @@ func (bm *BatchManager) addToBatch(item BatchItem) error {
 	}
 	
 	if shouldFlush {
-		// Trigger async flush
+		// Trigger async flush - completely non-blocking to prevent HTTP hangs
 		select {
 		case bm.flushChan <- item.TableName:
+			// Successfully queued for flushing
 		default:
-			// Channel full, flush synchronously
-			return bm.flushBatch(item.TableName)
+			// Channel full - completely skip this flush to prevent any blocking
+			// The timeout-based flush or next batch will handle it
 		}
 	}
 	
@@ -471,8 +488,8 @@ func (bm *BatchManager) executeBatch(tableName string, items []BatchItem) error 
 	start := time.Now()
 	config := bm.configs[tableName]
 	
-	// Create batch context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Create batch context with timeout (reduced to prevent hanging)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	
 	// Prepare batch insert

@@ -305,24 +305,51 @@ func (i *ClickhouseService) connect() error {
 	}
 
 	// Establish connection with circuit breaker protection
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] Starting ClickHouse connection to hosts: %v\n", i.Configuration.Hosts)
+		fmt.Printf("[DEBUG] Using database: %s, username: %s\n", i.Configuration.Context, i.Configuration.Username)
+		fmt.Printf("[DEBUG] Connection timeout: %v\n", time.Duration(i.Configuration.Timeout) * time.Millisecond)
+	}
+	
 	err = i.circuitBreaker.Execute(func() error {
+		if i.AppConfig.Debug {
+			fmt.Println("[DEBUG] Creating ClickHouse connection...")
+		}
+		
 		var connErr error
 		if conn, connErr := clickhouse.Open(opts); connErr != nil {
 			globalMetrics.UpdateErrorCount()
 			fmt.Println("[ERROR] Connecting to ClickHouse:", connErr)
+			if i.AppConfig.Debug {
+				fmt.Printf("[DEBUG] Connection failed with options: %+v\n", opts)
+			}
 			return NewTrackerError(ErrorTypeConnection, "connect", connErr.Error(), true)
 		} else {
+			if i.AppConfig.Debug {
+				fmt.Println("[DEBUG] ClickHouse connection created successfully")
+			}
 			i.Session = &conn
 		}
 
 		// Test connection with timeout
+		if i.AppConfig.Debug {
+			fmt.Println("[DEBUG] Testing ClickHouse connection with ping...")
+		}
+		
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		if connErr = (*i.Session).Ping(ctx); connErr != nil {
 			globalMetrics.UpdateErrorCount()
 			fmt.Println("[ERROR] Pinging ClickHouse:", connErr)
+			if i.AppConfig.Debug {
+				fmt.Printf("[DEBUG] Ping failed after connection established\n")
+			}
 			return NewTrackerError(ErrorTypeConnection, "ping", connErr.Error(), true)
+		}
+		
+		if i.AppConfig.Debug {
+			fmt.Println("[DEBUG] ClickHouse ping successful")
 		}
 
 		return nil
@@ -345,13 +372,22 @@ func (i *ClickhouseService) connect() error {
 	i.startHealthMonitoring()
 
 	// Initialize and start batch manager
-	i.batchingEnabled = true // TODO: Make configurable
+	i.batchingEnabled = true // Re-enabled with UUID null handling fix
 	if i.batchingEnabled {
-		i.batchManager = NewBatchManager(*i.Session)
+		if i.AppConfig.Debug {
+			fmt.Println("[DEBUG] Creating batch manager...")
+		}
+		i.batchManager = NewBatchManager(*i.Session, i.AppConfig)
+		if i.AppConfig.Debug {
+			fmt.Println("[DEBUG] Starting batch manager synchronously...")
+		}
 		if err := i.batchManager.Start(); err != nil {
 			fmt.Printf("[WARNING] Failed to start batch manager: %v\n", err)
 			i.batchingEnabled = false
 		} else {
+			if i.AppConfig.Debug {
+				fmt.Println("[DEBUG] Batch manager started successfully")
+			}
 			fmt.Println("✅ Batch Manager initialized for optimal ClickHouse performance")
 		}
 	}
@@ -1283,22 +1319,52 @@ func (i *ClickhouseService) handlePingEndpoint(w *http.ResponseWriter, r *http.R
 	return encoder.Encode(response)
 }
 
+// uuidOrNull converts a UUID pointer to either the UUID value or nil for proper ClickHouse handling
+func uuidOrNull(u *uuid.UUID) interface{} {
+	if u == nil {
+		return nil
+	}
+	return *u
+}
+
 // batchInsert adds an item to the batch manager or executes directly if batching is disabled
 func (i *ClickhouseService) batchInsert(tableName, sql string, args []interface{}, data map[string]interface{}) error {
 	if i.batchingEnabled && i.batchManager != nil {
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] Adding item to batch for table: %s\n", tableName)
+		}
 		item := BatchItem{
 			TableName: tableName,
 			SQL:       sql,
 			Args:      args,
 			Data:      data,
 		}
-		return i.batchManager.AddItem(item)
+		err := i.batchManager.AddItem(item)
+		if i.AppConfig.Debug {
+			if err != nil {
+				fmt.Printf("[DEBUG] Batch add failed for table %s: %v\n", tableName, err)
+			} else {
+				fmt.Printf("[DEBUG] Batch add successful for table: %s\n", tableName)
+			}
+		}
+		return err
 	}
 
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] Using direct insert for table: %s (batching disabled)\n", tableName)
+	}
 	// Fallback to direct insert
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return (*i.Session).Exec(ctx, sql, args...)
+	err := (*i.Session).Exec(ctx, sql, args...)
+	if i.AppConfig.Debug {
+		if err != nil {
+			fmt.Printf("[DEBUG] Direct insert failed for table %s: %v\n", tableName, err)
+		} else {
+			fmt.Printf("[DEBUG] Direct insert successful for table: %s\n", tableName)
+		}
+	}
+	return err
 }
 
 func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[string]interface{}) error {
@@ -1775,11 +1841,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			payment_id, targets, relation, rid
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
-				w.EventID, vid, sid, parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
-				updated, updated, uid, v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
-				bhash, auth, duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
+				w.EventID, uuidOrNull(vid), uuidOrNull(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
+				updated, updated, uuidOrNull(uid), v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
+				bhash, uuidOrNull(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, params, nparams,
-				paymentID, v["targets"], v["relation"], rid,
+				uuidOrNull(paymentID), v["targets"], v["relation"], uuidOrNull(rid),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events_recent]:", xerr)
 		}
@@ -1799,11 +1865,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			payment_id, targets, relation, rid
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
-				w.EventID, vid, sid, parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
-				updated, updated, uid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
-				bhash, auth, duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
+				w.EventID, uuidOrNull(vid), uuidOrNull(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
+				updated, updated, uuidOrNull(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
+				bhash, uuidOrNull(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, params, nparams,
-				paymentID, v["targets"], v["relation"], rid,
+				uuidOrNull(paymentID), v["targets"], v["relation"], uuidOrNull(rid),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
 		}

@@ -673,9 +673,15 @@ func main() {
 		switch s.Service {
 		case SERVICE_TYPE_CLICKHOUSE:
 			fmt.Printf("Notify #%d: Connecting to ClickHouse: %s\n", idx, s.Hosts)
+			if configuration.Debug {
+				fmt.Printf("[DEBUG] Creating ClickHouse service for index %d\n", idx)
+			}
 			clickhouse := ClickhouseService{
 				Configuration: s,
 				AppConfig:     &configuration,
+			}
+			if configuration.Debug {
+				fmt.Printf("[DEBUG] Starting ClickHouse connection process...\n")
 			}
 			err = clickhouse.connect()
 			if err != nil || s.Session == nil {
@@ -685,6 +691,9 @@ func main() {
 					fmt.Printf("[ERROR] Notify #%d. Could not connect to ClickHouse. %s\n", idx, err)
 					continue
 				}
+			}
+			if configuration.Debug {
+				fmt.Printf("[DEBUG] ClickHouse connection completed successfully for index %d\n", idx)
 			}
 			//Now attach the one and only API service, replace if multiple
 			if !s.Skip {
@@ -1151,7 +1160,8 @@ func main() {
 
 	//////////////////////////////////////// Privacy Routes
 	if configuration.UseGeoIP {
-		kv, _ = NewKVStore(LogDBConfig{
+		var kvErr error
+		kv, kvErr = NewKVStore(LogDBConfig{
 			expert: ExpertConfig{
 				ExecShards:  defaultExecShards,
 				LogDBShards: defaultLogDBShards,
@@ -1175,7 +1185,17 @@ func main() {
 			KVBlockSize:                        32 * 1024,
 		}, func(busy bool) { fmt.Println("DB Busy", busy) }, "./pdb", "./pdbwal")
 
-		kv.GetValue([]byte("DB_VER"), func(val []byte) error {
+		if kvErr != nil {
+			fmt.Printf("[ERROR] Failed to initialize GeoIP KV store: %v\n", kvErr)
+			fmt.Println("[WARNING] Disabling GeoIP functionality")
+			configuration.UseGeoIP = false
+			kv = nil
+		} else if kv == nil {
+			fmt.Println("[ERROR] GeoIP KV store returned nil without error")
+			fmt.Println("[WARNING] Disabling GeoIP functionality")
+			configuration.UseGeoIP = false
+		} else {
+			kv.GetValue([]byte("DB_VER"), func(val []byte) error {
 			if len(val) == 0 || val[0] != byte(configuration.GeoIPVersion) {
 				fmt.Println("Restoring Geoip Database...")
 				Unzip(configuration.IPv4GeoIPZip, configuration.TempDirectory)
@@ -1236,6 +1256,7 @@ func main() {
 			}
 			return nil
 		})
+		}
 	}
 
 	/// Privacy program interface (cookies)
