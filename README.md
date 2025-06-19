@@ -242,3 +242,9 @@ SELECT
     params, params.go
 FROM sfpla.events where params.go = 6;
 ```
+
+From duckdb:
+
+```sql
+SELECT * FROM ch_scan("SELECT number * 2 FROM numbers(10)", "http://localhost:8123", user:='default', format:='parquet');
+```
