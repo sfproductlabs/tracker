@@ -258,8 +258,8 @@
             "Retries": 3,
             "Unencrypted": true,
             "Secure": false,
-            "Skip": false,
-            "Service": "cassandra",
+            "Skip": true,
+            "Service": "cassandra_",
             "Timeout": 300
         },
         {
