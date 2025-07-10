@@ -67,6 +67,33 @@ import (
 )
 
 ////////////////////////////////////////
+// Tombstone Prevention Helpers
+////////////////////////////////////////
+
+// Helper function to convert nil values to gocql.UnsetValue to prevent tombstones
+func unsetIfNil(value interface{}) interface{} {
+	if value == nil {
+		return gocql.UnsetValue
+	}
+	return value
+}
+
+// processQueryArgs processes all arguments to convert nil values to gocql.UnsetValue
+func processQueryArgs(args []interface{}) []interface{} {
+	processed := make([]interface{}, len(args))
+	for i, arg := range args {
+		processed[i] = unsetIfNil(arg)
+	}
+	return processed
+}
+
+// Wrapper for Session.Query that automatically handles nil values
+func (i *CassandraService) safeQuery(stmt string, args ...interface{}) *gocql.Query {
+	processedArgs := processQueryArgs(args)
+	return i.Session.Query(stmt, processedArgs...)
+}
+
+////////////////////////////////////////
 // Interface Implementations
 ////////////////////////////////////////
 
@@ -85,7 +112,12 @@ func (i *CassandraService) connect() error {
 	cluster.ReconnectInterval = time.Second
 	cluster.SocketKeepalive = time.Millisecond * 500
 	cluster.MaxPreparedStmts = 10000
-	if i.Configuration.CACert != "" {
+	
+	// SSL/TLS Configuration
+	if i.Configuration.Unencrypted {
+		// Explicitly disable TLS for development/localhost
+		cluster.SslOpts = nil
+	} else if i.Configuration.CACert != "" {
 		sslOpts := &gocql.SslOptions{
 			CaPath:                 i.Configuration.CACert,
 			EnableHostVerification: i.Configuration.Secure, //TODO: SECURITY THREAT
@@ -110,7 +142,7 @@ func (i *CassandraService) connect() error {
 	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CASSANDRA {
 		i.AppConfig.ProxyDailyLimitCheck = func(ip string) uint64 {
 			var total uint64
-			if i.Session.Query(`SELECT total FROM dailies where ip=? AND day=?`, ip, time.Now().UTC()).Scan(&total); err != nil {
+			if i.safeQuery(`SELECT total FROM dailies where ip=? AND day=?`, ip, time.Now().UTC()).Scan(&total); err != nil {
 				return 0xFFFFFFFFFFFFFFFF
 			}
 			return total
@@ -148,7 +180,7 @@ func (i *CassandraService) auth(s *ServiceArgs) error {
 		return fmt.Errorf("User pass not provided")
 	}
 	var pwd string
-	if err := i.Session.Query(`SELECT pwd FROM accounts where uid=?`, uid).Scan(&pwd); err == nil {
+	if err := i.safeQuery(`SELECT pwd FROM accounts where uid=?`, uid).Scan(&pwd); err == nil {
 		if pwd != sha(password) {
 			return fmt.Errorf("Bad pass")
 		}
@@ -250,7 +282,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				}
 				upperString(country)
 				cleanString(region)
-				if /* results, */ err := i.Session.Query(`INSERT into agreements (
+				if /* results, */ err := i.safeQuery(`INSERT into agreements (
 					 vid, 
 					 created,  
 					 -- compliances,
@@ -338,7 +370,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					return err
 				}
 
-				i.Session.Query(`INSERT into agreed (
+				i.safeQuery(`INSERT into agreed (
 					 vid, 
 					 created,  
 					 -- compliances,
@@ -436,7 +468,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 		var vid string
 		if len(r.URL.Query()["vid"]) > 0 {
 			vid = r.URL.Query()["vid"][0]
-			if rows, err := i.Session.Query(`SELECT * FROM agreements where vid=?`, vid).Iter().SliceMap(); err == nil {
+			if rows, err := i.safeQuery(`SELECT * FROM agreements where vid=?`, vid).Iter().SliceMap(); err == nil {
 				js, err := json.Marshal(rows)
 				(*w).WriteHeader(http.StatusOK)
 				(*w).Header().Set("Content-Type", "application/json")
@@ -453,7 +485,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 		fmt.Println(vid)
 		return nil
 	case SVC_GET_JURISDICTIONS:
-		if jds, err := i.Session.Query(`SELECT * FROM jurisdictions`).Iter().SliceMap(); err == nil {
+		if jds, err := i.safeQuery(`SELECT * FROM jurisdictions`).Iter().SliceMap(); err == nil {
 			js, err := json.Marshal(jds)
 			(*w).WriteHeader(http.StatusOK)
 			(*w).Header().Set("Content-Type", "application/json")
@@ -483,7 +515,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 		if err := i.auth(s); err != nil {
 			return err
 		}
-		if results, err := i.Session.Query(`SELECT * FROM redirect_history`).Iter().SliceMap(); err == nil {
+		if results, err := i.safeQuery(`SELECT * FROM redirect_history`).Iter().SliceMap(); err == nil {
 			json, _ := json.Marshal(map[string]interface{}{"results": results})
 			(*w).Header().Set("Content-Type", "application/json")
 			(*w).WriteHeader(http.StatusOK)
@@ -495,7 +527,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 	case SVC_GET_REDIRECT:
 		//TODO: AG ADD CACHE
 		var redirect string
-		if err := i.Session.Query(`SELECT urlto FROM redirects where urlfrom=?`, fmt.Sprintf("%s%s", r.Host, r.URL.Path)).Scan(&redirect); err == nil {
+		if err := i.safeQuery(`SELECT urlto FROM redirects where urlfrom=?`, fmt.Sprintf("%s%s", r.Host, r.URL.Path)).Scan(&redirect); err == nil {
 			s.Values = &map[string]string{"Redirect": redirect}
 			http.Redirect(*w, r, redirect, http.StatusFound)
 			return nil
@@ -552,7 +584,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					hhash = &temp
 				}
 
-				if /* results, */ err := i.Session.Query(`INSERT into redirects (
+				if /* results, */ err := i.safeQuery(`INSERT into redirects (
 					  hhash,
 					  urlfrom, 					
 					  urlto,
@@ -572,7 +604,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 				// if false == results[0]["[applied]"] {
 				// 	return fmt.Errorf("URL exists")
 				// }
-				if err := i.Session.Query(`INSERT into redirect_history (
+				if err := i.safeQuery(`INSERT into redirect_history (
 					  urlfrom, 
 					  hostfrom,
 					  slugfrom, 
@@ -631,7 +663,7 @@ func (i *CassandraService) prune() error {
 			for {
 				switch p.Table {
 				case "visitors", "sessions", "events", "events_recent":
-					iter = i.Session.Query(fmt.Sprintf(`SELECT * FROM %s`, p.Table)).PageSize(pageSize).PageState(pageState).Iter()
+					iter = i.safeQuery(fmt.Sprintf(`SELECT * FROM %s`, p.Table)).PageSize(pageSize).PageState(pageState).Iter()
 				default:
 					err = fmt.Errorf("Table %s not supported for pruning", p.Table)
 					break
@@ -795,7 +827,7 @@ func (i *CassandraService) prune() error {
 			ttl = i.AppConfig.PruneLogsTTL
 		}
 		for {
-			iter = i.Session.Query(`SELECT id FROM logs`).PageSize(pageSize).PageState(pageState).Iter()
+			iter = i.safeQuery(`SELECT id FROM logs`).PageSize(pageSize).PageState(pageState).Iter()
 			nextPageState := iter.PageState()
 			for {
 				var (
@@ -847,7 +879,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			if i.AppConfig.Debug {
 				fmt.Printf("COUNT %s\n", w)
 			}
-			return i.Session.Query(`UPDATE counters set total=total+1 where id=?`,
+			return i.safeQuery(`UPDATE counters set total=total+1 where id=?`,
 				v["id"]).Exec()
 		}
 		return nil
@@ -864,7 +896,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 					timestamp = time.Unix(0, millis*int64(time.Millisecond))
 				}
 			}
-			return i.Session.Query(`INSERT INTO updates (id, updated, msg) values (?,?,?)`,
+			return i.safeQuery(`INSERT INTO updates (id, updated, msg) values (?,?,?)`,
 				v["id"],
 				timestamp,
 				v["msg"]).Exec()
@@ -922,7 +954,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				iphash = iphash + strconv.FormatInt(int64(hash(temp+iphash)), 36)
 			}
 
-			return i.Session.Query(`INSERT INTO logs
+			return i.safeQuery(`INSERT INTO logs
 		  (
 			  id,
 			  ldate,
@@ -1368,16 +1400,17 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		}
 		delete(v, "uname")
 
-		//EventID
+		//EventID - convert to gocql.UUID for Cassandra timeuuid compatibility
+		var eventID gocql.UUID
 		if temp, ok := v["eid"].(string); ok {
-			evt, _ := gocql.ParseUUID(temp)
-			if evt.Timestamp() != 0 {
-				w.EventID = uuid.Must(uuid.Parse(evt.String()))
+			evt, err := gocql.ParseUUID(temp)
+			if err == nil && evt.Timestamp() != 0 {
+				eventID = evt
 			}
 		}
-		//Double check
-		if w.EventID == uuid.Nil || w.EventID.Version() != uuid.Version(1) {
-			w.EventID = uuid.Must(uuid.NewUUID())
+		//Double check - create time-based UUID if needed
+		if eventID.Timestamp() == 0 || eventID.Version() != 1 {
+			eventID = gocql.TimeUUID()
 		}
 
 		//[vid] - default
@@ -1422,13 +1455,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//////////////////////////////////////////////
 
 		//ips
-		if xerr := i.Session.Query(`UPDATE ips set total=total+1 where hhash=? AND ip=?`,
+		if xerr := i.safeQuery(`UPDATE ips set total=total+1 where hhash=? AND ip=?`,
 			hhash, w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[ips]:", xerr)
 		}
 
 		//routed
-		if xerr := i.Session.Query(`UPDATE routed set url=? where hhash=? AND ip=?`,
+		if xerr := i.safeQuery(`UPDATE routed set url=? where hhash=? AND ip=?`,
 			v["url"], hhash, w.IP).Exec(); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[routed]:", xerr)
 		}
@@ -1436,7 +1469,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		//events_recent
 		//TODO: Add other table type checks
 		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS_RECENT)) {
-			if xerr := i.Session.Query(`INSERT into events_recent 
+			if xerr := i.safeQuery(`INSERT into events_recent 
 				  (
 				  eid,
 				  vid, 
@@ -1478,7 +1511,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				  relation
 			  ) 
 			  values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
-				w.EventID,
+				eventID,
 				v["vid"],
 				v["sid"],
 				hhash,
@@ -1526,7 +1559,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		//events
 		if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS)) {
-			if xerr := i.Session.Query(`INSERT into events 
+			if xerr := i.safeQuery(`INSERT into events 
 			  (
 				  eid,
 				  vid, 
@@ -1568,7 +1601,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				  relation
 			  ) 
 			  values (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?,?,?)`, //38
-				w.EventID,
+				eventID,
 				v["vid"],
 				v["sid"],
 				hhash,
@@ -1629,27 +1662,27 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//hits
 			if _, ok := v["url"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE hits set total=total+1 where hhash=? AND url=?`,
+				if xerr := i.safeQuery(`UPDATE hits set total=total+1 where hhash=? AND url=?`,
 					hhash, v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[hits]:", xerr)
 				}
 			}
 
 			//daily
-			if xerr := i.Session.Query(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.IP, updated).Exec(); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.safeQuery(`UPDATE dailies set total=total+1 where ip = ? AND day = ?`, w.IP, updated).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[dailies]:", xerr)
 			}
 
 			//unknown vid
 			if isNew {
-				if xerr := i.Session.Query(`UPDATE counters set total=total+1 where id='vids_created'`).Exec(); xerr != nil && i.AppConfig.Debug {
+				if xerr := i.safeQuery(`UPDATE counters set total=total+1 where id='vids_created'`).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[counters]vids_created:", xerr)
 				}
 			}
 
 			//outcome
 			if outcome, ok := v["outcome"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE outcomes set total=total+1 where hhash=? AND outcome=? AND sink=? AND created=? AND url=?`,
+				if xerr := i.safeQuery(`UPDATE outcomes set total=total+1 where hhash=? AND outcome=? AND sink=? AND created=? AND url=?`,
 					hhash, outcome, v["sink"], updated, v["url"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[outcomes]:", xerr)
 				}
@@ -1657,7 +1690,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//referrers
 			if _, ok := v["last"].(string); ok {
-				if xerr := i.Session.Query(`UPDATE referrers set total=total+1 where hhash=? AND url=?`,
+				if xerr := i.safeQuery(`UPDATE referrers set total=total+1 where hhash=? AND url=?`,
 					hhash, v["last"]).Exec(); xerr != nil && i.AppConfig.Debug {
 					fmt.Println("C*[referrers]:", xerr)
 				}
@@ -1665,7 +1698,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//referrals
 			if v["ref"] != nil {
-				if xerr := i.Session.Query(`INSERT into referrals 
+				if xerr := i.safeQuery(`INSERT into referrals 
 					  (
 						  hhash,
 						  vid, 
@@ -1681,7 +1714,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//referred
 			if v["rcode"] != nil {
-				if xerr := i.Session.Query(`INSERT into referred 
+				if xerr := i.safeQuery(`INSERT into referred 
 					  (
 						  hhash,
 						  vid, 
@@ -1697,7 +1730,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//hosts
 			if w.Host != "" {
-				if xerr := i.Session.Query(`INSERT into hosts 
+				if xerr := i.safeQuery(`INSERT into hosts 
 					  (
 						  hhash,
 						  hostname						
@@ -1710,13 +1743,13 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 
 			//browsers
-			if xerr := i.Session.Query(`UPDATE browsers set total=total+1 where hhash=? AND browser=? AND bhash=?`,
+			if xerr := i.safeQuery(`UPDATE browsers set total=total+1 where hhash=? AND browser=? AND bhash=?`,
 				hhash, w.Browser, bhash).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[browsers]:", xerr)
 			}
 
 			//nodes
-			if xerr := i.Session.Query(`INSERT into nodes 
+			if xerr := i.safeQuery(`INSERT into nodes 
 				  (
 					  hhash,
 					  vid, 
@@ -1737,7 +1770,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//locations
 			if latlon != nil {
-				if xerr := i.Session.Query(`INSERT into locations 
+				if xerr := i.safeQuery(`INSERT into locations 
 				  (
 					  hhash,
 					  vid, 
@@ -1757,7 +1790,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//alias
 			if v["uid"] != nil {
-				if xerr := i.Session.Query(`INSERT into aliases 
+				if xerr := i.safeQuery(`INSERT into aliases 
 					  (
 						  hhash,
 						  vid, 
@@ -1775,7 +1808,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//userhosts
 			if v["uid"] != nil {
-				if xerr := i.Session.Query(`INSERT into userhosts 
+				if xerr := i.safeQuery(`INSERT into userhosts 
 					  (
 						  hhash,
 						  vid, 
@@ -1793,7 +1826,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//uhash
 			if uhash != nil {
-				if xerr := i.Session.Query(`INSERT into usernames 
+				if xerr := i.safeQuery(`INSERT into usernames 
 					  (
 						  hhash,
 						  vid, 
@@ -1811,7 +1844,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//ehash
 			if ehash != nil {
-				if xerr := i.Session.Query(`INSERT into emails
+				if xerr := i.safeQuery(`INSERT into emails
 					  (
 						  hhash,
 						  vid, 
@@ -1829,7 +1862,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			//chash
 			if chash != nil {
-				if xerr := i.Session.Query(`INSERT into cells
+				if xerr := i.safeQuery(`INSERT into cells
 					  (
 						  hhash,
 						  vid, 
@@ -1846,14 +1879,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 
 			//reqs
-			if xerr := i.Session.Query(`UPDATE reqs set total=total+1 where hhash=? AND vid=?`,
+			if xerr := i.safeQuery(`UPDATE reqs set total=total+1 where hhash=? AND vid=?`,
 				hhash, v["vid"]).Exec(); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("C*[reqs]:", xerr)
 			}
 
 			if isNew || isFirst {
 				//vistors
-				if xerr := i.Session.Query(`INSERT into visitors 
+				if xerr := i.safeQuery(`INSERT into visitors 
 						  (
 							  vid, 
 							  did,
@@ -1956,7 +1989,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				}
 
 				//starts
-				if xerr := i.Session.Query(`INSERT into sessions 
+				if xerr := i.safeQuery(`INSERT into sessions 
 						  (
 							  vid, 
 							  did,
@@ -2062,7 +2095,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 			}
 
-			if xerr := i.Session.Query(`UPDATE visitors_latest SET 
+			if xerr := i.safeQuery(`UPDATE visitors_latest SET 
 							 did = ?,
 							 sid = ?, 
 							 hhash = ?,
@@ -2387,7 +2420,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		var pmts []payment
 		var prevpaid *float64
 		//[LTV]
-		if xerr := i.Session.Query("SELECT payments,created,paid FROM ltv WHERE hhash=? AND uid=?", hhash, v["uid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+		if xerr := i.safeQuery("SELECT payments,created,paid FROM ltv WHERE hhash=? AND uid=?", hhash, v["uid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[ltv]:", xerr)
 		}
 		if prevpaid != nil && paid != nil {
@@ -2398,7 +2431,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		pmts = append(pmts, *pmt)
 
-		if xerr := i.Session.Query(`UPDATE ltv SET
+		if xerr := i.safeQuery(`UPDATE ltv SET
 			 vid = ?, 
 			 sid = ?,
 			 payments = ?, 
@@ -2429,7 +2462,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		pmts = pmts[:0]
 		created = &updated
 		prevpaid = nil
-		if xerr := i.Session.Query("SELECT payments,created,paid FROM ltvu WHERE hhash=? AND uid=? AND orid=?", hhash, v["uid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+		if xerr := i.safeQuery("SELECT payments,created,paid FROM ltvu WHERE hhash=? AND uid=? AND orid=?", hhash, v["uid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[ltvu]:", xerr)
 		}
 		if prevpaid != nil && paid != nil {
@@ -2440,7 +2473,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		pmts = append(pmts, *pmt)
 
-		if xerr := i.Session.Query(`UPDATE ltvu SET
+		if xerr := i.safeQuery(`UPDATE ltvu SET
 			 vid = ?, 
 			 sid = ?,
 			 payments = ?, 
@@ -2472,7 +2505,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 		pmts = pmts[:0]
 		created = &updated
 		prevpaid = nil
-		if xerr := i.Session.Query("SELECT payments,created,paid FROM ltvv WHERE hhash=? AND vid=? AND orid=?", hhash, v["vid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
+		if xerr := i.safeQuery("SELECT payments,created,paid FROM ltvv WHERE hhash=? AND vid=? AND orid=?", hhash, v["vid"], v["orid"]).Scan(&pmts, &created, &prevpaid); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("C*[ltvv]:", xerr)
 		}
 		if prevpaid != nil && paid != nil {
@@ -2483,7 +2516,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 
 		pmts = append(pmts, *pmt)
 
-		if xerr := i.Session.Query(`UPDATE ltvv SET
+		if xerr := i.safeQuery(`UPDATE ltvv SET
 			 uid = ?, 
 			 sid = ?,
 			 payments = ?, 

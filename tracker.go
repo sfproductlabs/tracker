@@ -334,8 +334,9 @@ type Service struct {
 	Key      string
 	Username string
 	Password string
-	Secure   bool
-	Critical bool
+	Secure      bool
+	Unencrypted bool
+	Critical    bool
 
 	Context      string
 	Filter       []Filter

@@ -135,7 +135,7 @@
             ],
             "Retries": 3,
             "Secure": false,
-            "Service": "clickhouse",
+            "Service": "clickhouse_",
             "Timeout": 300
         },
         {
@@ -234,7 +234,7 @@
                 }
             ],
             "Hosts": [
-                "127.0.0.1"
+                "localhost"
             ],
             "Key": "./.setup/keys/cassandra-client.key",
             "Prune": [
@@ -256,9 +256,10 @@
                 }
             ],
             "Retries": 3,
+            "Unencrypted": true,
             "Secure": false,
-            "Skip": true,
-            "Service": "cassandra_",
+            "Skip": false,
+            "Service": "cassandra",
             "Timeout": 300
         },
         {
