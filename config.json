@@ -135,7 +135,7 @@
             ],
             "Retries": 3,
             "Secure": false,
-            "Service": "clickhouse_",
+            "Service": "clickhouse",
             "Timeout": 300
         },
         {
