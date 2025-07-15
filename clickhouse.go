@@ -1964,14 +1964,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, ptyp, 
 			bhash, auth, duration, xid, split, ename, source, medium, campaign, 
 			country, region, city, zip, term, etyp, ver, sink, score, params, 
-			payment_id, targets, relation, rid
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			payment_id, targets, relation, rid, ja4h
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
 				updated, updated, parseUUID(uid), v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
-				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid),
+				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events_recent]:", xerr)
 		}
@@ -1988,14 +1988,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, ptyp, 
 			bhash, auth, duration, xid, split, ename, source, medium, campaign, 
 			country, region, city, zip, term, etyp, ver, sink, score, params, 
-			payment_id, targets, relation, rid
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			payment_id, targets, relation, rid, ja4h
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["org"]), hhash, v["app"], v["rel"], cflags,
 				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
-				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid),
+				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
 		}
@@ -2165,13 +2165,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
 				params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
-				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
+				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, org
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
 				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
 				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 				v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
+				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[visitors]:", xerr)
 			}
 
@@ -2181,13 +2181,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, duration, xid, split, ename, etyp, ver, sink, score, 
 				params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
-				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //51
+				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, org
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //51
 				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
 				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 				v["ptyp"], bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
+				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[sessions]:", xerr)
 			}
 		}
@@ -2198,13 +2198,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
 			ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
 			params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
-			source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, org
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
+			source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, org
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
 			parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
 			updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 			v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 			jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
+			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["org"])); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[visitors_latest]:", xerr)
 		}
 	}

@@ -14,6 +14,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/lum8rjack/go-ja4h v0.0.0-20250606032308-3a989c6635be
 	github.com/marcboeker/go-duckdb v1.8.3
 	github.com/nats-io/nats.go v1.24.0
 	github.com/pierrec/lz4 v2.0.5+incompatible

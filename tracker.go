@@ -149,6 +149,7 @@ type WriteArgs struct {
 	EventID        uuid.UUID
 	OrgID          *uuid.UUID
 	CallingService *Service
+	JA4H           string
 }
 
 // String implements the Stringer interface for WriteArgs
@@ -327,13 +328,13 @@ func (t TableType) String() string {
 }
 
 type Service struct {
-	Service  string
-	Hosts    []string
-	CACert   string
-	Cert     string
-	Key      string
-	Username string
-	Password string
+	Service     string
+	Hosts       []string
+	CACert      string
+	Cert        string
+	Key         string
+	Username    string
+	Password    string
 	Secure      bool
 	Unencrypted bool
 	Critical    bool
@@ -888,6 +889,7 @@ func main() {
 			URI:       r.RequestURI,
 			Host:      getHost(r),
 			IsServer:  false,
+			JA4H:      getJA4H(r),
 		}
 
 		for {
@@ -952,6 +954,7 @@ func main() {
 					EventID:   uuid.Must(uuid.NewUUID()),
 					URI:       r.RequestURI,
 					Host:      getHost(r),
+					JA4H:      getJA4H(r),
 					IsServer:  false,
 					Values:    &values,
 				}
@@ -1124,6 +1127,7 @@ func main() {
 					URI:       r.RequestURI,
 					Host:      getHost(r),
 					IsServer:  true,
+					JA4H:      getJA4H(r),
 				}
 				trackWithArgs(&configuration, &w, r, &wargs)
 				w.WriteHeader(http.StatusOK)
@@ -1427,6 +1431,7 @@ func ltv(c *Configuration, w *http.ResponseWriter, r *http.Request) error {
 		URI:       r.RequestURI,
 		Host:      getHost(r),
 		EventID:   uuid.Must(uuid.NewUUID()),
+		JA4H:      getJA4H(r),
 	}
 	return trackWithArgs(c, w, r, &wargs)
 }
@@ -1452,6 +1457,7 @@ func track(c *Configuration, w *http.ResponseWriter, r *http.Request, opts *Trac
 		URI:       r.RequestURI,
 		Host:      getHost(r),
 		EventID:   uuid.Must(uuid.NewUUID()),
+		JA4H:      getJA4H(r),
 		IsServer:  isServer,
 	}
 	return trackWithArgs(c, w, r, &wargs)

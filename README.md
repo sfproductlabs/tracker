@@ -1,4 +1,15 @@
 # Tracker
+
+## TLDR
+
+```bash
+git clone https://github.com/sfproductlabs/tracker.git
+cd tracker
+go get github.com/sfproductlabs/tracker && go build -o tracker
+./tracker config.json
+```
+
+## Description
 User telemetry. Currently in production use, capturing hundreds of millions of records.
 
 Track every visitor click, setup growth experiments and measure every user outcome and growth loop all under one roof for all of your sites/assets without any external tools at unlimited scale (it's the same infrastructure that the big boys use: CERN, Netflix, Apple, Github). It's not exactly going to be a drop in replacement for Google Analytics, but it will go far beyond it to help you understand your users' experience. 
@@ -232,9 +243,17 @@ go test -v -run TestBatchWrite tests/batch_write_test.go
 Note: You may need to flush the insert queue and wait for 2 seconds before querying the table.
 
 ```bash
-clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2 && clickhouse client --query "SELECT COUNT(*)
-      FROM sfpla.events"
+clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2 && clickhouse client --query "SELECT COUNT(*) FROM sfpla.events"
 ```
+
+#### Cleaning up the database
+
+```bash
+clickhouse client --query "DROP DATABASE sfpla"
+clickhouse keeper-client --host 0.0.0.0 --port 2181 --query "rmr '/clickhouse'"
+```
+
+#### Querying the database
 
 ```sql
 SELECT

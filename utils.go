@@ -66,6 +66,7 @@ import (
 
 	"github.com/gocql/gocql"
 	"github.com/google/uuid"
+	goja4h "github.com/lum8rjack/go-ja4h"
 )
 
 // //////////////////////////////////////
@@ -220,6 +221,11 @@ func getHost(r *http.Request) string {
 	} else {
 		return addr
 	}
+}
+
+// getJA4H generates a JA4H fingerprint from the HTTP request
+func getJA4H(r *http.Request) string {
+	return goja4h.JA4H(r)
 }
 
 func Unzip(src, dest string) error {
