@@ -233,14 +233,14 @@ func (i *FacebookService) write(w *WriteArgs) error {
 					isNew = true
 				}
 			}
-			//[uid] - let's overwrite the vid if we have a uid
-			if uidstring, ok := v["uid"].(string); ok {
-				tempuid, _ := gocql.ParseUUID(uidstring)
-				if tempuid.Timestamp() != 0 {
-					v["vid"] = v["uid"]
-					isNew = false
-				}
-			}
+			// //[uid] - let's overwrite the vid if we have a uid
+			// if uidstring, ok := v["uid"].(string); ok {
+			// 	tempuid, _ := gocql.ParseUUID(uidstring)
+			// 	if tempuid.Timestamp() != 0 {
+			// 		v["vid"] = v["uid"]
+			// 		isNew = false
+			// 	}
+			// }
 			//[sid]
 			if sidstring, ok := v["sid"].(string); !ok {
 				if isNew {

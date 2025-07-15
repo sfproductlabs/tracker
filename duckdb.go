@@ -1329,14 +1329,14 @@ func (i *DuckService) write(w *WriteArgs) error {
 				isNew = true
 			}
 		}
-		//[uid] - let's overwrite the vid if we have a uid
-		if uidstring, ok := v["uid"].(string); ok {
-			tempuid, _ := uuid.Parse(uidstring)
-			if tempuid != uuid.Nil && tempuid.Version() == uuid.Version(1) {
-				v["vid"] = v["uid"]
-				isNew = false
-			}
-		}
+		// //[uid] - let's overwrite the vid if we have a uid
+		// if uidstring, ok := v["uid"].(string); ok {
+		// 	tempuid, _ := uuid.Parse(uidstring)
+		// 	if tempuid != uuid.Nil && tempuid.Version() == uuid.Version(1) {
+		// 		v["vid"] = v["uid"]
+		// 		isNew = false
+		// 	}
+		// }
 		//[sid]
 		if sidstring, ok := v["sid"].(string); !ok {
 			if isNew {

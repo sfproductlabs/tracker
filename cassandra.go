@@ -112,7 +112,7 @@ func (i *CassandraService) connect() error {
 	cluster.ReconnectInterval = time.Second
 	cluster.SocketKeepalive = time.Millisecond * 500
 	cluster.MaxPreparedStmts = 10000
-	
+
 	// SSL/TLS Configuration
 	if i.Configuration.Unencrypted {
 		// Explicitly disable TLS for development/localhost
@@ -1426,14 +1426,14 @@ func (i *CassandraService) write(w *WriteArgs) error {
 				isNew = true
 			}
 		}
-		//[uid] - let's overwrite the vid if we have a uid
-		if uidstring, ok := v["uid"].(string); ok {
-			tempuid, _ := gocql.ParseUUID(uidstring)
-			if tempuid.Timestamp() != 0 {
-				v["vid"] = v["uid"]
-				isNew = false
-			}
-		}
+		// //[uid] - let's overwrite the vid if we have a uid
+		// if uidstring, ok := v["uid"].(string); ok {
+		// 	tempuid, _ := gocql.ParseUUID(uidstring)
+		// 	if tempuid.Timestamp() != 0 {
+		// 		v["vid"] = v["uid"]
+		// 		isNew = false
+		// 	}
+		// }
 		//[sid]
 		if sidstring, ok := v["sid"].(string); !ok {
 			if isNew {

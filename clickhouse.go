@@ -1332,12 +1332,12 @@ func convertParamsToTypes(params *map[string]interface{}) {
 		if _, ok := npv.(int64); ok {
 			continue
 		}
-		
+
 		// Handle existing bool values - keep as boolean
 		if _, ok := npv.(bool); ok {
 			continue
 		}
-		
+
 		// Handle string values - attempt type conversion
 		if nps, ok := npv.(string); ok {
 			nps = strings.TrimSpace(nps)
@@ -1345,7 +1345,7 @@ func convertParamsToTypes(params *map[string]interface{}) {
 				(*params)[npk] = ""
 				continue
 			}
-			
+
 			// Try boolean conversion
 			if strings.ToLower(nps) == "true" {
 				(*params)[npk] = true
@@ -1355,7 +1355,7 @@ func convertParamsToTypes(params *map[string]interface{}) {
 				(*params)[npk] = false
 				continue
 			}
-			
+
 			// Try integer conversion first
 			if npint, err := strconv.ParseInt(nps, 10, 64); err == nil {
 				// Check if it might be a timestamp (large number)
@@ -1368,37 +1368,37 @@ func convertParamsToTypes(params *map[string]interface{}) {
 				}
 				continue
 			}
-			
+
 			// Try float conversion
 			if npf, err := strconv.ParseFloat(nps, 64); err == nil {
 				(*params)[npk] = npf
 				continue
 			}
-			
+
 			// Try date/time conversion to UTC milliseconds
 			if t, err := time.Parse(time.RFC3339, nps); err == nil {
 				(*params)[npk] = t.UTC().UnixMilli()
 				continue
 			}
-			
+
 			// Try other common date formats
 			dateFormats := []string{
-				"2006-01-02T15:04:05Z",     // RFC3339 without nanoseconds
-				"2006-01-02 15:04:05",      // SQL datetime
-				"2006-01-02T15:04:05",      // ISO without timezone
-				"2006-01-02",               // Date only
-				"01/02/2006",               // US format
-				"02/01/2006",               // EU format
+				"2006-01-02T15:04:05Z", // RFC3339 without nanoseconds
+				"2006-01-02 15:04:05",  // SQL datetime
+				"2006-01-02T15:04:05",  // ISO without timezone
+				"2006-01-02",           // Date only
+				"01/02/2006",           // US format
+				"02/01/2006",           // EU format
 			}
-			
+
 			for _, format := range dateFormats {
 				if t, err := time.Parse(format, nps); err == nil {
 					(*params)[npk] = t.UTC().UnixMilli()
 					goto nextParam
 				}
 			}
-			
-			nextParam:
+
+		nextParam:
 			// Try to parse as JSON object/array
 			if len(nps) > 1 && ((nps[0] == '{' && nps[len(nps)-1] == '}') || (nps[0] == '[' && nps[len(nps)-1] == ']')) {
 				var jsonObj interface{}
@@ -1413,7 +1413,7 @@ func convertParamsToTypes(params *map[string]interface{}) {
 					continue
 				}
 			}
-			
+
 			// Keep as string if no conversion possible
 			(*params)[npk] = nps
 		} else {
@@ -1424,7 +1424,7 @@ func convertParamsToTypes(params *map[string]interface{}) {
 				(*params)[npk] = subMap
 				continue
 			}
-			
+
 			// Handle other types - convert to string
 			(*params)[npk] = fmt.Sprintf("%+v", npv)
 		}
@@ -1881,13 +1881,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			isNew = true
 		}
 	}
-	//[uid] - let's overwrite the vid if we have a uid
-	if uidstring, ok := v["uid"].(string); ok {
-		if _, err := uuid.Parse(uidstring); err == nil {
-			v["vid"] = v["uid"]
-			isNew = false
-		}
-	}
+	// //[uid] - let's overwrite the vid if we have a uid
+	// if uidstring, ok := v["uid"].(string); ok {
+	// 	if _, err := uuid.Parse(uidstring); err == nil {
+	// 		v["vid"] = v["uid"]
+	// 		isNew = false
+	// 	}
+	// }
 	//[sid]
 	if sidstring, ok := v["sid"].(string); !ok {
 		if isNew {
