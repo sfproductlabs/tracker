@@ -251,6 +251,7 @@ clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2 && clickh
 ```bash
 clickhouse client --query "DROP DATABASE sfpla"
 clickhouse keeper-client --host 0.0.0.0 --port 2181 --query "rmr '/clickhouse'"
+clickhouse client < schema.1.ch.sql
 ```
 
 #### Querying the database
