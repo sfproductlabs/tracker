@@ -1948,7 +1948,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 	//routed
 	if xerr := (*i.Session).Exec(ctx, `INSERT INTO routed (hhash, ip, url, updated_at) VALUES (?, ?, ?, ?)`,
-		v["url"], hhash, w.IP, updated); xerr != nil && i.AppConfig.Debug {
+		hhash, w.IP, v["url"], updated); xerr != nil && i.AppConfig.Debug {
 		fmt.Println("CH[routed]:", xerr)
 	}
 
