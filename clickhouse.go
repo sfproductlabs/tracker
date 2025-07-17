@@ -797,7 +797,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 	case SVC_GET_REDIRECT:
 		//TODO: AG ADD CACHE
 		var redirect string
-		if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM redirects WHERE urlfrom=?`, fmt.Sprintf("%s%s", r.Host, r.URL.Path)).Scan(&redirect); err == nil {
+		if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM redirects WHERE urlfrom=?`, getFullURL(r)).Scan(&redirect); err == nil {
 			s.Values = &map[string]string{"Redirect": redirect}
 			http.Redirect(*w, r, redirect, http.StatusFound)
 			return nil

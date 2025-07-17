@@ -193,15 +193,156 @@ func cacheDir() (dir string) {
 	return ""
 }
 
-func getIP(r *http.Request) string {
-	ip := r.Header.Get("X-Forwarded-For")
-	if ip == "" {
-		var err error
-		if ip, _, err = net.SplitHostPort(r.RemoteAddr); err != nil {
-			ip = r.RemoteAddr
+// getRequestHostInfo returns comprehensive host information from various request headers
+func getRequestHostInfo(r *http.Request) map[string]string {
+	hostInfo := map[string]string{
+		"request_host":   r.Header.Get("host"),
+		"x_host":         r.Header.Get("x-host"),
+		"forwarded_host": r.Header.Get("x-forwarded-host"),
+		"original_host":  r.Header.Get("x-original-host"),
+		"client_ip":      r.Header.Get("x-real-ip"),
+		"server_ip":      r.Header.Get("server-ip"),
+		"forwarded_for":  r.Header.Get("x-forwarded-for"),
+	}
+
+	// Filter out empty values
+	filtered := make(map[string]string)
+	for k, v := range hostInfo {
+		if v != "" {
+			filtered[k] = v
 		}
 	}
-	return cleanIP(ip)
+	return filtered
+}
+
+// getPrimaryHost returns the most reliable host identifier for hhash calculation
+// Order of precedence:
+// 1. x-original-host (original client request host before any proxying)
+// 2. host (standard host header)
+// 3. x-forwarded-host (if behind a trusted proxy)
+// 4. x-host (fallback custom header)
+// 5. x-real-ip (if no host headers available)
+// 6. x-forwarded-for (last resort, first client IP in chain)
+// 7. server-ip (absolute last resort)
+func getPrimaryHost(r *http.Request) string {
+	headers := r.Header
+
+	// Try each header in order of reliability
+	host := headers.Get("x-original-host")
+	if host != "" {
+		return cleanHost(host)
+	}
+
+	host = headers.Get("host")
+	if host != "" {
+		return cleanHost(host)
+	}
+
+	host = headers.Get("x-forwarded-host")
+	if host != "" {
+		return cleanHost(host)
+	}
+
+	host = headers.Get("x-host")
+	if host != "" {
+		return cleanHost(host)
+	}
+
+	host = headers.Get("x-real-ip")
+	if host != "" {
+		return cleanHost(host)
+	}
+
+	// Handle x-forwarded-for (take first IP in chain)
+	if forwardedFor := headers.Get("x-forwarded-for"); forwardedFor != "" {
+		if ips := strings.Split(forwardedFor, ","); len(ips) > 0 {
+			firstIP := strings.TrimSpace(ips[0])
+			if firstIP != "" {
+				return cleanHost(firstIP)
+			}
+		}
+	}
+
+	host = headers.Get("server-ip")
+	if host != "" {
+		return cleanHost(host)
+	}
+
+	return ""
+}
+
+// cleanHost removes port from host if present and returns clean hostname/IP
+func cleanHost(host string) string {
+	if addr, _, err := net.SplitHostPort(host); err != nil {
+		return host
+	} else {
+		return addr
+	}
+}
+
+func getIP(r *http.Request) string {
+	// Enhanced IP detection with multiple header fallbacks
+	// Order of precedence:
+	// 1. x-real-ip (most reliable, set by trusted proxy)
+	// 2. x-forwarded-for (first IP in chain)
+	// 3. x-client-ip (some proxies use this)
+	// 4. cf-connecting-ip (Cloudflare)
+	// 5. x-forwarded (standard format)
+	// 6. RemoteAddr (fallback)
+
+	headers := r.Header
+
+	// Try x-real-ip first (most reliable)
+	if ip := headers.Get("x-real-ip"); ip != "" {
+		return cleanIP(ip)
+	}
+
+	// Try x-forwarded-for (take first IP in chain)
+	if forwardedFor := headers.Get("x-forwarded-for"); forwardedFor != "" {
+		if ips := strings.Split(forwardedFor, ","); len(ips) > 0 {
+			firstIP := strings.TrimSpace(ips[0])
+			if firstIP != "" {
+				return cleanIP(firstIP)
+			}
+		}
+	}
+
+	// Try x-client-ip
+	if ip := headers.Get("x-client-ip"); ip != "" {
+		return cleanIP(ip)
+	}
+
+	// Try Cloudflare header
+	if ip := headers.Get("cf-connecting-ip"); ip != "" {
+		return cleanIP(ip)
+	}
+
+	// Try x-forwarded header
+	if forwarded := headers.Get("x-forwarded"); forwarded != "" {
+		// Parse "for=client,for=proxy" format
+		if strings.Contains(forwarded, "for=") {
+			parts := strings.Split(forwarded, ",")
+			for _, part := range parts {
+				if strings.HasPrefix(strings.TrimSpace(part), "for=") {
+					client := strings.TrimSpace(strings.TrimPrefix(part, "for="))
+					if client != "" && client != "unknown" {
+						return cleanIP(client)
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback to RemoteAddr
+	if r.RemoteAddr != "" {
+		if ip, _, err := net.SplitHostPort(r.RemoteAddr); err != nil {
+			return cleanIP(r.RemoteAddr)
+		} else {
+			return cleanIP(ip)
+		}
+	}
+
+	return ""
 }
 
 func cleanIP(ip string) string {
@@ -216,11 +357,17 @@ func cleanIP(ip string) string {
 }
 
 func getHost(r *http.Request) string {
-	if addr, _, err := net.SplitHostPort(r.Host); err != nil {
-		return r.Host
-	} else {
-		return addr
+	return getPrimaryHost(r)
+}
+
+// getFullURL returns the full URL for redirect lookups, using enhanced host detection
+func getFullURL(r *http.Request) string {
+	host := getPrimaryHost(r)
+	if host == "" {
+		// Fallback to original host if enhanced detection fails
+		host = r.Host
 	}
+	return fmt.Sprintf("%s%s", host, r.URL.Path)
 }
 
 // getJA4H generates a JA4H fingerprint from the HTTP request
