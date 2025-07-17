@@ -357,12 +357,6 @@ func cleanIP(ip string) string {
 }
 
 func getHost(r *http.Request) string {
-	// Debug: Print all available headers
-	fmt.Println("=== DEBUG: Available headers ===")
-	for name, values := range r.Header {
-		fmt.Printf("Header %s: %v\n", name, values)
-	}
-
 	host := getPrimaryHost(r)
 	if host == "" {
 		// Fallback to r.Host if no headers found
