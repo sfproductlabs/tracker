@@ -1190,7 +1190,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				  oid
 			  ) 
 			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //15
-				uuid.New(),
+				uuid.Must(uuid.NewUUID()),
 				v["ldate"],
 				time.Now().UTC(),
 				ltime,
@@ -1861,18 +1861,18 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	}
 	//Double check
 	if w.EventID == uuid.Nil {
-		w.EventID = uuid.New()
+		w.EventID = uuid.Must(uuid.NewUUID())
 	}
 
 	//[vid] - default
 	isNew := false
 	if vidstring, ok := v["vid"].(string); !ok {
-		v["vid"] = uuid.New().String()
+		v["vid"] = uuid.Must(uuid.NewUUID()).String()
 		isNew = true
 	} else {
 		//Let's override the event id too
 		if _, err := uuid.Parse(vidstring); err != nil {
-			v["vid"] = uuid.New().String()
+			v["vid"] = uuid.Must(uuid.NewUUID()).String()
 			isNew = true
 		}
 	}
@@ -1888,11 +1888,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		if isNew {
 			v["sid"] = v["vid"]
 		} else {
-			v["sid"] = uuid.New().String()
+			v["sid"] = uuid.Must(uuid.NewUUID()).String()
 		}
 	} else {
 		if _, err := uuid.Parse(sidstring); err != nil {
-			v["sid"] = uuid.New().String()
+			v["sid"] = uuid.Must(uuid.NewUUID()).String()
 		}
 	}
 
@@ -2160,13 +2160,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				created_at, uid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
 				params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
-				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, oid
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //49
+				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, oid, version_ts
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
 				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
 				updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 				v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])); xerr != nil && i.AppConfig.Debug {
+				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"]), -updated.Unix()); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[visitors]:", xerr)
 			}
 
@@ -2410,7 +2410,7 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	eventID := uuid.New()
+	eventID := uuid.Must(uuid.NewUUID())
 	return i.batchInsert("mstore", `INSERT INTO mstore (
 		id, tid, oid, event_type, 
 		content, metadata, parent_id, created_at, updated_at
@@ -2434,7 +2434,7 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 		return nil // Skip non-actionable events
 	}
 
-	triageID := uuid.New()
+	triageID := uuid.Must(uuid.NewUUID())
 	return i.batchInsert("mtriage", `INSERT INTO mtriage (
 		id, tid, oid, priority, 
 		message_type, content, metadata, status, created_at, updated_at
