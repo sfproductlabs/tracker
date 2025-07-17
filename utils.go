@@ -357,7 +357,18 @@ func cleanIP(ip string) string {
 }
 
 func getHost(r *http.Request) string {
-	return getPrimaryHost(r)
+	// Debug: Print all available headers
+	fmt.Println("=== DEBUG: Available headers ===")
+	for name, values := range r.Header {
+		fmt.Printf("Header %s: %v\n", name, values)
+	}
+
+	host := getPrimaryHost(r)
+	if host == "" {
+		// Fallback to r.Host if no headers found
+		return r.Host
+	}
+	return host
 }
 
 // getFullURL returns the full URL for redirect lookups, using enhanced host detection
