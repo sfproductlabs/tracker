@@ -809,7 +809,7 @@ create table agreements (
   latlon frozen<geo_point>,
   zip text,
   owner timeuuid,
-  org timeuuid,
+  oid timeuuid,
   PRIMARY KEY ((vid)) --note all queries should filter hhash
 );
 
@@ -852,7 +852,7 @@ create table agreed (
   latlon frozen<geo_point>,
   zip text,
   owner timeuuid,
-  org timeuuid,
+  oid timeuuid,
   PRIMARY KEY ((vid), created) --note all queries should filter hhash
 )
 WITH CLUSTERING ORDER BY (created DESC);
@@ -867,7 +867,7 @@ create table ltv (
   sid timeuuid, 
   payments set<frozen<payment>>,
   paid double,
-  org timeuuid,
+  oid timeuuid,
   updated timestamp,
   updater timeuuid,
   created timestamp,  
@@ -884,7 +884,7 @@ create table ltvu (
   orid timeuuid, --order id
   payments set<frozen<payment>>,
   paid double,
-  org timeuuid,
+  oid timeuuid,
   updated timestamp,
   updater timeuuid,
   created timestamp,  
@@ -901,7 +901,7 @@ create table ltvv (
   orid timeuuid, 
   payments set<frozen<payment>>,
   paid double,
-  org timeuuid,
+  oid timeuuid,
   updated timestamp,
   updater timeuuid,
   created timestamp,  

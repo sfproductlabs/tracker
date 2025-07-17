@@ -54,7 +54,7 @@ create type address (
 );
 
 create table orgs (
-  org      timeuuid,
+  oid      timeuuid,
   parent   timeuuid,
   root timeuuid,
   lname text, --legal name
@@ -71,14 +71,14 @@ create table orgs (
   owner timeuuid,
   updated timestamp,
   updater timeuuid,
-  primary key (org)
+  primary key (oid)
 );
 
 create materialized view conglomerate as 
 select * from orgs
 where root is not null
-primary key (root, org)
-with clustering order by (root DESC, org ASC);
+primary key (root, oid)
+with clustering order by (root DESC, oid ASC);
 
 create table users (
   uid         timeuuid,
@@ -101,7 +101,7 @@ create table users (
   splits map<text,text>, --experimentid : split (xid_splitname)
   lang text,
   created timestamp,
-  org timeuuid,
+  oid timeuuid,
   owner timeuuid,
   updated timestamp,
   updater timeuuid,
@@ -138,7 +138,7 @@ create table services (
   rights  set<text>,
   expiry date,
   created timestamp,
-  org timeuuid,
+  oid timeuuid,
   owner timeuuid,
   updated timestamp,
   updater timeuuid,
@@ -163,7 +163,7 @@ create table queues (
   started timestamp,
   completed timestamp,
   created timestamp,
-  org timeuuid,
+  oid timeuuid,
   owner timeuuid,
   updated timestamp,
   updater timeuuid,
@@ -186,7 +186,7 @@ create table cohorts (
   started timestamp,
   completed timestamp,
   created timestamp,
-  org timeuuid,
+  oid timeuuid,
   owner timeuuid,
   updated timestamp,
   updater timeuuid,
@@ -227,9 +227,9 @@ create type mcert (
 );
 
 
---advanced permission (org and owner in everything else)
+--advanced permission (oid and owner in everything else)
 create type perm (
-  org timeuuid,
+  oid timeuuid,
   role timeuuid,
   right text,
   owner timeuuid,
@@ -247,7 +247,7 @@ CREATE TABLE msec (
     approver timeuuid,
     approved timestamp,
     created timestamp,
-    org timeuuid,
+    oid timeuuid,
     owner timeuuid,
     updatedms bigint, --participant updated CHECK
     updated timestamp,
@@ -409,7 +409,7 @@ CREATE TABLE mthreads (
   --OWNER
     deleted timestamp,
     created timestamp,
-    org timeuuid,
+    oid timeuuid,
     owner timeuuid,
     updatedms bigint, --participant updated CHECK
     updated timestamp,
@@ -457,7 +457,7 @@ create table mtriage (
   keep boolean, --keep this message on the server
   createdms bigint, --INDEX and use this for last-seen & alerts ALONGWITH users
   created timestamp,
-  org timeuuid,
+  oid timeuuid,
   owner timeuuid,
   updated timestamp,
   updater timeuuid,
@@ -509,7 +509,7 @@ create table mstore (
   keep boolean, --keep this message on the server
   createdms bigint, --INDEX and use this for last-seen & alerts ALONGWITH users
   created timestamp,
-  org timeuuid,
+  oid timeuuid,
   owner timeuuid,
   updated timestamp,
   updater timeuuid, 
@@ -541,7 +541,7 @@ create table mfailures (
  retries int, 
  died timestamp, --stop retries
  created timestamp,
- org timeuuid,
+ oid timeuuid,
  owner timeuuid,
  updated timestamp,
  updater timeuuid,
@@ -573,7 +573,7 @@ create table splits (
   users set<timeuuid>, --set of users in this split
   pct double, --**CANNOT** have both users and pct (percent)! Percents in a family must equal 100. Ex. for A/B, 50.0
   created timestamp,
-  org timeuuid,
+  oid timeuuid,
   owner timeuuid,
   updated timestamp,
   updater timeuuid,
@@ -607,7 +607,7 @@ alter table users add magic_exp timestamp;
 alter table users add magic_attempts int;
 alter table users add magic_attempted timestamp;
 alter table users add terms_accepted timestamp;
-alter table users add perms map<timeuuid,frozen<map<text,text>>>; --org specific: org, claim[yes]
+alter table users add perms map<timeuuid,frozen<map<text,text>>>; --oid specific: oid, claim[yes]
 CREATE INDEX IF NOT EXISTS user_cell_idx ON users ( cell );
 
 alter table orgs add host text;
@@ -634,7 +634,7 @@ create table user_verifications (
   vmethod text,
   verifier timeuuid,
   created timestamp,
-  org timeuuid,
+  oid timeuuid,
   owner timeuuid,
   updated timestamp,
   updater timeuuid,
@@ -671,8 +671,8 @@ create table files (
   o_r boolean, --owner read
   o_w boolean, --owner write
   orgs set<timeuuid>,
-  g_r boolean, --org/group read
-  g_w boolean, --org/group write
+  g_r boolean, --oid/group read
+  g_w boolean, --oid/group write
   roles set<text>,
   r_r boolean, --role-read
   r_w boolean, --role write
@@ -725,21 +725,21 @@ create table pconfirmation (
 );
 
 CREATE TABLE permissions (
-    oid timeuuid,    -- org id
+    oid timeuuid,    -- oid id
     rtype text,      -- resource type: "folder"
     rpath text,             -- resource path: /* or /folder1/x.pdf
-    obj text,              -- user or org or * (everyone)
-    ref uuid,         --user or org   00000000-0000-0000-0000-000000000000 corresponds to "everyone"
+    obj text,              -- user or oid or * (everyone)
+    ref uuid,         --user or oid   00000000-0000-0000-0000-000000000000 corresponds to "everyone"
     action text,    -- "OPEN" etc (for standard rights) or "*" (for all rights) or "folder:SYNC" (for custom rights)
     effect boolean,  -- True = "allow" or False = "deny"
     PRIMARY KEY ((oid, rtype), rpath, ref, action)
 );
 
-CREATE CUSTOM INDEX permissions_oid_idx ON permissions (oid) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';  
-CREATE CUSTOM INDEX rpath_oid_idx ON permissions (rpath) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';  
---CREATE CUSTOM INDEX obj_oid_idx ON permissions (obj) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';  
-CREATE CUSTOM INDEX ref_oid_idx ON permissions (ref) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';  
-CREATE CUSTOM INDEX action_oid_idx ON permissions (action) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';  
+CREATE CUSTOM INDEX permissions_oid_idx ON permissions (oid) USING 'oid.apache.cassandra.index.sai.StorageAttachedIndex';  
+CREATE CUSTOM INDEX rpath_oid_idx ON permissions (rpath) USING 'oid.apache.cassandra.index.sai.StorageAttachedIndex';  
+--CREATE CUSTOM INDEX obj_oid_idx ON permissions (obj) USING 'oid.apache.cassandra.index.sai.StorageAttachedIndex';  
+CREATE CUSTOM INDEX ref_oid_idx ON permissions (ref) USING 'oid.apache.cassandra.index.sai.StorageAttachedIndex';  
+CREATE CUSTOM INDEX action_oid_idx ON permissions (action) USING 'oid.apache.cassandra.index.sai.StorageAttachedIndex';  
 
 -- NOTES:
 -- WE MUST LIMIT THE RPATH TO 10 DIVISIONS /../.../...
@@ -765,8 +765,8 @@ CREATE CUSTOM INDEX action_oid_idx ON permissions (action) USING 'org.apache.cas
 	-- APPEND                     //Non destructive changes
 	-- COPY                       //Clone a file to my directory
 	-- EDIT                       //Destructive changes
-	-- SHARE_INTERNAL             //Share to someone inside the original org
-	-- SHARE_EXTERNAL             //Share to someone outside the original org
+	-- SHARE_INTERNAL             //Share to someone inside the original oid
+	-- SHARE_EXTERNAL             //Share to someone outside the original oid
 	-- MOVE                       //Move the document
 	-- DESTROY
 	-- ADMIN

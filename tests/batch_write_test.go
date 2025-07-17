@@ -16,8 +16,8 @@ import (
 
 // Test configuration structures
 type Configuration struct {
-	Debug   bool      `json:"Debug"`
-	Notify  []Service `json:"Notify"`
+	Debug  bool      `json:"Debug"`
+	Notify []Service `json:"Notify"`
 }
 
 type Service struct {
@@ -126,7 +126,7 @@ func (service *TestClickhouseService) writeEvent(writeArgs *WriteArgs) error {
 
 	// Insert into events table using actual schema
 	err := service.Session.Exec(ctx, `INSERT INTO events (
-		eid, vid, sid, org, created_at, updated_at, uid,
+		eid, vid, sid, oid, created_at, updated_at, uid,
 		url, ip, source, medium, campaign, country, region, city, lat, lon,
 		app, ver, ename, params
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -287,21 +287,21 @@ func testSingleEventWrite(t *testing.T, service *TestClickhouseService) {
 	userID := uuid.New()
 
 	eventParams := map[string]interface{}{
-		"vid":           visitorID.String(),
-		"sid":           sessionID.String(),
-		"uid":           userID.String(),
-		"url":           "https://test.example.com/single-event",
-		"event":         "single_test_event",
-		"utm_source":    "test",
-		"utm_medium":    "batch_test",
+		"vid":          visitorID.String(),
+		"sid":          sessionID.String(),
+		"uid":          userID.String(),
+		"url":          "https://test.example.com/single-event",
+		"event":        "single_test_event",
+		"utm_source":   "test",
+		"utm_medium":   "batch_test",
 		"utm_campaign": "single_event_test",
-		"country":       "US",
-		"region":        "CA",
-		"city":          "San Francisco",
-		"lat":           37.7749,
-		"lon":           -122.4194,
-		"app":           "test_app",
-		"ver":           1,
+		"country":      "US",
+		"region":       "CA",
+		"city":         "San Francisco",
+		"lat":          37.7749,
+		"lon":          -122.4194,
+		"app":          "test_app",
+		"ver":          1,
 	}
 
 	testOrgID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
@@ -376,24 +376,24 @@ func testBatchEventWrite(t *testing.T, service *TestClickhouseService, batchSize
 		userID := uuid.New()
 
 		eventParams := map[string]interface{}{
-			"vid":           visitorID.String(),
-			"sid":           sessionID.String(),
-			"uid":           userID.String(),
-			"url":           fmt.Sprintf("https://test.example.com/batch-event/%d", i),
-			"event":         "batch_test_event",
-			"batch_index":   i,
-			"utm_source":    "batch_test",
-			"utm_medium":    "automated",
+			"vid":          visitorID.String(),
+			"sid":          sessionID.String(),
+			"uid":          userID.String(),
+			"url":          fmt.Sprintf("https://test.example.com/batch-event/%d", i),
+			"event":        "batch_test_event",
+			"batch_index":  i,
+			"utm_source":   "batch_test",
+			"utm_medium":   "automated",
 			"utm_campaign": "batch_performance_test",
-			"country":       "US",
-			"region":        "CA",
-			"city":          "San Francisco",
-			"lat":           37.7749,
-			"lon":           -122.4194,
-			"app":           "batch_test_app",
-			"ver":           2,
-			"price":         float64(i * 10),
-			"currency":      "USD",
+			"country":      "US",
+			"region":       "CA",
+			"city":         "San Francisco",
+			"lat":          37.7749,
+			"lon":          -122.4194,
+			"app":          "batch_test_app",
+			"ver":          2,
+			"price":        float64(i * 10),
+			"currency":     "USD",
 		}
 
 		writeArgs := &WriteArgs{
@@ -436,15 +436,15 @@ func testMixedBatch(t *testing.T, service *TestClickhouseService, count int) {
 		userID := uuid.New()
 
 		eventParams := map[string]interface{}{
-			"vid":           visitorID.String(),
-			"sid":           sessionID.String(),
-			"uid":           userID.String(),
-			"url":           fmt.Sprintf("https://test.example.com/mixed-event/%d", i),
-			"event":         "mixed_batch_event",
+			"vid":          visitorID.String(),
+			"sid":          sessionID.String(),
+			"uid":          userID.String(),
+			"url":          fmt.Sprintf("https://test.example.com/mixed-event/%d", i),
+			"event":        "mixed_batch_event",
 			"utm_campaign": "mixed_batch_test",
-			"country":       "US",
-			"app":           "mixed_test",
-			"ver":           3,
+			"country":      "US",
+			"app":          "mixed_test",
+			"ver":          3,
 		}
 
 		eventWriteArgs := &WriteArgs{

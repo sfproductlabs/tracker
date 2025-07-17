@@ -323,7 +323,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					 latlon,
 					 zip,
 					 owner,
-					 org
+					 oid
 				  ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
 					b["vid"],
 					created,
@@ -365,7 +365,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					latlon,
 					b["zip"],
 					b["owner"],
-					b["org"],
+					b["oid"],
 				).Exec(); err != nil {
 					return err
 				}
@@ -411,7 +411,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					 latlon,
 					 zip,
 					 owner,
-					 org
+					 oid
 				  ) values (?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?)`, //NB: Removed  'IF NOT EXISTS' so can update
 					b["vid"],
 					created,
@@ -453,7 +453,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					latlon,
 					b["zip"],
 					b["owner"],
-					b["org"],
+					b["oid"],
 				).Exec()
 
 				(*w).WriteHeader(http.StatusOK)
@@ -2436,7 +2436,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			 sid = ?,
 			 payments = ?, 
 			 paid = ?,
-			 org = ?,
+			 oid = ?,
 			 updated = ?,
 			 updater = ?,
 			 created = ?,
@@ -2446,7 +2446,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["sid"],
 			pmts,
 			prevpaid,
-			v["org"],
+			v["oid"],
 			updated,
 			v["uid"],
 			created,
@@ -2478,7 +2478,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			 sid = ?,
 			 payments = ?, 
 			 paid = ?,
-			 org = ?,
+			 oid = ?,
 			 updated = ?,
 			 updater = ?,
 			 created = ?,
@@ -2488,7 +2488,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["sid"],
 			pmts,
 			prevpaid,
-			v["org"],
+			v["oid"],
 			updated,
 			v["uid"],
 			created,
@@ -2521,7 +2521,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			 sid = ?,
 			 payments = ?, 
 			 paid = ?,
-			 org = ?,
+			 oid = ?,
 			 updated = ?,
 			 updater = ?,
 			 created = ?,
@@ -2531,7 +2531,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			v["sid"],
 			pmts,
 			prevpaid,
-			v["org"],
+			v["oid"],
 			updated,
 			v["uid"],
 			created,
