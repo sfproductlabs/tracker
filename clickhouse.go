@@ -885,9 +885,9 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 
 				// Insert into redirect_history table
 				if err := (*i.Session).Exec(ctx, `INSERT INTO redirect_history (
-					urlfrom, hostfrom, slugfrom, urlto, hostto, pathto, searchto, updated_at, 
+					urlfrom, hostfrom, slugfrom, urlto, hostto, pathto, searchto, 
 					updater, oid
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					urlfrom,
 					strings.ToLower(urlfromURL.Host),
 					strings.ToLower(urlfromURL.Path),
@@ -895,7 +895,6 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 					strings.ToLower(urltoURL.Host),
 					strings.ToLower(urlfromURL.Path),
 					b["searchto"],
-					updated,
 					updater,
 					oid,
 				); err != nil {
@@ -956,11 +955,7 @@ func (i *ClickhouseService) prune() error {
 					rowCount += 1
 
 					//CHECK IF ALREADY CLEANED
-					if u, ok := row["updated_at"].(time.Time); ok {
-						if !u.IsZero() {
-							continue
-						}
-					}
+					// Note: updated_at field was removed from schema, so we skip this check
 
 					//PROCESS THE ROW
 					expired, created := checkRowExpiredClickHouse(row, p, i.AppConfig.PruneSkipToTimestamp)
@@ -989,11 +984,11 @@ func (i *ClickhouseService) prune() error {
 								updateSQL := strings.Join(update, ",")
 								switch p.Table {
 								case "visitors":
-									(*i.Session).Exec(ctx, fmt.Sprintf(`ALTER TABLE visitors UPDATE updated_at=?, %s WHERE vid=?`, updateSQL), time.Now().UTC(), row["vid"])
+									(*i.Session).Exec(ctx, fmt.Sprintf(`ALTER TABLE visitors UPDATE %s WHERE vid=?`, updateSQL), row["vid"])
 								case "sessions":
-									(*i.Session).Exec(ctx, fmt.Sprintf(`ALTER TABLE sessions UPDATE updated_at=?, %s WHERE vid=? AND sid=?`, updateSQL), time.Now().UTC(), row["vid"], row["sid"])
+									(*i.Session).Exec(ctx, fmt.Sprintf(`ALTER TABLE sessions UPDATE %s WHERE vid=? AND sid=?`, updateSQL), row["vid"], row["sid"])
 								case "events", "events_recent":
-									(*i.Session).Exec(ctx, fmt.Sprintf(`ALTER TABLE %s UPDATE updated_at=?, %s WHERE eid=?`, p.Table, updateSQL), time.Now().UTC(), row["eid"])
+									(*i.Session).Exec(ctx, fmt.Sprintf(`ALTER TABLE %s UPDATE %s WHERE eid=?`, p.Table, updateSQL), row["eid"])
 								}
 							}
 						}
@@ -1961,14 +1956,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS_RECENT)) {
 		if xerr := i.batchInsert("events_recent", `INSERT INTO events_recent (
 			eid, vid, sid, oid, hhash, app, rel, cflags, 
-			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, ptyp, 
+			created_at, uid, last, url, ip, iphash, lat, lon, ptyp, 
 			bhash, auth, duration, xid, split, ename, source, medium, campaign, 
 			country, region, city, zip, term, etyp, ver, sink, score, params, 
 			payment_id, targets, relation, rid, ja4h
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), hhash, v["app"], v["rel"], cflags,
-				updated, updated, parseUUID(uid), v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
+				updated, parseUUID(uid), v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
 				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
@@ -1985,14 +1980,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS)) {
 		if xerr := i.batchInsert("events", `INSERT INTO events (
 			eid, vid, sid, oid, hhash, app, rel, cflags, 
-			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, ptyp, 
+			created_at, uid, last, url, ip, iphash, lat, lon, ptyp, 
 			bhash, auth, duration, xid, split, ename, source, medium, campaign, 
 			country, region, city, zip, term, etyp, ver, sink, score, params, 
 			payment_id, targets, relation, rid, ja4h
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), hhash, v["app"], v["rel"], cflags,
-				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
+				updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
 				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
@@ -2162,13 +2157,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			//visitors
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO visitors (
 				vid, did, sid, hhash, app, rel, cflags, 
-				created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
+				created_at, uid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
 				params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, oid
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //49
 				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
-				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+				updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 				v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])); xerr != nil && i.AppConfig.Debug {
@@ -2178,13 +2173,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			//sessions
 			if xerr := (*i.Session).Exec(ctx, `INSERT INTO sessions (
 				vid, did, sid, hhash, app, rel, cflags, 
-				created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
+				created_at, uid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, duration, xid, split, ename, etyp, ver, sink, score, 
 				params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, oid
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //51
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
 				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
-				updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+				updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 				v["ptyp"], bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])); xerr != nil && i.AppConfig.Debug {
@@ -2195,13 +2190,13 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		// Update visitors_latest
 		if xerr := (*i.Session).Exec(ctx, `INSERT INTO visitors_latest (
 			vid, did, sid, hhash, app, rel, cflags, 
-			created_at, updated_at, uid, last, url, ip, iphash, lat, lon, 
+			created_at, uid, last, url, ip, iphash, lat, lon, 
 			ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
 			params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 			source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, oid
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //49
 			parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
-			updated, updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+			updated, parseUUID(uid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 			v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 			jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
 			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])); xerr != nil && i.AppConfig.Debug {
