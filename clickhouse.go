@@ -403,7 +403,7 @@ func (i *ClickhouseService) connect() error {
 	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CLICKHOUSE {
 		i.AppConfig.ProxyDailyLimitCheck = func(ip string) uint64 {
 			var total uint64
-			if err := (*i.Session).QueryRow(context.Background(), `SELECT total FROM dailies WHERE ip=? AND day=?`, ip, time.Now().UTC().Format("2006-01-02")).Scan(&total); err != nil {
+			if err := (*i.Session).QueryRow(context.Background(), `SELECT total FROM dailies WHERE ip=? AND day=? final`, ip, time.Now().UTC().Format("2006-01-02")).Scan(&total); err != nil {
 				return 0xFFFFFFFFFFFFFFFF
 			}
 			return total
@@ -516,7 +516,7 @@ func (i *ClickhouseService) auth(s *ServiceArgs) error {
 		return fmt.Errorf("User pass not provided")
 	}
 	var pwd string
-	if err := (*i.Session).QueryRow(context.Background(), `SELECT pwd FROM accounts WHERE uid=?`, uid).Scan(&pwd); err == nil {
+	if err := (*i.Session).QueryRow(context.Background(), `SELECT pwd FROM accounts WHERE uid=? final`, uid).Scan(&pwd); err == nil {
 		if pwd != sha(password) {
 			return fmt.Errorf("Bad pass")
 		}
@@ -683,8 +683,8 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, oid
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					[]interface{}{vid, created, cflags, sid, uid, avid, hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
-					country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
-					browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, oid}, agreementsData); err != nil {
+						country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
+						browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, oid}, agreementsData); err != nil {
 					return err
 				}
 
@@ -701,8 +701,8 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, oid
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					[]interface{}{vid, created, cflags, sid, uid, avid, hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
-					country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
-					browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, oid}, agreedData); err != nil {
+						country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
+						browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, oid}, agreedData); err != nil {
 					return err
 				}
 
@@ -718,7 +718,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		var vid string
 		if len(r.URL.Query()["vid"]) > 0 {
 			vid = r.URL.Query()["vid"][0]
-			rows, err := (*i.Session).Query(ctx, `SELECT * FROM agreements WHERE vid=?`, vid)
+			rows, err := (*i.Session).Query(ctx, `SELECT * FROM agreements WHERE vid=? final`, vid)
 			if err != nil {
 				return err
 			}
@@ -745,7 +745,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		}
 		return nil
 	case SVC_GET_JURISDICTIONS:
-		rows, err := (*i.Session).Query(ctx, `SELECT * FROM jurisdictions`)
+		rows, err := (*i.Session).Query(ctx, `SELECT * FROM jurisdictions final`)
 		if err != nil {
 			return err
 		}
@@ -786,7 +786,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		if err := i.auth(s); err != nil {
 			return err
 		}
-		rows, err := (*i.Session).Query(ctx, `SELECT * FROM redirect_history`)
+		rows, err := (*i.Session).Query(ctx, `SELECT * FROM redirect_history final`)
 		if err != nil {
 			return err
 		}
@@ -809,7 +809,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 	case SVC_GET_REDIRECT:
 		//TODO: AG ADD CACHE
 		var redirect string
-		if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM redirects WHERE urlfrom=?`, getFullURL(r)).Scan(&redirect); err == nil {
+		if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM redirects WHERE urlfrom=? final`, getFullURL(r)).Scan(&redirect); err == nil {
 			s.Values = &map[string]string{"Redirect": redirect}
 			http.Redirect(*w, r, redirect, http.StatusFound)
 			return nil
@@ -883,31 +883,31 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 
 				// Insert into redirects table
 				redirectsData := map[string]interface{}{
-					"hhash": hhash,
-					"urlfrom": strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path),
-					"urlto": urlto,
+					"hhash":      hhash,
+					"urlfrom":    strings.ToLower(urlfromURL.Host) + strings.ToLower(urlfromURL.Path),
+					"urlto":      urlto,
 					"updated_at": updated,
-					"updater": updater,
-					"oid": oid,
+					"updater":    updater,
+					"oid":        oid,
 				}
 				if err := i.batchInsert("redirects", `INSERT INTO redirects (
 					hhash, urlfrom, urlto, updated_at, updater, oid
 				) VALUES (?, ?, ?, ?, ?, ?)`,
-					[]interface{}{hhash, strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path), urlto, updated, updater, oid}, redirectsData); err != nil {
+					[]interface{}{hhash, strings.ToLower(urlfromURL.Host) + strings.ToLower(urlfromURL.Path), urlto, updated, updater, oid}, redirectsData); err != nil {
 					return err
 				}
 
 				// Insert into redirect_history table
 				redirectHistoryData := map[string]interface{}{
-					"urlfrom": urlfrom,
+					"urlfrom":  urlfrom,
 					"hostfrom": strings.ToLower(urlfromURL.Host),
 					"slugfrom": strings.ToLower(urlfromURL.Path),
-					"urlto": urlto,
-					"hostto": strings.ToLower(urltoURL.Host),
-					"pathto": strings.ToLower(urlfromURL.Path),
+					"urlto":    urlto,
+					"hostto":   strings.ToLower(urltoURL.Host),
+					"pathto":   strings.ToLower(urlfromURL.Path),
 					"searchto": b["searchto"],
-					"updater": updater,
-					"oid": oid,
+					"updater":  updater,
+					"oid":      oid,
 				}
 				if err := i.batchInsert("redirect_history", `INSERT INTO redirect_history (
 					urlfrom, hostfrom, slugfrom, urlto, hostto, pathto, searchto, 
@@ -1102,9 +1102,9 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				fmt.Printf("COUNT %s\n", w)
 			}
 			countersData := map[string]interface{}{
-				"id": v["id"],
+				"id":    v["id"],
 				"total": 1,
-				"date": time.Now().UTC().Format("2006-01-02"),
+				"date":  time.Now().UTC().Format("2006-01-02"),
 			}
 			return i.batchInsert("counters", `INSERT INTO counters (id, total, date) VALUES (?, ?, ?)`,
 				[]interface{}{v["id"], 1, time.Now().UTC().Format("2006-01-02")}, countersData)
@@ -1124,9 +1124,9 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				}
 			}
 			updatesData := map[string]interface{}{
-				"id": v["id"],
+				"id":         v["id"],
 				"updated_at": timestamp,
-				"msg": v["msg"],
+				"msg":        v["msg"],
 			}
 			return i.batchInsert("updates", `INSERT INTO updates (id, updated_at, msg) VALUES (?, ?, ?)`,
 				[]interface{}{v["id"], timestamp, v["msg"]}, updatesData)
@@ -1198,21 +1198,21 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 			logId := uuid.Must(uuid.NewUUID())
 			currentTime := time.Now().UTC()
 			logsData := map[string]interface{}{
-				"id": logId,
-				"ldate": v["ldate"],
+				"id":         logId,
+				"ldate":      v["ldate"],
 				"created_at": currentTime,
-				"ltime": ltime,
-				"topic": topic,
-				"name": v["name"],
-				"host": v["host"],
-				"hostname": v["hostname"],
-				"owner": owner,
-				"ip": v["ip"],
-				"iphash": iphash,
-				"level": level,
-				"msg": v["msg"],
-				"params": jsonOrNull(params),
-				"oid": parseUUID(v["oid"]),
+				"ltime":      ltime,
+				"topic":      topic,
+				"name":       v["name"],
+				"host":       v["host"],
+				"hostname":   v["hostname"],
+				"owner":      owner,
+				"ip":         v["ip"],
+				"iphash":     iphash,
+				"level":      level,
+				"msg":        v["msg"],
+				"params":     jsonOrNull(params),
+				"oid":        parseUUID(v["oid"]),
 			}
 			return i.batchInsert("logs", `INSERT INTO logs
 			  (
@@ -1995,9 +1995,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//ips
 	ipsData := map[string]interface{}{
 		"hhash": *hhash,
-		"ip": w.IP,
+		"ip":    w.IP,
 		"total": 1,
-		"date": time.Now().UTC().Format("2006-01-02"),
+		"date":  time.Now().UTC().Format("2006-01-02"),
 	}
 	if xerr := i.batchInsert("ips", `INSERT INTO ips (hhash, ip, total, date) VALUES (?, ?, ?, ?)`,
 		[]interface{}{*hhash, w.IP, 1, time.Now().UTC().Format("2006-01-02")}, ipsData); xerr != nil && i.AppConfig.Debug {
@@ -2014,9 +2014,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 	//routed
 	routedData := map[string]interface{}{
-		"hhash": hhash,
-		"ip": w.IP,
-		"url": v["url"],
+		"hhash":      hhash,
+		"ip":         w.IP,
+		"url":        v["url"],
 		"updated_at": updated,
 	}
 	if xerr := i.batchInsert("routed", `INSERT INTO routed (hhash, ip, url, updated_at) VALUES (?, ?, ?, ?)`,
@@ -2105,9 +2105,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		if _, ok := v["url"].(string); ok {
 			hitsData := map[string]interface{}{
 				"hhash": hhash,
-				"url": v["url"],
+				"url":   v["url"],
 				"total": 1,
-				"date": time.Now().UTC().Format("2006-01-02"),
+				"date":  time.Now().UTC().Format("2006-01-02"),
 			}
 			if xerr := i.batchInsert("hits", `INSERT INTO hits (hhash, url, total, date) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, v["url"], 1, time.Now().UTC().Format("2006-01-02")}, hitsData); xerr != nil && i.AppConfig.Debug {
@@ -2117,11 +2117,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//daily
 		dailiesData := map[string]interface{}{
-			"ip": w.IP,
-			"day": time.Now().UTC().Format("2006-01-02"),
+			"ip":    w.IP,
+			"day":   time.Now().UTC().Format("2006-01-02"),
 			"total": 1,
 		}
-		if xerr := i.batchInsert("dailies", `INSERT INTO dailies (ip, day, total) VALUES (?, ?, ?)`, 
+		if xerr := i.batchInsert("dailies", `INSERT INTO dailies (ip, day, total) VALUES (?, ?, ?)`,
 			[]interface{}{w.IP, time.Now().UTC().Format("2006-01-02"), 1}, dailiesData); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[dailies]:", xerr)
 		}
@@ -2129,11 +2129,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//unknown vid
 		if isNew {
 			countersVidsData := map[string]interface{}{
-				"id": "vids_created",
+				"id":    "vids_created",
 				"total": 1,
-				"date": time.Now().UTC().Format("2006-01-02"),
+				"date":  time.Now().UTC().Format("2006-01-02"),
 			}
-			if xerr := i.batchInsert("counters", `INSERT INTO counters (id, total, date) VALUES (?, ?, ?)`, 
+			if xerr := i.batchInsert("counters", `INSERT INTO counters (id, total, date) VALUES (?, ?, ?)`,
 				[]interface{}{"vids_created", 1, time.Now().UTC().Format("2006-01-02")}, countersVidsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[counters]vids_created:", xerr)
 			}
@@ -2142,12 +2142,12 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//outcome
 		if outcome, ok := v["outcome"].(string); ok {
 			outcomesData := map[string]interface{}{
-				"hhash": hhash,
+				"hhash":   hhash,
 				"outcome": outcome,
-				"sink": v["sink"],
+				"sink":    v["sink"],
 				"created": updated.Format("2006-01-02"),
-				"url": v["url"],
-				"total": 1,
+				"url":     v["url"],
+				"total":   1,
 			}
 			if xerr := i.batchInsert("outcomes", `INSERT INTO outcomes (hhash, outcome, sink, created, url, total) VALUES (?, ?, ?, ?, ?, ?)`,
 				[]interface{}{hhash, outcome, v["sink"], updated.Format("2006-01-02"), v["url"], 1}, outcomesData); xerr != nil && i.AppConfig.Debug {
@@ -2159,9 +2159,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		if _, ok := v["last"].(string); ok {
 			referrersData := map[string]interface{}{
 				"hhash": hhash,
-				"url": v["last"],
+				"url":   v["last"],
 				"total": 1,
-				"date": time.Now().UTC().Format("2006-01-02"),
+				"date":  time.Now().UTC().Format("2006-01-02"),
 			}
 			if xerr := i.batchInsert("referrers", `INSERT INTO referrers (hhash, url, total, date) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, v["last"], 1, time.Now().UTC().Format("2006-01-02")}, referrersData); xerr != nil && i.AppConfig.Debug {
@@ -2173,9 +2173,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		if v["ref"] != nil {
 			referralsData := map[string]interface{}{
 				"hhash": hhash,
-				"ref": v["ref"],
-				"vid": vid,
-				"gen": 0,
+				"ref":   v["ref"],
+				"vid":   vid,
+				"gen":   0,
 			}
 			if xerr := i.batchInsert("referrals", `INSERT INTO referrals (hhash, ref, vid, gen) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, v["ref"], vid, 0}, referralsData); xerr != nil && i.AppConfig.Debug {
@@ -2188,8 +2188,8 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			referredData := map[string]interface{}{
 				"hhash": hhash,
 				"rcode": v["rcode"],
-				"vid": vid,
-				"gen": 0,
+				"vid":   vid,
+				"gen":   0,
 			}
 			if xerr := i.batchInsert("referred", `INSERT INTO referred (hhash, rcode, vid, gen) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, v["rcode"], vid, 0}, referredData); xerr != nil && i.AppConfig.Debug {
@@ -2200,7 +2200,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//hosts
 		if w.Host != "" {
 			hostsData := map[string]interface{}{
-				"hhash": hhash,
+				"hhash":    hhash,
 				"hostname": w.Host,
 			}
 			if xerr := i.batchInsert("hosts", `INSERT INTO hosts (hhash, hostname) VALUES (?, ?)`,
@@ -2211,11 +2211,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//browsers
 		browsersData := map[string]interface{}{
-			"hhash": hhash,
-			"bhash": bhash,
+			"hhash":   hhash,
+			"bhash":   bhash,
 			"browser": w.Browser,
-			"total": 1,
-			"date": time.Now().UTC().Format("2006-01-02"),
+			"total":   1,
+			"date":    time.Now().UTC().Format("2006-01-02"),
 		}
 		if xerr := i.batchInsert("browsers", `INSERT INTO browsers (hhash, bhash, browser, total, date) VALUES (?, ?, ?, ?, ?)`,
 			[]interface{}{hhash, bhash, w.Browser, 1, time.Now().UTC().Format("2006-01-02")}, browsersData); xerr != nil && i.AppConfig.Debug {
@@ -2224,12 +2224,12 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//nodes
 		nodesData := map[string]interface{}{
-			"hhash": hhash,
-			"vid": parseUUID(vid),
-			"uid": parseUUID(uid),
+			"hhash":  hhash,
+			"vid":    parseUUID(vid),
+			"uid":    parseUUID(uid),
 			"iphash": iphash,
-			"ip": w.IP,
-			"sid": parseUUID(sid),
+			"ip":     w.IP,
+			"sid":    parseUUID(sid),
 		}
 		if xerr := i.batchInsert("nodes", `INSERT INTO nodes (hhash, vid, uid, iphash, ip, sid) VALUES (?, ?, ?, ?, ?, ?)`,
 			[]interface{}{hhash, parseUUID(vid), parseUUID(uid), iphash, w.IP, parseUUID(sid)}, nodesData); xerr != nil && i.AppConfig.Debug {
@@ -2240,11 +2240,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		if lat != nil && lon != nil {
 			locationsData := map[string]interface{}{
 				"hhash": hhash,
-				"vid": parseUUID(vid),
-				"lat": lat,
-				"lon": lon,
-				"uid": parseUUID(uid),
-				"sid": parseUUID(sid),
+				"vid":   parseUUID(vid),
+				"lat":   lat,
+				"lon":   lon,
+				"uid":   parseUUID(uid),
+				"sid":   parseUUID(sid),
 			}
 			if xerr := i.batchInsert("locations", `INSERT INTO locations (hhash, vid, lat, lon, uid, sid) VALUES (?, ?, ?, ?, ?, ?)`,
 				[]interface{}{hhash, parseUUID(vid), lat, lon, parseUUID(uid), parseUUID(sid)}, locationsData); xerr != nil && i.AppConfig.Debug {
@@ -2256,9 +2256,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		if uid != nil {
 			aliasesData := map[string]interface{}{
 				"hhash": hhash,
-				"vid": parseUUID(vid),
-				"uid": parseUUID(uid),
-				"sid": parseUUID(sid),
+				"vid":   parseUUID(vid),
+				"uid":   parseUUID(uid),
+				"sid":   parseUUID(sid),
 			}
 			if xerr := i.batchInsert("aliases", `INSERT INTO aliases (hhash, vid, uid, sid) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, parseUUID(vid), parseUUID(uid), parseUUID(sid)}, aliasesData); xerr != nil && i.AppConfig.Debug {
@@ -2270,9 +2270,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		if uid != nil {
 			userhostsData := map[string]interface{}{
 				"hhash": hhash,
-				"uid": parseUUID(uid),
-				"vid": parseUUID(vid),
-				"sid": parseUUID(sid),
+				"uid":   parseUUID(uid),
+				"vid":   parseUUID(vid),
+				"sid":   parseUUID(sid),
 			}
 			if xerr := i.batchInsert("userhosts", `INSERT INTO userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, parseUUID(uid), parseUUID(vid), parseUUID(sid)}, userhostsData); xerr != nil && i.AppConfig.Debug {
@@ -2285,8 +2285,8 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			usernamesData := map[string]interface{}{
 				"hhash": hhash,
 				"uhash": uhash,
-				"vid": parseUUID(vid),
-				"sid": parseUUID(sid),
+				"vid":   parseUUID(vid),
+				"sid":   parseUUID(sid),
 			}
 			if xerr := i.batchInsert("usernames", `INSERT INTO usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, uhash, parseUUID(vid), parseUUID(sid)}, usernamesData); xerr != nil && i.AppConfig.Debug {
@@ -2299,8 +2299,8 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			emailsData := map[string]interface{}{
 				"hhash": hhash,
 				"ehash": ehash,
-				"vid": parseUUID(vid),
-				"sid": parseUUID(sid),
+				"vid":   parseUUID(vid),
+				"sid":   parseUUID(sid),
 			}
 			if xerr := i.batchInsert("emails", `INSERT INTO emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, ehash, parseUUID(vid), parseUUID(sid)}, emailsData); xerr != nil && i.AppConfig.Debug {
@@ -2313,8 +2313,8 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			cellsData := map[string]interface{}{
 				"hhash": hhash,
 				"chash": chash,
-				"vid": parseUUID(vid),
-				"sid": parseUUID(sid),
+				"vid":   parseUUID(vid),
+				"sid":   parseUUID(sid),
 			}
 			if xerr := i.batchInsert("cells", `INSERT INTO cells (hhash, chash, vid, sid) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, chash, parseUUID(vid), parseUUID(sid)}, cellsData); xerr != nil && i.AppConfig.Debug {
@@ -2325,9 +2325,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//reqs
 		reqsData := map[string]interface{}{
 			"hhash": hhash,
-			"vid": parseUUID(vid),
+			"vid":   parseUUID(vid),
 			"total": 1,
-			"date": time.Now().UTC().Format("2006-01-02"),
+			"date":  time.Now().UTC().Format("2006-01-02"),
 		}
 		if xerr := i.batchInsert("reqs", `INSERT INTO reqs (hhash, vid, total, date) VALUES (?, ?, ?, ?)`,
 			[]interface{}{hhash, parseUUID(vid), 1, time.Now().UTC().Format("2006-01-02")}, reqsData); xerr != nil && i.AppConfig.Debug {
@@ -2352,10 +2352,10 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			  SETTINGS insert_deduplicate = 1`, //51
 				[]interface{}{parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
-				updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-				v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"]), -updated.Unix()}, visitorsData); xerr != nil && i.AppConfig.Debug {
+					updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+					v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+					jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
+					v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"]), -updated.Unix()}, visitorsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[visitors]:", xerr)
 			}
 
@@ -2376,10 +2376,10 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 SETTINGS insert_deduplicate = 1`, //51
 				[]interface{}{parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
-				updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-				v["ptyp"], bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])}, sessionsData); xerr != nil && i.AppConfig.Debug {
+					updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+					v["ptyp"], bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+					jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
+					v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])}, sessionsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[sessions]:", xerr)
 			}
 		}
@@ -2400,10 +2400,10 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, oid
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
 			[]interface{}{parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
-			updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
-			v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
-			jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])}, visitorsLatestData); xerr != nil && i.AppConfig.Debug {
+				updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
+				v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
+				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
+				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])}, visitorsLatestData); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[visitors_latest]:", xerr)
 		}
 	}
@@ -2472,16 +2472,16 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 
 	// Insert into payments table
 	paymentsData := map[string]interface{}{
-		"id": payment.ID,
-		"uid": uid,
-		"oid": oid,
-		"amount": payment.Amount,
-		"currency": payment.Currency,
-		"status": payment.Status,
-		"product": payment.Product,
+		"id":         payment.ID,
+		"uid":        uid,
+		"oid":        oid,
+		"amount":     payment.Amount,
+		"currency":   payment.Currency,
+		"status":     payment.Status,
+		"product":    payment.Product,
 		"created_at": payment.CreatedAt,
 		"updated_at": payment.UpdatedAt,
-		"hhash": hhash,
+		"hhash":      hhash,
 	}
 	if err := i.batchInsert("payments", `INSERT INTO payments (
 		id, uid, oid, amount, currency, status, product, 
@@ -2494,14 +2494,14 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 	// Update LTV calculations (simplified version)
 	if payment.Amount != nil {
 		ltvData := map[string]interface{}{
-			"uid": uid,
-			"oid": oid,
+			"uid":           uid,
+			"oid":           oid,
 			"total_revenue": payment.Amount,
 			"payment_count": 1,
-			"last_payment": updated,
-			"created_at": created,
-			"updated_at": updated,
-			"hhash": hhash,
+			"last_payment":  updated,
+			"created_at":    created,
+			"updated_at":    updated,
+			"hhash":         hhash,
 		}
 		if err := i.batchInsert("ltv", `INSERT INTO ltv (
 			uid, oid, total_revenue, payment_count, 
