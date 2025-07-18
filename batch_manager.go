@@ -108,7 +108,7 @@ var DefaultBatchConfigs = map[string]BatchConfig{
 	},
 	"visitors": {
 		TableName:         "visitors",
-		Strategy:          StrategySizeBasedBatch,
+		Strategy:          StrategyHybridBatch,
 		MaxBatchSize:      200,
 		MaxBatchTime:      10 * time.Second,
 		MaxMemoryMB:       3,
