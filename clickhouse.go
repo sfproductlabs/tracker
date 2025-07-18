@@ -671,28 +671,38 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 				}
 
 				// Insert into agreements table
-				if err := (*i.Session).Exec(ctx, `INSERT INTO agreements (
+				agreementsData := map[string]interface{}{
+					"vid": vid, "created_at": created, "cflags": cflags, "sid": sid, "uid": uid, "avid": avid, "hhash": hhash,
+					"app": b["app"], "rel": b["rel"], "url": b["url"], "ip": ip, "iphash": iphash, "gaid": b["gaid"], "idfa": b["idfa"], "msid": b["msid"], "fbid": b["fbid"],
+					"country": country, "region": region, "culture": b["culture"], "source": b["source"], "medium": b["medium"], "campaign": b["campaign"], "term": b["term"], "ref": b["ref"], "rcode": b["rcode"], "aff": b["aff"],
+					"browser": browser, "bhash": bhash, "device": b["device"], "os": b["os"], "tz": b["tz"], "vp_w": b["w"], "vp_h": b["h"], "lat": lat, "lon": lon, "zip": b["zip"], "owner": owner, "oid": oid,
+				}
+				if err := i.batchInsert("agreements", `INSERT INTO agreements (
 					vid, created_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
 					country, region, culture, source, medium, campaign, term, ref, rcode, aff, 
 					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, oid
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					vid, created, cflags, sid, uid, avid, hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
+					[]interface{}{vid, created, cflags, sid, uid, avid, hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
 					country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
-					browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, oid,
-				); err != nil {
+					browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, oid}, agreementsData); err != nil {
 					return err
 				}
 
 				// Insert into agreed table (history)
-				if err := (*i.Session).Exec(ctx, `INSERT INTO agreed (
+				agreedData := map[string]interface{}{
+					"vid": vid, "created_at": created, "cflags": cflags, "sid": sid, "uid": uid, "avid": avid, "hhash": hhash,
+					"app": b["app"], "rel": b["rel"], "url": b["url"], "ip": ip, "iphash": iphash, "gaid": b["gaid"], "idfa": b["idfa"], "msid": b["msid"], "fbid": b["fbid"],
+					"country": country, "region": region, "culture": b["culture"], "source": b["source"], "medium": b["medium"], "campaign": b["campaign"], "term": b["term"], "ref": b["ref"], "rcode": b["rcode"], "aff": b["aff"],
+					"browser": browser, "bhash": bhash, "device": b["device"], "os": b["os"], "tz": b["tz"], "vp_w": b["w"], "vp_h": b["h"], "lat": lat, "lon": lon, "zip": b["zip"], "owner": owner, "oid": oid,
+				}
+				if err := i.batchInsert("agreed", `INSERT INTO agreed (
 					vid, created_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
 					country, region, culture, source, medium, campaign, term, ref, rcode, aff, 
 					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, oid
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					vid, created, cflags, sid, uid, avid, hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
+					[]interface{}{vid, created, cflags, sid, uid, avid, hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
 					country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
-					browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, oid,
-				); err != nil {
+					browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, oid}, agreedData); err != nil {
 					return err
 				}
 
@@ -872,34 +882,38 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 				}
 
 				// Insert into redirects table
-				if err := (*i.Session).Exec(ctx, `INSERT INTO redirects (
+				redirectsData := map[string]interface{}{
+					"hhash": hhash,
+					"urlfrom": strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path),
+					"urlto": urlto,
+					"updated_at": updated,
+					"updater": updater,
+					"oid": oid,
+				}
+				if err := i.batchInsert("redirects", `INSERT INTO redirects (
 					hhash, urlfrom, urlto, updated_at, updater, oid
 				) VALUES (?, ?, ?, ?, ?, ?)`,
-					hhash,
-					strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path),
-					urlto,
-					updated,
-					updater,
-					oid,
-				); err != nil {
+					[]interface{}{hhash, strings.ToLower(urlfromURL.Host)+strings.ToLower(urlfromURL.Path), urlto, updated, updater, oid}, redirectsData); err != nil {
 					return err
 				}
 
 				// Insert into redirect_history table
-				if err := (*i.Session).Exec(ctx, `INSERT INTO redirect_history (
+				redirectHistoryData := map[string]interface{}{
+					"urlfrom": urlfrom,
+					"hostfrom": strings.ToLower(urlfromURL.Host),
+					"slugfrom": strings.ToLower(urlfromURL.Path),
+					"urlto": urlto,
+					"hostto": strings.ToLower(urltoURL.Host),
+					"pathto": strings.ToLower(urlfromURL.Path),
+					"searchto": b["searchto"],
+					"updater": updater,
+					"oid": oid,
+				}
+				if err := i.batchInsert("redirect_history", `INSERT INTO redirect_history (
 					urlfrom, hostfrom, slugfrom, urlto, hostto, pathto, searchto, 
 					updater, oid
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					urlfrom,
-					strings.ToLower(urlfromURL.Host),
-					strings.ToLower(urlfromURL.Path),
-					urlto,
-					strings.ToLower(urltoURL.Host),
-					strings.ToLower(urlfromURL.Path),
-					b["searchto"],
-					updater,
-					oid,
-				); err != nil {
+					[]interface{}{urlfrom, strings.ToLower(urlfromURL.Host), strings.ToLower(urlfromURL.Path), urlto, strings.ToLower(urltoURL.Host), strings.ToLower(urlfromURL.Path), b["searchto"], updater, oid}, redirectHistoryData); err != nil {
 					return err
 				}
 				(*w).WriteHeader(http.StatusOK)
@@ -1087,8 +1101,13 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 			if i.AppConfig.Debug {
 				fmt.Printf("COUNT %s\n", w)
 			}
-			return (*i.Session).Exec(ctx, `INSERT INTO counters (id, total, date) VALUES (?, 1, today())`,
-				v["id"])
+			countersData := map[string]interface{}{
+				"id": v["id"],
+				"total": 1,
+				"date": time.Now().UTC().Format("2006-01-02"),
+			}
+			return i.batchInsert("counters", `INSERT INTO counters (id, total, date) VALUES (?, ?, ?)`,
+				[]interface{}{v["id"], 1, time.Now().UTC().Format("2006-01-02")}, countersData)
 		}
 		return nil
 	case WRITE_UPDATE:
@@ -1104,10 +1123,13 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 					timestamp = time.Unix(0, millis*int64(time.Millisecond))
 				}
 			}
-			return (*i.Session).Exec(ctx, `INSERT INTO updates (id, updated_at, msg) VALUES (?, ?, ?)`,
-				v["id"],
-				timestamp,
-				v["msg"])
+			updatesData := map[string]interface{}{
+				"id": v["id"],
+				"updated_at": timestamp,
+				"msg": v["msg"],
+			}
+			return i.batchInsert("updates", `INSERT INTO updates (id, updated_at, msg) VALUES (?, ?, ?)`,
+				[]interface{}{v["id"], timestamp, v["msg"]}, updatesData)
 		}
 		return nil
 	case WRITE_LOG:
@@ -1173,7 +1195,26 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				}
 			}
 
-			return (*i.Session).Exec(ctx, `INSERT INTO logs
+			logId := uuid.Must(uuid.NewUUID())
+			currentTime := time.Now().UTC()
+			logsData := map[string]interface{}{
+				"id": logId,
+				"ldate": v["ldate"],
+				"created_at": currentTime,
+				"ltime": ltime,
+				"topic": topic,
+				"name": v["name"],
+				"host": v["host"],
+				"hostname": v["hostname"],
+				"owner": owner,
+				"ip": v["ip"],
+				"iphash": iphash,
+				"level": level,
+				"msg": v["msg"],
+				"params": jsonOrNull(params),
+				"oid": parseUUID(v["oid"]),
+			}
+			return i.batchInsert("logs", `INSERT INTO logs
 			  (
 				  id,
 				  ldate,
@@ -1192,21 +1233,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				  oid
 			  ) 
 			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //15
-				uuid.Must(uuid.NewUUID()),
-				v["ldate"],
-				time.Now().UTC(),
-				ltime,
-				topic,
-				v["name"],
-				v["host"],
-				v["hostname"],
-				owner,
-				v["ip"],
-				iphash,
-				level,
-				v["msg"],
-				jsonOrNull(params),
-				parseUUID(v["oid"]))
+				[]interface{}{logId, v["ldate"], currentTime, ltime, topic, v["name"], v["host"], v["hostname"], owner, v["ip"], iphash, level, v["msg"], jsonOrNull(params), parseUUID(v["oid"])}, logsData)
 		}
 		return nil
 	case WRITE_EVENT:
@@ -1966,8 +1993,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//////////////////////////////////////////////
 
 	//ips
-	if xerr := (*i.Session).Exec(ctx, `INSERT INTO ips (hhash, ip, total, date) VALUES (?, ?, 1, today())`,
-		*hhash, w.IP); xerr != nil && i.AppConfig.Debug {
+	ipsData := map[string]interface{}{
+		"hhash": *hhash,
+		"ip": w.IP,
+		"total": 1,
+		"date": time.Now().UTC().Format("2006-01-02"),
+	}
+	if xerr := i.batchInsert("ips", `INSERT INTO ips (hhash, ip, total, date) VALUES (?, ?, ?, ?)`,
+		[]interface{}{*hhash, w.IP, 1, time.Now().UTC().Format("2006-01-02")}, ipsData); xerr != nil && i.AppConfig.Debug {
 		fmt.Println("CH[ips]:", xerr)
 	}
 
@@ -1980,8 +2013,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	// }
 
 	//routed
-	if xerr := (*i.Session).Exec(ctx, `INSERT INTO routed (hhash, ip, url, updated_at) VALUES (?, ?, ?, ?)`,
-		hhash, w.IP, v["url"], updated); xerr != nil && i.AppConfig.Debug {
+	routedData := map[string]interface{}{
+		"hhash": hhash,
+		"ip": w.IP,
+		"url": v["url"],
+		"updated_at": updated,
+	}
+	if xerr := i.batchInsert("routed", `INSERT INTO routed (hhash, ip, url, updated_at) VALUES (?, ?, ?, ?)`,
+		[]interface{}{hhash, w.IP, v["url"], updated}, routedData); xerr != nil && i.AppConfig.Debug {
 		fmt.Println("CH[routed]:", xerr)
 	}
 
@@ -2064,133 +2103,247 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 		//hits
 		if _, ok := v["url"].(string); ok {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO hits (hhash, url, total, date) VALUES (?, ?, 1, today())`,
-				hhash, v["url"]); xerr != nil && i.AppConfig.Debug {
+			hitsData := map[string]interface{}{
+				"hhash": hhash,
+				"url": v["url"],
+				"total": 1,
+				"date": time.Now().UTC().Format("2006-01-02"),
+			}
+			if xerr := i.batchInsert("hits", `INSERT INTO hits (hhash, url, total, date) VALUES (?, ?, ?, ?)`,
+				[]interface{}{hhash, v["url"], 1, time.Now().UTC().Format("2006-01-02")}, hitsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[hits]:", xerr)
 			}
 		}
 
 		//daily
-		if xerr := (*i.Session).Exec(ctx, `INSERT INTO dailies (ip, day, total) VALUES (?, today(), 1)`, w.IP); xerr != nil && i.AppConfig.Debug {
+		dailiesData := map[string]interface{}{
+			"ip": w.IP,
+			"day": time.Now().UTC().Format("2006-01-02"),
+			"total": 1,
+		}
+		if xerr := i.batchInsert("dailies", `INSERT INTO dailies (ip, day, total) VALUES (?, ?, ?)`, 
+			[]interface{}{w.IP, time.Now().UTC().Format("2006-01-02"), 1}, dailiesData); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[dailies]:", xerr)
 		}
 
 		//unknown vid
 		if isNew {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO counters (id, total, date) VALUES ('vids_created', 1, today())`); xerr != nil && i.AppConfig.Debug {
+			countersVidsData := map[string]interface{}{
+				"id": "vids_created",
+				"total": 1,
+				"date": time.Now().UTC().Format("2006-01-02"),
+			}
+			if xerr := i.batchInsert("counters", `INSERT INTO counters (id, total, date) VALUES (?, ?, ?)`, 
+				[]interface{}{"vids_created", 1, time.Now().UTC().Format("2006-01-02")}, countersVidsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[counters]vids_created:", xerr)
 			}
 		}
 
 		//outcome
 		if outcome, ok := v["outcome"].(string); ok {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO outcomes (hhash, outcome, sink, created, url, total) VALUES (?, ?, ?, ?, ?, 1)`,
-				hhash, outcome, v["sink"], updated.Format("2006-01-02"), v["url"]); xerr != nil && i.AppConfig.Debug {
+			outcomesData := map[string]interface{}{
+				"hhash": hhash,
+				"outcome": outcome,
+				"sink": v["sink"],
+				"created": updated.Format("2006-01-02"),
+				"url": v["url"],
+				"total": 1,
+			}
+			if xerr := i.batchInsert("outcomes", `INSERT INTO outcomes (hhash, outcome, sink, created, url, total) VALUES (?, ?, ?, ?, ?, ?)`,
+				[]interface{}{hhash, outcome, v["sink"], updated.Format("2006-01-02"), v["url"], 1}, outcomesData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[outcomes]:", xerr)
 			}
 		}
 
 		//referrers
 		if _, ok := v["last"].(string); ok {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO referrers (hhash, url, total, date) VALUES (?, ?, 1, today())`,
-				hhash, v["last"]); xerr != nil && i.AppConfig.Debug {
+			referrersData := map[string]interface{}{
+				"hhash": hhash,
+				"url": v["last"],
+				"total": 1,
+				"date": time.Now().UTC().Format("2006-01-02"),
+			}
+			if xerr := i.batchInsert("referrers", `INSERT INTO referrers (hhash, url, total, date) VALUES (?, ?, ?, ?)`,
+				[]interface{}{hhash, v["last"], 1, time.Now().UTC().Format("2006-01-02")}, referrersData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[referrers]:", xerr)
 			}
 		}
 
 		//referrals
 		if v["ref"] != nil {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO referrals (hhash, ref, vid, gen) VALUES (?, ?, ?, 0)`,
-				hhash, v["ref"], vid); xerr != nil && i.AppConfig.Debug {
+			referralsData := map[string]interface{}{
+				"hhash": hhash,
+				"ref": v["ref"],
+				"vid": vid,
+				"gen": 0,
+			}
+			if xerr := i.batchInsert("referrals", `INSERT INTO referrals (hhash, ref, vid, gen) VALUES (?, ?, ?, ?)`,
+				[]interface{}{hhash, v["ref"], vid, 0}, referralsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[referrals]:", xerr)
 			}
 		}
 
 		//referred
 		if v["rcode"] != nil {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO referred (hhash, rcode, vid, gen) VALUES (?, ?, ?, 0)`,
-				hhash, v["rcode"], vid); xerr != nil && i.AppConfig.Debug {
+			referredData := map[string]interface{}{
+				"hhash": hhash,
+				"rcode": v["rcode"],
+				"vid": vid,
+				"gen": 0,
+			}
+			if xerr := i.batchInsert("referred", `INSERT INTO referred (hhash, rcode, vid, gen) VALUES (?, ?, ?, ?)`,
+				[]interface{}{hhash, v["rcode"], vid, 0}, referredData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[referred]:", xerr)
 			}
 		}
 
 		//hosts
 		if w.Host != "" {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO hosts (hhash, hostname) VALUES (?, ?)`,
-				hhash, w.Host); xerr != nil && i.AppConfig.Debug {
+			hostsData := map[string]interface{}{
+				"hhash": hhash,
+				"hostname": w.Host,
+			}
+			if xerr := i.batchInsert("hosts", `INSERT INTO hosts (hhash, hostname) VALUES (?, ?)`,
+				[]interface{}{hhash, w.Host}, hostsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[hosts]:", xerr)
 			}
 		}
 
 		//browsers
-		if xerr := (*i.Session).Exec(ctx, `INSERT INTO browsers (hhash, bhash, browser, total, date) VALUES (?, ?, ?, 1, today())`,
-			hhash, bhash, w.Browser); xerr != nil && i.AppConfig.Debug {
+		browsersData := map[string]interface{}{
+			"hhash": hhash,
+			"bhash": bhash,
+			"browser": w.Browser,
+			"total": 1,
+			"date": time.Now().UTC().Format("2006-01-02"),
+		}
+		if xerr := i.batchInsert("browsers", `INSERT INTO browsers (hhash, bhash, browser, total, date) VALUES (?, ?, ?, ?, ?)`,
+			[]interface{}{hhash, bhash, w.Browser, 1, time.Now().UTC().Format("2006-01-02")}, browsersData); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[browsers]:", xerr)
 		}
 
 		//nodes
-		if xerr := (*i.Session).Exec(ctx, `INSERT INTO nodes (hhash, vid, uid, iphash, ip, sid) VALUES (?, ?, ?, ?, ?, ?)`,
-			hhash, parseUUID(vid), parseUUID(uid), iphash, w.IP, parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
+		nodesData := map[string]interface{}{
+			"hhash": hhash,
+			"vid": parseUUID(vid),
+			"uid": parseUUID(uid),
+			"iphash": iphash,
+			"ip": w.IP,
+			"sid": parseUUID(sid),
+		}
+		if xerr := i.batchInsert("nodes", `INSERT INTO nodes (hhash, vid, uid, iphash, ip, sid) VALUES (?, ?, ?, ?, ?, ?)`,
+			[]interface{}{hhash, parseUUID(vid), parseUUID(uid), iphash, w.IP, parseUUID(sid)}, nodesData); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[nodes]:", xerr)
 		}
 
 		//locations
 		if lat != nil && lon != nil {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO locations (hhash, vid, lat, lon, uid, sid) VALUES (?, ?, ?, ?, ?, ?)`,
-				hhash, parseUUID(vid), lat, lon, parseUUID(uid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			locationsData := map[string]interface{}{
+				"hhash": hhash,
+				"vid": parseUUID(vid),
+				"lat": lat,
+				"lon": lon,
+				"uid": parseUUID(uid),
+				"sid": parseUUID(sid),
+			}
+			if xerr := i.batchInsert("locations", `INSERT INTO locations (hhash, vid, lat, lon, uid, sid) VALUES (?, ?, ?, ?, ?, ?)`,
+				[]interface{}{hhash, parseUUID(vid), lat, lon, parseUUID(uid), parseUUID(sid)}, locationsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[locations]:", xerr)
 			}
 		}
 
 		//alias
 		if uid != nil {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO aliases (hhash, vid, uid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, parseUUID(vid), parseUUID(uid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			aliasesData := map[string]interface{}{
+				"hhash": hhash,
+				"vid": parseUUID(vid),
+				"uid": parseUUID(uid),
+				"sid": parseUUID(sid),
+			}
+			if xerr := i.batchInsert("aliases", `INSERT INTO aliases (hhash, vid, uid, sid) VALUES (?, ?, ?, ?)`,
+				[]interface{}{hhash, parseUUID(vid), parseUUID(uid), parseUUID(sid)}, aliasesData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[aliases]:", xerr)
 			}
 		}
 
 		//userhosts
 		if uid != nil {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, parseUUID(uid), parseUUID(vid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			userhostsData := map[string]interface{}{
+				"hhash": hhash,
+				"uid": parseUUID(uid),
+				"vid": parseUUID(vid),
+				"sid": parseUUID(sid),
+			}
+			if xerr := i.batchInsert("userhosts", `INSERT INTO userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
+				[]interface{}{hhash, parseUUID(uid), parseUUID(vid), parseUUID(sid)}, userhostsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[userhosts]:", xerr)
 			}
 		}
 
 		//uhash
 		if uhash != nil {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, uhash, parseUUID(vid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			usernamesData := map[string]interface{}{
+				"hhash": hhash,
+				"uhash": uhash,
+				"vid": parseUUID(vid),
+				"sid": parseUUID(sid),
+			}
+			if xerr := i.batchInsert("usernames", `INSERT INTO usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
+				[]interface{}{hhash, uhash, parseUUID(vid), parseUUID(sid)}, usernamesData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[usernames]:", xerr)
 			}
 		}
 
 		//ehash
 		if ehash != nil {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, ehash, parseUUID(vid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			emailsData := map[string]interface{}{
+				"hhash": hhash,
+				"ehash": ehash,
+				"vid": parseUUID(vid),
+				"sid": parseUUID(sid),
+			}
+			if xerr := i.batchInsert("emails", `INSERT INTO emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
+				[]interface{}{hhash, ehash, parseUUID(vid), parseUUID(sid)}, emailsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[emails]:", xerr)
 			}
 		}
 
 		//chash
 		if chash != nil {
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO cells (hhash, chash, vid, sid) VALUES (?, ?, ?, ?)`,
-				hhash, chash, parseUUID(vid), parseUUID(sid)); xerr != nil && i.AppConfig.Debug {
+			cellsData := map[string]interface{}{
+				"hhash": hhash,
+				"chash": chash,
+				"vid": parseUUID(vid),
+				"sid": parseUUID(sid),
+			}
+			if xerr := i.batchInsert("cells", `INSERT INTO cells (hhash, chash, vid, sid) VALUES (?, ?, ?, ?)`,
+				[]interface{}{hhash, chash, parseUUID(vid), parseUUID(sid)}, cellsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[cells]:", xerr)
 			}
 		}
 
 		//reqs
-		if xerr := (*i.Session).Exec(ctx, `INSERT INTO reqs (hhash, vid, total, date) VALUES (?, ?, 1, today())`,
-			hhash, parseUUID(vid)); xerr != nil && i.AppConfig.Debug {
+		reqsData := map[string]interface{}{
+			"hhash": hhash,
+			"vid": parseUUID(vid),
+			"total": 1,
+			"date": time.Now().UTC().Format("2006-01-02"),
+		}
+		if xerr := i.batchInsert("reqs", `INSERT INTO reqs (hhash, vid, total, date) VALUES (?, ?, ?, ?)`,
+			[]interface{}{hhash, parseUUID(vid), 1, time.Now().UTC().Format("2006-01-02")}, reqsData); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[reqs]:", xerr)
 		}
 
 		if isNew || isFirst {
 			//visitors
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO visitors (
+			visitorsData := map[string]interface{}{
+				"vid": parseUUID(vid), "did": v["did"], "sid": parseUUID(sid), "hhash": hhash, "app": v["app"], "rel": v["rel"], "cflags": cflags,
+				"created_at": updated, "uid": parseUUID(uid), "tid": tid, "last": v["last"], "url": v["url"], "ip": v["cleanIP"], "iphash": iphash, "lat": lat, "lon": lon,
+				"ptyp": v["ptyp"], "bhash": bhash, "auth": parseUUID(auth), "xid": v["xid"], "split": v["split"], "ename": v["ename"], "etyp": v["etyp"], "ver": version, "sink": v["sink"], "score": score,
+				"params": jsonOrNull(params), "gaid": v["gaid"], "idfa": v["idfa"], "msid": v["msid"], "fbid": v["fbid"], "country": country, "region": region, "city": city, "zip": zip, "culture": culture,
+				"source": v["source"], "medium": v["medium"], "campaign": v["campaign"], "term": v["term"], "ref": v["ref"], "rcode": v["rcode"], "aff": v["aff"], "browser": w.Browser, "device": v["device"], "os": v["os"], "tz": v["tz"], "vp_w": v["w"], "vp_h": v["h"], "ja4h": w.JA4H, "oid": parseUUID(v["oid"]), "version_ts": -updated.Unix(),
+			}
+			if xerr := i.batchInsert("visitors", `INSERT INTO visitors (
 				vid, did, sid, hhash, app, rel, cflags, 
 				created_at, uid, tid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
@@ -2198,16 +2351,23 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, oid, version_ts
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			  SETTINGS insert_deduplicate = 1`, //51
-				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
+				[]interface{}{parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
 				updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 				v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"]), -updated.Unix()); xerr != nil && i.AppConfig.Debug {
+				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"]), -updated.Unix()}, visitorsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[visitors]:", xerr)
 			}
 
 			//sessions
-			if xerr := (*i.Session).Exec(ctx, `INSERT INTO sessions (
+			sessionsData := map[string]interface{}{
+				"vid": parseUUID(vid), "did": v["did"], "sid": parseUUID(sid), "hhash": hhash, "app": v["app"], "rel": v["rel"], "cflags": cflags,
+				"created_at": updated, "uid": parseUUID(uid), "tid": tid, "last": v["last"], "url": v["url"], "ip": v["cleanIP"], "iphash": iphash, "lat": lat, "lon": lon,
+				"ptyp": v["ptyp"], "bhash": bhash, "auth": parseUUID(auth), "duration": duration, "xid": v["xid"], "split": v["split"], "ename": v["ename"], "etyp": v["etyp"], "ver": version, "sink": v["sink"], "score": score,
+				"params": jsonOrNull(params), "gaid": v["gaid"], "idfa": v["idfa"], "msid": v["msid"], "fbid": v["fbid"], "country": country, "region": region, "city": city, "zip": zip, "culture": culture,
+				"source": v["source"], "medium": v["medium"], "campaign": v["campaign"], "term": v["term"], "ref": v["ref"], "rcode": v["rcode"], "aff": v["aff"], "browser": w.Browser, "device": v["device"], "os": v["os"], "tz": v["tz"], "vp_w": v["w"], "vp_h": v["h"], "ja4h": w.JA4H, "oid": parseUUID(v["oid"]),
+			}
+			if xerr := i.batchInsert("sessions", `INSERT INTO sessions (
 				vid, did, sid, hhash, app, rel, cflags, 
 				created_at, uid, tid, last, url, ip, iphash, lat, lon, 
 				ptyp, bhash, auth, duration, xid, split, ename, etyp, ver, sink, score, 
@@ -2215,28 +2375,35 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, oid
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 SETTINGS insert_deduplicate = 1`, //51
-				parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
+				[]interface{}{parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
 				updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 				v["ptyp"], bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 				jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])); xerr != nil && i.AppConfig.Debug {
+				v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])}, sessionsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[sessions]:", xerr)
 			}
 		}
 
 		// Update visitors_latest
-		if xerr := (*i.Session).Exec(ctx, `INSERT INTO visitors_latest (
+		visitorsLatestData := map[string]interface{}{
+			"vid": parseUUID(vid), "did": v["did"], "sid": parseUUID(sid), "hhash": hhash, "app": v["app"], "rel": v["rel"], "cflags": cflags,
+			"created_at": updated, "uid": parseUUID(uid), "tid": tid, "last": v["last"], "url": v["url"], "ip": v["cleanIP"], "iphash": iphash, "lat": lat, "lon": lon,
+			"ptyp": v["ptyp"], "bhash": bhash, "auth": parseUUID(auth), "xid": v["xid"], "split": v["split"], "ename": v["ename"], "etyp": v["etyp"], "ver": version, "sink": v["sink"], "score": score,
+			"params": jsonOrNull(params), "gaid": v["gaid"], "idfa": v["idfa"], "msid": v["msid"], "fbid": v["fbid"], "country": country, "region": region, "city": city, "zip": zip, "culture": culture,
+			"source": v["source"], "medium": v["medium"], "campaign": v["campaign"], "term": v["term"], "ref": v["ref"], "rcode": v["rcode"], "aff": v["aff"], "browser": w.Browser, "device": v["device"], "os": v["os"], "tz": v["tz"], "vp_w": v["w"], "vp_h": v["h"], "ja4h": w.JA4H, "oid": parseUUID(v["oid"]),
+		}
+		if xerr := i.batchInsert("visitors_latest", `INSERT INTO visitors_latest (
 			vid, did, sid, hhash, app, rel, cflags, 
 			created_at, uid, tid, last, url, ip, iphash, lat, lon, 
 			ptyp, bhash, auth, xid, split, ename, etyp, ver, sink, score, 
 			params, gaid, idfa, msid, fbid, country, region, city, zip, culture, 
 			source, medium, campaign, term, ref, rcode, aff, browser, device, os, tz, vp_w, vp_h, ja4h, oid
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, //50
-			parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
+			[]interface{}{parseUUID(vid), v["did"], parseUUID(sid), hhash, v["app"], v["rel"], cflags,
 			updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon,
 			v["ptyp"], bhash, parseUUID(auth), v["xid"], v["split"], v["ename"], v["etyp"], version, v["sink"], score,
 			jsonOrNull(params), v["gaid"], v["idfa"], v["msid"], v["fbid"], country, region, city, zip, culture,
-			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])); xerr != nil && i.AppConfig.Debug {
+			v["source"], v["medium"], v["campaign"], v["term"], v["ref"], v["rcode"], v["aff"], w.Browser, v["device"], v["os"], v["tz"], v["w"], v["h"], w.JA4H, parseUUID(v["oid"])}, visitorsLatestData); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[visitors_latest]:", xerr)
 		}
 	}
@@ -2304,22 +2471,43 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 	}
 
 	// Insert into payments table
-	if err := (*i.Session).Exec(ctx, `INSERT INTO payments (
+	paymentsData := map[string]interface{}{
+		"id": payment.ID,
+		"uid": uid,
+		"oid": oid,
+		"amount": payment.Amount,
+		"currency": payment.Currency,
+		"status": payment.Status,
+		"product": payment.Product,
+		"created_at": payment.CreatedAt,
+		"updated_at": payment.UpdatedAt,
+		"hhash": hhash,
+	}
+	if err := i.batchInsert("payments", `INSERT INTO payments (
 		id, uid, oid, amount, currency, status, product, 
 		created_at, updated_at, hhash
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		payment.ID, uid, oid, payment.Amount, payment.Currency, payment.Status,
-		payment.Product, payment.CreatedAt, payment.UpdatedAt, hhash); err != nil {
+		[]interface{}{payment.ID, uid, oid, payment.Amount, payment.Currency, payment.Status, payment.Product, payment.CreatedAt, payment.UpdatedAt, hhash}, paymentsData); err != nil {
 		return err
 	}
 
 	// Update LTV calculations (simplified version)
 	if payment.Amount != nil {
-		if err := (*i.Session).Exec(ctx, `INSERT INTO ltv (
+		ltvData := map[string]interface{}{
+			"uid": uid,
+			"oid": oid,
+			"total_revenue": payment.Amount,
+			"payment_count": 1,
+			"last_payment": updated,
+			"created_at": created,
+			"updated_at": updated,
+			"hhash": hhash,
+		}
+		if err := i.batchInsert("ltv", `INSERT INTO ltv (
 			uid, oid, total_revenue, payment_count, 
 			last_payment, created_at, updated_at, hhash
-		) VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
-			uid, oid, payment.Amount, updated, created, updated, hhash); err != nil {
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			[]interface{}{uid, oid, payment.Amount, 1, updated, created, updated, hhash}, ltvData); err != nil {
 			return err
 		}
 	}
