@@ -537,7 +537,7 @@ var (
 	regexCount       = regexp.MustCompile(`\.count\.(.*)`)
 	regexUpdate      = regexp.MustCompile(`\.update\.(.*)`)
 	regexFilterUrl   = regexp.MustCompile(`(.*)`)
-	regexInternalURI = regexp.MustCompile(`.*(/tr/|/img/|/pub/|/str/|/rdr/)v[0-9]+.*`) //TODO: MUST FILTER INTERNAL ROUTES, UPDATE IF ADDING A NEW ROUTE, PROXY OK!!!
+	regexInternalURI = regexp.MustCompile(`.*(/tr/|/img/|/pub/|/str/|/rdr/|/xrdr/)v[0-9]+.*`) //TODO: MUST FILTER INTERNAL ROUTES, UPDATE IF ADDING A NEW ROUTE, PROXY OK!!!
 	regexUtmPrefix   = regexp.MustCompile(`utm_`)
 )
 
@@ -1146,6 +1146,28 @@ func main() {
 	//////////////////////////////////////// Redirect Route
 	// Ex. https://localhost:8443/tr/v1/rdr/?r=https%3A%2F%2Fx.com
 	http.HandleFunc("/tr/"+apiVersion+"/rdr/", func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-connc:
+			track(&configuration, &w, r, &TrackOptions{IsServer: true})
+			rURL := r.URL.Query()["url"]
+			if len(rURL) > 0 {
+				http.Redirect(w, r, rURL[0], http.StatusFound)
+			} else {
+				http.Redirect(w, r, configuration.DefaultRedirect, http.StatusFound)
+			}
+			connc <- struct{}{}
+		default:
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+		}
+
+	})
+
+	//////////////////////////////////////// eXternal-Redirect Route
+	// This is used to redirect to an external URL, and we track more data
+	// as there wont be a client tracking request
+	// Ex. https://localhost:8443/tr/v1/xrdr/?r=https%3A%2F%2Fx.com
+	http.HandleFunc("/tr/"+apiVersion+"/xrdr/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
 			track(&configuration, &w, r, &TrackOptions{IsServer: false})
