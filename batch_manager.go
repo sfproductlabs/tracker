@@ -139,6 +139,17 @@ var DefaultBatchConfigs = map[string]BatchConfig{
 		RetryBackoffMs:    200,
 		EnableCompression: true,
 	},
+	"instant": { //Use this for critical operations that need to be processed immediately, with retry system
+		TableName:         "instant",
+		Strategy:          StrategyImmediateBatch,
+		MaxBatchSize:      1,
+		MaxBatchTime:      0,
+		MaxMemoryMB:       1,
+		Priority:          1, // Highest priority for instant processing
+		RetryAttempts:     3,
+		RetryBackoffMs:    50,
+		EnableCompression: false,
+	},
 }
 
 // BatchItem represents a single item to be batched

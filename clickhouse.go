@@ -1487,6 +1487,29 @@ func jsonOrNull(m interface{}) interface{} {
 
 // batchInsert adds an item to the batch manager or executes directly if batching is disabled
 func (i *ClickhouseService) batchInsert(tableName, sql string, args []interface{}, data map[string]interface{}) error {
+	return i.batchInsertWithOptions(tableName, sql, args, data, false)
+}
+
+// batchInsertWithOptions adds an item to the batch manager or executes directly with instant processing option
+func (i *ClickhouseService) batchInsertWithOptions(tableName, sql string, args []interface{}, data map[string]interface{}, instant bool) error {
+	// Force instant processing if requested
+	if instant {
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] Using instant insert for table: %s (instant flag set)\n", tableName)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err := (*i.Session).Exec(ctx, sql, args...)
+		if i.AppConfig.Debug {
+			if err != nil {
+				fmt.Printf("[DEBUG] Instant insert failed for table %s: %v\n", tableName, err)
+			} else {
+				fmt.Printf("[DEBUG] Instant insert successful for table: %s\n", tableName)
+			}
+		}
+		return err
+	}
+
 	if i.batchingEnabled && i.batchManager != nil {
 		if i.AppConfig.Debug {
 			fmt.Printf("[DEBUG] Adding item to batch for table: %s\n", tableName)
