@@ -287,6 +287,8 @@ func (i *ClickhouseService) connect() error {
 			"send_logs_level":              "error",
 			"enable_http_compression":      1,
 			"http_zlib_compression_level":  1,
+			"insert_deduplication_token":   "",
+			"insert_deduplicate":           0,
 		},
 		DialTimeout:          time.Duration(i.Configuration.Timeout) * time.Millisecond,
 		MaxOpenConns:         maxInt(i.Configuration.Connections, 10),
@@ -1939,11 +1941,20 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//////////////////////////////////////////////
 	//Persist
 	//////////////////////////////////////////////
-
+	fmt.Println("CH[ips]:", *hhash, w.IP)
 	//ips
-	if xerr := (*i.Session).Exec(ctx, `INSERT INTO ips (hhash, ip, total, date) VALUES (?, ?, 1, today())`,
-		hhash, w.IP); xerr != nil && i.AppConfig.Debug {
+	if xerr := (*i.Session).Exec(ctx, `INSERT INTO ips (hhash, ip, total, date) VALUES (?, ?, 1, now())`,
+		*hhash, w.IP); xerr != nil && i.AppConfig.Debug {
 		fmt.Println("CH[ips]:", xerr)
+	} else {
+		fmt.Println("CH[ips] Success")
+	}
+
+	var count *uint64
+	if err := (*i.Session).QueryRow(ctx, `SELECT SUM(total) FROM sfpla.ips WHERE hhash = ? AND ip = ? AND date = today()`, *hhash, w.IP).Scan(&count); err == nil {
+		fmt.Println("CH[ips] CURRENT TOTAL:", *count)
+	} else {
+		fmt.Println("CH[ips] ERROR:", err)
 	}
 
 	//routed
