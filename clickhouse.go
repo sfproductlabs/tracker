@@ -1599,6 +1599,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	cleanInterfaceString(v["source"])
 	cleanInterfaceString(v["medium"])
 	cleanInterfaceString(v["campaign"])
+	cleanInterfaceString(v["content"])
 	cleanInterfaceString(v["term"])
 	cleanInterfaceString(v["rcode"])
 	cleanInterfaceString(v["aff"])
@@ -2022,17 +2023,17 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//events (batched)
 	if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS)) {
 		if xerr := i.batchInsert("events", `INSERT INTO events (
-			eid, vid, sid, oid, hhash, app, rel, cflags, 
-			created_at, uid, tid, last, url, ip, iphash, lat, lon, ptyp, 
-			bhash, auth, duration, xid, split, ename, source, medium, campaign, 
-			country, region, city, zip, term, etyp, ver, sink, score, params, 
+			eid, vid, sid, oid, hhash, app, rel, cflags,
+			created_at, uid, tid, last, url, ip, iphash, lat, lon, ptyp,
+			bhash, auth, duration, xid, split, ename, source, medium, campaign, content,
+			country, region, city, zip, term, etyp, ver, sink, score, params,
 			payment_id, targets, relation, rid, ja4h
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 SETTINGS insert_deduplicate = 1`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), hhash, v["app"], v["rel"], cflags,
 				updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
-				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
+				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"], v["content"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
 				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
 			}, v); xerr != nil && i.AppConfig.Debug {
