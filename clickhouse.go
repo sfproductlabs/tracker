@@ -2012,26 +2012,8 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	// 	fmt.Println("CH[ips] ERROR:", err)
 	// }
 
-	//events_recent (batched)
-	if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS_RECENT)) {
-		if xerr := i.batchInsert("events_recent", `INSERT INTO events_recent (
-			eid, vid, sid, oid, hhash, app, rel, cflags, 
-			created_at, uid, tid, last, url, ip, iphash, lat, lon, ptyp, 
-			bhash, auth, duration, xid, split, ename, source, medium, campaign, 
-			country, region, city, zip, term, etyp, ver, sink, score, params, 
-			payment_id, targets, relation, rid, ja4h
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 SETTINGS insert_deduplicate = 1`,
-			[]interface{}{
-				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), hhash, v["app"], v["rel"], cflags,
-				updated, parseUUID(uid), tid, v["last"], v["url"], w.IP, iphash, lat, lon, v["ptyp"],
-				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"],
-				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
-				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
-			}, v); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("CH[events_recent]:", xerr)
-		}
-	}
+	// NOTE: events_recent is a VIEW, not a table - batch writes to VIEWs are not supported by ClickHouse
+	// All events are written to the events table instead, and events_recent query reads from it
 
 	if !i.AppConfig.UseRemoveIP {
 		v["cleanIP"] = w.IP

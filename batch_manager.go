@@ -57,22 +57,13 @@ var DefaultBatchConfigs = map[string]BatchConfig{
 		MaxBatchSize:      1000,
 		MaxBatchTime:      2 * time.Second,
 		MaxMemoryMB:       10,
-		Priority:          3,
+		Priority:          2, // Higher priority for events
 		RetryAttempts:     3,
 		RetryBackoffMs:    100,
 		EnableCompression: true,
 	},
-	"events_recent": {
-		TableName:         "events_recent",
-		Strategy:          StrategyHybridBatch,
-		MaxBatchSize:      500,
-		MaxBatchTime:      1 * time.Second,
-		MaxMemoryMB:       8,
-		Priority:          2, // Higher priority for recent events
-		RetryAttempts:     3,
-		RetryBackoffMs:    100,
-		EnableCompression: true,
-	},
+	// NOTE: events_recent is a VIEW, not a table - cannot batch insert to views
+	// All events are written to the events table
 	"mthreads": {
 		TableName:         "mthreads",
 		Strategy:          StrategyTimeBasedBatch,
