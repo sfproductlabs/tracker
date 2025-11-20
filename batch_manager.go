@@ -449,6 +449,17 @@ var DefaultBatchConfigs = map[string]BatchConfig{
 		RetryBackoffMs:    50,
 		EnableCompression: false,
 	},
+	"visitor_interests": {
+		TableName:         "visitor_interests",
+		Strategy:          StrategyHybridBatch,
+		MaxBatchSize:      500,           // Batch interests for performance
+		MaxBatchTime:      3 * time.Second, // Flush every 3 seconds
+		MaxMemoryMB:       5,
+		Priority:          3, // Medium priority (not critical like payments)
+		RetryAttempts:     3,
+		RetryBackoffMs:    150,
+		EnableCompression: true, // Compress interest data (JSON fields)
+	},
 }
 
 // BatchItem represents a single item to be batched

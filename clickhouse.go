@@ -1512,6 +1512,57 @@ func jsonOrNull(m interface{}) interface{} {
 	}
 }
 
+// mustMarshalJSON marshals a value to JSON string, returns "{}" on error
+func mustMarshalJSON(v interface{}) string {
+	if v == nil {
+		return "{}"
+	}
+	if jsonBytes, err := json.Marshal(v); err == nil {
+		return string(jsonBytes)
+	}
+	return "{}"
+}
+
+// parseTagsFromValue parses tags from various formats:
+// - []interface{} (from JSON POST)
+// - string with commas (from GET query string)
+// Returns []string of tags
+func parseTagsFromValue(val interface{}) []string {
+	if val == nil {
+		return []string{}
+	}
+
+	switch v := val.(type) {
+	case []interface{}:
+		// JSON array format (POST)
+		tags := make([]string, 0, len(v))
+		for _, tag := range v {
+			if tagStr, ok := tag.(string); ok && tagStr != "" {
+				tags = append(tags, strings.TrimSpace(tagStr))
+			}
+		}
+		return tags
+
+	case string:
+		// Comma-separated format (GET query string)
+		if v == "" {
+			return []string{}
+		}
+		parts := strings.Split(v, ",")
+		tags := make([]string, 0, len(parts))
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" {
+				tags = append(tags, trimmed)
+			}
+		}
+		return tags
+
+	default:
+		return []string{}
+	}
+}
+
 // batchInsert adds an item to the batch manager or executes directly if batching is disabled
 func (i *ClickhouseService) batchInsert(tableName, sql string, args []interface{}, data map[string]interface{}) error {
 	return i.batchInsertWithOptions(tableName, sql, args, data, false)
@@ -2038,6 +2089,107 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
+		}
+	}
+
+	// Record visitor interests (TWO-DIMENSIONAL: audience + content tags)
+	// Python service will aggregate and generate embeddings later
+	if vid != nil && oid != nil {
+		// Parse AUDIENCE tags (WHO they are: ceo, executive, developer, etc.)
+		audienceTags := parseTagsFromValue(v["audience"])
+		if len(audienceTags) == 0 {
+			audienceTags = parseTagsFromValue(v["audience_tags"])
+		}
+
+		// Parse CONTENT tags (WHAT they're interested in: sports, tech, etc.)
+		contentTags := parseTagsFromValue(v["content"])
+		if len(contentTags) == 0 {
+			contentTags = parseTagsFromValue(v["content_tags"])
+		}
+
+		// Backward compatibility: if only "tags" provided, treat as content tags
+		if len(contentTags) == 0 && len(audienceTags) == 0 {
+			contentTags = parseTagsFromValue(v["tags"])
+		}
+
+		// Combine for interests array (backward compat)
+		allTags := append(audienceTags, contentTags...)
+
+		if len(allTags) > 0 {
+			// Build campaign sources JSON (two-dimensional structure)
+			campaignID := ""
+			if cid, ok := v["campaign"].(string); ok && cid != "" {
+				campaignID = cid
+			}
+
+			// Enhanced campaign sources with audience + content separation
+			campaignSourcesMap := map[string]interface{}{
+				campaignID: map[string]interface{}{
+					"audience": audienceTags,
+					"content":  contentTags,
+				},
+			}
+
+			// Build counts for all three dimensions
+			audienceCounts := make(map[string]int)
+			for _, tag := range audienceTags {
+				audienceCounts[tag] = 1
+			}
+
+			contentCounts := make(map[string]int)
+			for _, tag := range contentTags {
+				contentCounts[tag] = 1
+			}
+
+			interestCounts := make(map[string]int)
+			for _, tag := range allTags {
+				interestCounts[tag] = 1
+			}
+
+			interestData := map[string]interface{}{
+				"vid":                  vid,
+				"uid":                  uid,
+				"oid":                  oid,
+				"audience_tags":        audienceTags,
+				"audience_counts":      mustMarshalJSON(audienceCounts),
+				"content_tags":         contentTags,
+				"content_counts":       mustMarshalJSON(contentCounts),
+				"interests":            allTags,
+				"interest_counts":      mustMarshalJSON(interestCounts),
+				"campaign_sources":     mustMarshalJSON(campaignSourcesMap),
+				"total_interactions":   1,
+				"unique_campaigns":     1,
+				"first_seen":           updated,
+				"last_updated":         updated,
+				"updated_at":           updated,
+				"last_iphash":          iphash,
+				"last_lat":             lat,
+				"last_lon":             lon,
+				"last_country":         country,
+				"last_region":          region,
+				"last_city":            city,
+				"last_zip":             zip,
+				"location_updated_at":  updated,
+			}
+
+			if xerr := i.batchInsert("visitor_interests", `INSERT INTO visitor_interests (
+				vid, uid, oid,
+				audience_tags, audience_counts,
+				content_tags, content_counts,
+				interests, interest_counts, campaign_sources,
+				total_interactions, unique_campaigns, first_seen, last_updated, updated_at,
+				last_iphash, last_lat, last_lon, last_country, last_region, last_city, last_zip, location_updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[]interface{}{
+					parseUUID(vid), parseUUID(uid), parseUUID(oid),
+					audienceTags, mustMarshalJSON(audienceCounts),
+					contentTags, mustMarshalJSON(contentCounts),
+					allTags, mustMarshalJSON(interestCounts), mustMarshalJSON(campaignSourcesMap),
+					1, 1, updated, updated, updated,
+					iphash, lat, lon, country, region, city, zip, updated,
+				}, interestData); xerr != nil && i.AppConfig.Debug {
+				fmt.Println("CH[visitor_interests]:", xerr)
+			}
 		}
 	}
 
