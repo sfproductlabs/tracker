@@ -124,14 +124,14 @@ func (service *TestClickhouseService) writeEvent(writeArgs *WriteArgs) error {
 		userID, _ = uuid.Parse(uid)
 	}
 
-	// Insert into events table using actual schema
+	// Insert into events table using actual schema (NO updated_at field)
 	err := service.Session.Exec(ctx, `INSERT INTO events (
-		eid, vid, sid, oid, created_at, updated_at, uid,
+		eid, vid, sid, oid, org, created_at, uid,
 		url, ip, source, medium, campaign, country, region, city, lat, lon,
 		app, ver, ename, params
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		writeArgs.EventID, visitorID, sessionID, writeArgs.OrgID,
-		now, now, userID,
+		getStringValue(values, "org", ""), now, userID,
 		getStringValue(values, "url", ""),
 		writeArgs.IP,
 		getStringValue(values, "utm_source", ""),
@@ -313,6 +313,7 @@ func testSingleEventWrite(t *testing.T, service *TestClickhouseService) {
 		"vid":          visitorID.String(),
 		"sid":          sessionID.String(),
 		"uid":          userID.String(),
+		"org":          "test_org",
 		"url":          "https://test.example.com/single-event",
 		"event":        "single_test_event",
 		"utm_source":   "test",
@@ -402,6 +403,7 @@ func testBatchEventWrite(t *testing.T, service *TestClickhouseService, batchSize
 			"vid":          visitorID.String(),
 			"sid":          sessionID.String(),
 			"uid":          userID.String(),
+			"org":          "test_org",
 			"url":          fmt.Sprintf("https://test.example.com/batch-event/%d", i),
 			"event":        "batch_test_event",
 			"batch_index":  i,
@@ -462,6 +464,7 @@ func testMixedBatch(t *testing.T, service *TestClickhouseService, count int) {
 			"vid":          visitorID.String(),
 			"sid":          sessionID.String(),
 			"uid":          userID.String(),
+			"org":          "test_org",
 			"url":          fmt.Sprintf("https://test.example.com/mixed-event/%d", i),
 			"event":        "mixed_batch_event",
 			"utm_campaign": "mixed_batch_test",
