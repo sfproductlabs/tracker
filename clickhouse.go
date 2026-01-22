@@ -2074,15 +2074,15 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//events (batched)
 	if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS)) {
 		if xerr := i.batchInsert("events", `INSERT INTO events (
-			eid, vid, sid, oid, hhash, app, rel, cflags,
+			eid, vid, sid, oid, org, hhash, app, rel, cflags,
 			created_at, uid, tid, last, url, ip, iphash, lat, lon, ptyp,
 			bhash, auth, duration, xid, split, ename, source, medium, campaign, content,
 			country, region, city, zip, term, etyp, ver, sink, score, params,
 			payment_id, targets, relation, rid, ja4h
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 SETTINGS insert_deduplicate = 1`,
 			[]interface{}{
-				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), hhash, v["app"], v["rel"], cflags,
+				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), getStringValue(v["org"]), hhash, v["app"], v["rel"], cflags,
 				updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"], v["content"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
@@ -2173,15 +2173,15 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			}
 
 			if xerr := i.batchInsert("visitor_interests", `INSERT INTO visitor_interests (
-				vid, uid, oid,
+				vid, uid, oid, org,
 				audience_tags, audience_counts,
 				content_tags, content_counts,
 				interests, interest_counts, campaign_sources,
 				total_interactions, unique_campaigns, first_seen, last_updated, updated_at,
 				last_iphash, last_lat, last_lon, last_country, last_region, last_city, last_zip, location_updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				[]interface{}{
-					parseUUID(vid), parseUUID(uid), parseUUID(oid),
+					parseUUID(vid), parseUUID(uid), parseUUID(oid), getStringValue(v["org"]),
 					audienceTags, mustMarshalJSON(audienceCounts),
 					contentTags, mustMarshalJSON(contentCounts),
 					allTags, mustMarshalJSON(interestCounts), mustMarshalJSON(campaignSourcesMap),
@@ -2405,7 +2405,7 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 	}
 
 	// Parse UUID fields
-	var uid, oid, paymentID *uuid.UUID
+	var uid, oid, tid, invid, productID *uuid.UUID
 	if temp, ok := v["uid"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			uid = &parsed
@@ -2416,63 +2416,114 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 			oid = &parsed
 		}
 	}
-	if temp, ok := v["payment_id"].(string); ok {
+	if temp, ok := v["tid"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
-			paymentID = &parsed
+			tid = &parsed
+		}
+	}
+	if temp, ok := v["invid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			invid = &parsed
+		}
+	}
+	if temp, ok := v["product_id"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			productID = &parsed
 		}
 	}
 
-	//[payment] - create payment record
-	var payment PaymentData
-	payment.ID = paymentID
-	payment.CreatedAt = updated
-	payment.UpdatedAt = updated
+	// Parse line item fields
+	lineItemID := uuid.New()
+	var product, pcat, man, model, duration, currency, country, rcode, region, campaignID *string
+	var qty, price, discount, revenue, margin, cost, tax, taxRate, commission, referral, fees, subtotal, total, paymentAmount *float64
+	var starts, ends, invoicedAt, paidAt *time.Time
 
-	// Parse payment fields
-	if temp, ok := v["product"].(string); ok {
-		payment.Product = &temp
-	}
-	if temp, ok := v["amount"].(string); ok {
-		if amount, err := strconv.ParseFloat(temp, 64); err == nil {
-			payment.Amount = &amount
+	// String fields
+	if temp, ok := v["product"].(string); ok { product = &temp }
+	if temp, ok := v["pcat"].(string); ok { pcat = &temp }
+	if temp, ok := v["man"].(string); ok { man = &temp }
+	if temp, ok := v["model"].(string); ok { model = &temp }
+	if temp, ok := v["duration"].(string); ok { duration = &temp }
+	if temp, ok := v["currency"].(string); ok { currency = &temp } else { defaultCurrency := "USD"; currency = &defaultCurrency }
+	if temp, ok := v["country"].(string); ok { country = &temp }
+	if temp, ok := v["rcode"].(string); ok { rcode = &temp }
+	if temp, ok := v["region"].(string); ok { region = &temp }
+	if temp, ok := v["campaign_id"].(string); ok { campaignID = &temp }
+
+	// Float fields
+	parseFloat := func(key string) *float64 {
+		if temp, ok := v[key].(string); ok {
+			if val, err := strconv.ParseFloat(temp, 64); err == nil {
+				return &val
+			}
+		} else if val, ok := v[key].(float64); ok {
+			return &val
 		}
-	} else if amount, ok := v["amount"].(float64); ok {
-		payment.Amount = &amount
+		return nil
 	}
-	if temp, ok := v["currency"].(string); ok {
-		payment.Currency = &temp
-	}
-	if temp, ok := v["status"].(string); ok {
-		payment.Status = &temp
-	}
+	qty = parseFloat("qty")
+	price = parseFloat("price")
+	discount = parseFloat("discount")
+	revenue = parseFloat("revenue")
+	margin = parseFloat("margin")
+	cost = parseFloat("cost")
+	tax = parseFloat("tax")
+	taxRate = parseFloat("tax_rate")
+	commission = parseFloat("commission")
+	referral = parseFloat("referral")
+	fees = parseFloat("fees")
+	subtotal = parseFloat("subtotal")
+	total = parseFloat("total")
+	paymentAmount = parseFloat("payment")
 
-	// Insert into payments table
-	paymentsData := map[string]interface{}{
-		"id":         payment.ID,
-		"uid":        uid,
-		"oid":        oid,
-		"amount":     payment.Amount,
-		"currency":   payment.Currency,
-		"status":     payment.Status,
-		"product":    payment.Product,
-		"created_at": payment.CreatedAt,
-		"updated_at": payment.UpdatedAt,
-		"hhash":      hhash,
+	// Date fields
+	parseTime := func(key string) *time.Time {
+		if temp, ok := v[key].(string); ok {
+			if t, err := time.Parse(time.RFC3339, temp); err == nil {
+				return &t
+			}
+		}
+		return nil
 	}
+	starts = parseTime("starts")
+	ends = parseTime("ends")
+	invoicedAt = parseTime("invoiced_at")
+	paidAt = parseTime("paid_at")
+
+	// Insert into payments table with full line item schema
+	orgValue := getStringValue(v["org"])
 	if err := i.batchInsert("payments", `INSERT INTO payments (
-		id, uid, oid, amount, currency, status, product, 
-		created_at, updated_at, hhash
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		[]interface{}{payment.ID, uid, oid, payment.Amount, payment.Currency, payment.Status, payment.Product, payment.CreatedAt, payment.UpdatedAt, hhash}, paymentsData); err != nil {
+		id, oid, org, tid, uid, invid, invoiced_at,
+		product, product_id, pcat, man, model,
+		qty, duration, starts, ends,
+		price, discount, revenue, margin, cost,
+		tax, tax_rate, commission, referral, fees,
+		subtotal, total, payment,
+		currency, country, rcode, region,
+		campaign_id, paid_at,
+		created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		[]interface{}{
+			lineItemID, oid, orgValue, tid, uid, invid, invoicedAt,
+			product, productID, pcat, man, model,
+			qty, duration, starts, ends,
+			price, discount, revenue, margin, cost,
+			tax, taxRate, commission, referral, fees,
+			subtotal, total, paymentAmount,
+			currency, country, rcode, region,
+			campaignID, paidAt,
+			created, updated,
+		}, v); err != nil {
 		return err
 	}
 
-	// Update LTV calculations (simplified version)
-	if payment.Amount != nil {
+	// Update LTV calculations using revenue from line item
+	if revenue != nil && uid != nil {
 		ltvData := map[string]interface{}{
 			"uid":           uid,
 			"oid":           oid,
-			"total_revenue": payment.Amount,
+			"org":           orgValue,
+			"total_revenue": revenue,
 			"payment_count": 1,
 			"last_payment":  updated,
 			"created_at":    created,
@@ -2480,10 +2531,10 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 			"hhash":         hhash,
 		}
 		if err := i.batchInsert("ltv", `INSERT INTO ltv (
-			uid, oid, total_revenue, payment_count, 
+			uid, oid, org, total_revenue, payment_count,
 			last_payment, created_at, updated_at, hhash
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			[]interface{}{uid, oid, payment.Amount, 1, updated, created, updated, hhash}, ltvData); err != nil {
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[]interface{}{uid, oid, orgValue, revenue, 1, updated, created, updated, hhash}, ltvData); err != nil {
 			return err
 		}
 	}
@@ -2498,6 +2549,7 @@ type CampaignEventData struct {
 	VisitorID   uuid.UUID              `json:"vid"`
 	UserID      *uuid.UUID             `json:"uid"`
 	OrgID       *uuid.UUID             `json:"oid"`
+	Org         string                 `json:"org"`
 	EventType   string                 `json:"etyp"`
 	VariantID   string                 `json:"variant_id"`
 	Channel     string                 `json:"channel"`
@@ -2595,11 +2647,11 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 	defer cancel()
 	// Insert or update mthreads record (batched)
 	return i.batchInsert("mthreads", `INSERT INTO mthreads (
-		tid, oid, thread_type, status, metadata, 
+		tid, oid, org, thread_type, status, metadata,
 		provider_metrics, performance_metrics, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			tid, oid, "campaign", "active",
+			tid, oid, getStringValue(v["org"]), "campaign", "active",
 			jsonOrNull(v), jsonOrNull(v), jsonOrNull(v), updated, updated,
 		}, v)
 }
@@ -2613,11 +2665,11 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 	defer cancel()
 	eventID := uuid.Must(uuid.NewUUID())
 	return i.batchInsert("mstore", `INSERT INTO mstore (
-		id, tid, oid, event_type, 
+		id, tid, oid, org, event_type,
 		content, metadata, parent_id, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			eventID, tid, oid,
+			eventID, tid, oid, getStringValue(v["org"]),
 			getStringValue(v["event_type"]), jsonOrNull(v), jsonOrNull(v), nil, updated, updated,
 		}, v)
 }
@@ -2637,11 +2689,11 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 
 	triageID := uuid.Must(uuid.NewUUID())
 	return i.batchInsert("mtriage", `INSERT INTO mtriage (
-		id, tid, oid, priority, 
+		id, tid, oid, org, priority,
 		message_type, content, metadata, status, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			triageID, tid, oid,
+			triageID, tid, oid, getStringValue(v["org"]),
 			"high", "follow_up", jsonOrNull(v), jsonOrNull(v), "pending", updated, updated,
 		}, v)
 }
@@ -2661,11 +2713,19 @@ func (i *ClickhouseService) updateCampaignMetrics(ctx context.Context, event *Ca
 		revenue = *event.Revenue
 	}
 
+	// Extract oid - required field
+	var oid uuid.UUID
+	if event.OrgID != nil {
+		oid = *event.OrgID
+	} else {
+		return fmt.Errorf("oid is required for impression_daily")
+	}
+
 	return i.batchInsert("impression_daily", `INSERT INTO impression_daily (
-		date, tid, variant_id, total_impressions, conversions, revenue, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		oid, org, tid, day, variant_id, total_impressions, anonymous_impressions, identified_impressions, unique_visitors, conversions, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			today, event.TID, event.VariantID, 1, conversions, revenue, event.Timestamp,
+			oid, event.Org, event.TID, today, event.VariantID, 1, 1, 0, 1, conversions, event.Timestamp,
 		}, map[string]interface{}{
 			"event_type": event.EventType,
 			"variant_id": event.VariantID,

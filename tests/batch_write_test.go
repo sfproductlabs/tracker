@@ -168,19 +168,42 @@ func (service *TestClickhouseService) writeLTV(writeArgs *WriteArgs) error {
 	// Extract payment data
 	paymentID, _ := uuid.Parse(values["payment_id"].(string))
 	productID := uuid.New() // Generate if not provided
+	testOID := uuid.New()
+	testUID := uuid.New()
+	testTID := uuid.New()
+	testInvID := uuid.New()
 
 	// Insert into payments table using actual schema
 	err := service.Session.Exec(ctx, `INSERT INTO payments (
-		id, product, product_id, price, revenue, total, payment, currency, created_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, oid, org, tid, uid, invid, invoiced_at,
+		product, product_id, pcat, qty, price, discount, revenue, margin, cost, subtotal,
+		tax, commission, fees, total, payment, currency, paid_at, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		paymentID,
+		testOID,
+		getStringValue(values, "org", ""),
+		testTID,
+		testUID,
+		testInvID,
+		now,
 		getStringValue(values, "product", ""),
 		productID,
+		getStringValue(values, "pcat", ""),
+		getFloatValue(values, "qty", 1.0),
 		getFloatValue(values, "amount", 0.0),
+		getFloatValue(values, "discount", 0.0),
 		getFloatValue(values, "amount", 0.0),
+		getFloatValue(values, "margin", 0.0),
+		getFloatValue(values, "cost", 0.0),
+		getFloatValue(values, "amount", 0.0),
+		getFloatValue(values, "tax", 0.0),
+		getFloatValue(values, "commission", 0.0),
+		getFloatValue(values, "fees", 0.0),
 		getFloatValue(values, "amount", 0.0),
 		getFloatValue(values, "amount", 0.0),
 		getStringValue(values, "currency", "USD"),
+		now,
+		now,
 		now,
 	)
 
