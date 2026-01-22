@@ -2405,7 +2405,7 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 	}
 
 	// Parse UUID fields
-	var uid, oid, tid, invid, productID *uuid.UUID
+	var uid, oid, tid, invid, productID, vid, sid, updater, owner *uuid.UUID
 	if temp, ok := v["uid"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			uid = &parsed
@@ -2429,6 +2429,26 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 	if temp, ok := v["product_id"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			productID = &parsed
+		}
+	}
+	if temp, ok := v["vid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			vid = &parsed
+		}
+	}
+	if temp, ok := v["sid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			sid = &parsed
+		}
+	}
+	if temp, ok := v["updater"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			updater = &parsed
+		}
+	}
+	if temp, ok := v["owner"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			owner = &parsed
 		}
 	}
 
@@ -2519,22 +2539,48 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 
 	// Update LTV calculations using revenue from line item
 	if revenue != nil && uid != nil {
+		// Build payments JSON array with this line item
+		paymentEntry := map[string]interface{}{
+			"id":         lineItemID.String(),
+			"date":       updated.Format(time.RFC3339),
+			"amount":     *revenue,
+			"status":     "completed",
+		}
+		if currency != nil {
+			paymentEntry["currency"] = *currency
+		}
+		if product != nil {
+			paymentEntry["product"] = *product
+		}
+		if productID != nil {
+			paymentEntry["product_id"] = productID.String()
+		}
+
+		paymentsArray := []map[string]interface{}{paymentEntry}
+		paymentsJSON, err := json.Marshal(paymentsArray)
+		if err != nil {
+			return fmt.Errorf("failed to marshal payments JSON: %w", err)
+		}
+
 		ltvData := map[string]interface{}{
-			"uid":           uid,
-			"oid":           oid,
-			"org":           orgValue,
-			"total_revenue": revenue,
-			"payment_count": 1,
-			"last_payment":  updated,
-			"created_at":    created,
-			"updated_at":    updated,
-			"hhash":         hhash,
+			"hhash":      hhash,
+			"uid":        uid,
+			"vid":        vid,
+			"sid":        sid,
+			"payments":   string(paymentsJSON),
+			"paid":       revenue,
+			"oid":        oid,
+			"org":        orgValue,
+			"updated_at": updated,
+			"updater":    updater,
+			"created_at": created,
+			"owner":      owner,
 		}
 		if err := i.batchInsert("ltv", `INSERT INTO ltv (
-			uid, oid, org, total_revenue, payment_count,
-			last_payment, created_at, updated_at, hhash
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			[]interface{}{uid, oid, orgValue, revenue, 1, updated, created, updated, hhash}, ltvData); err != nil {
+			hhash, uid, vid, sid, payments, paid, oid, org,
+			updated_at, updater, created_at, owner
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[]interface{}{hhash, uid, vid, sid, string(paymentsJSON), revenue, oid, orgValue, updated, updater, created, owner}, ltvData); err != nil {
 			return err
 		}
 	}
