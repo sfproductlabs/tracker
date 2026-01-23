@@ -2388,24 +2388,36 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 }
 
 // writeLTV handles WRITE_LTV with integrated payment processing
+// Accepts either a single payment object or an array of payment objects
+// Single: v = {"uid":"...", "product":"Widget", "revenue":99.99, ...}
+// Batch: v = {"uid":"...", "invid":"...", "payments":[{"product":"A", "revenue":50}, {"product":"B", "revenue":25}]}
 func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[string]interface{}) error {
 	cleanString(&(w.Host))
-	//////////////////////////////////////////////
-	//FIX VARS
-	//////////////////////////////////////////////
-	//[updated]
+
+	// Check if "payments" field contains an array of line items
+	if paymentsArray, ok := v["payments"].([]interface{}); ok && len(paymentsArray) > 0 {
+		// Process multiple line items
+		return i.writeLTVBatch(ctx, w, v, paymentsArray)
+	}
+
+	// Process single line item (backward compatible)
+	return i.writeLTVSingle(ctx, w, v)
+}
+
+// writeLTVBatch processes multiple payment line items in one call
+func (i *ClickhouseService) writeLTVBatch(ctx context.Context, w *WriteArgs, v map[string]interface{}, paymentsArray []interface{}) error {
+	// Parse common fields once (shared across all line items)
 	updated := time.Now().UTC()
 	created := &updated
 
-	//[hhash]
 	var hhash *string
 	if w.Host != "" {
 		temp := strconv.FormatInt(int64(hash(w.Host)), 36)
 		hhash = &temp
 	}
 
-	// Parse UUID fields
-	var uid, oid, tid, invid, productID, vid, sid, updater, owner *uuid.UUID
+	// Parse common UUID fields
+	var uid, oid, tid, invid, vid, updater, owner *uuid.UUID
 	if temp, ok := v["uid"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			uid = &parsed
@@ -2426,19 +2438,9 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 			invid = &parsed
 		}
 	}
-	if temp, ok := v["product_id"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			productID = &parsed
-		}
-	}
 	if temp, ok := v["vid"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			vid = &parsed
-		}
-	}
-	if temp, ok := v["sid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			sid = &parsed
 		}
 	}
 	if temp, ok := v["updater"].(string); ok {
@@ -2452,31 +2454,141 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 		}
 	}
 
-	// Parse line item fields
+	orgValue := getStringValue(v["org"])
+	var totalRevenue float64 = 0.0
+
+	// Process each line item
+	for _, paymentItem := range paymentsArray {
+		paymentMap, ok := paymentItem.(map[string]interface{})
+		if !ok {
+			continue // Skip invalid items
+		}
+
+		// Process this line item
+		lineItemRevenue, err := i.processLineItem(ctx, paymentMap, hhash, oid, &orgValue, tid, uid, invid, created, &updated)
+		if err != nil {
+			return fmt.Errorf("failed to process line item: %v", err)
+		}
+
+		totalRevenue += lineItemRevenue
+	}
+
+	// Update LTV records with total revenue across all line items
+	if totalRevenue > 0.0 {
+		if err := i.updateLTVRecords(hhash, uid, vid, invid, oid, &orgValue, totalRevenue, &updated, created, updater, owner); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// writeLTVSingle processes a single payment line item (backward compatible)
+func (i *ClickhouseService) writeLTVSingle(ctx context.Context, w *WriteArgs, v map[string]interface{}) error {
+	//////////////////////////////////////////////
+	//FIX VARS
+	//////////////////////////////////////////////
+	//[updated]
+	updated := time.Now().UTC()
+	created := &updated
+
+	//[hhash]
+	var hhash *string
+	if w.Host != "" {
+		temp := strconv.FormatInt(int64(hash(w.Host)), 36)
+		hhash = &temp
+	}
+
+	// Parse UUID fields
+	var uid, oid, tid, invid, vid, updater, owner *uuid.UUID
+	if temp, ok := v["uid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			uid = &parsed
+		}
+	}
+	if temp, ok := v["oid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			oid = &parsed
+		}
+	}
+	if temp, ok := v["tid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			tid = &parsed
+		}
+	}
+	if temp, ok := v["invid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			invid = &parsed
+		}
+	}
+	if temp, ok := v["vid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			vid = &parsed
+		}
+	}
+	if temp, ok := v["updater"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			updater = &parsed
+		}
+	}
+	if temp, ok := v["owner"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			owner = &parsed
+		}
+	}
+
+	orgValue := getStringValue(v["org"])
+
+	// Process this single line item
+	revenue, err := i.processLineItem(ctx, v, hhash, oid, &orgValue, tid, uid, invid, created, &updated)
+	if err != nil {
+		return err
+	}
+
+	// Update LTV records
+	if revenue > 0.0 {
+		if err := i.updateLTVRecords(hhash, uid, vid, invid, oid, &orgValue, revenue, &updated, created, updater, owner); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// processLineItem handles a single payment line item insertion
+func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[string]interface{}, hhash *string, oid *uuid.UUID, org *string, tid, uid, invid *uuid.UUID, created, updated *time.Time) (float64, error) {
 	lineItemID := uuid.New()
+	var productID *uuid.UUID
 	var product, pcat, man, model, duration, currency, country, rcode, region, campaignID *string
 	var qty, price, discount, revenue, margin, cost, tax, taxRate, commission, referral, fees, subtotal, total, paymentAmount *float64
 	var starts, ends, invoicedAt, paidAt *time.Time
 
+	// Parse product_id UUID
+	if temp, ok := lineItem["product_id"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			productID = &parsed
+		}
+	}
+
 	// String fields
-	if temp, ok := v["product"].(string); ok { product = &temp }
-	if temp, ok := v["pcat"].(string); ok { pcat = &temp }
-	if temp, ok := v["man"].(string); ok { man = &temp }
-	if temp, ok := v["model"].(string); ok { model = &temp }
-	if temp, ok := v["duration"].(string); ok { duration = &temp }
-	if temp, ok := v["currency"].(string); ok { currency = &temp } else { defaultCurrency := "USD"; currency = &defaultCurrency }
-	if temp, ok := v["country"].(string); ok { country = &temp }
-	if temp, ok := v["rcode"].(string); ok { rcode = &temp }
-	if temp, ok := v["region"].(string); ok { region = &temp }
-	if temp, ok := v["campaign_id"].(string); ok { campaignID = &temp }
+	if temp, ok := lineItem["product"].(string); ok { product = &temp }
+	if temp, ok := lineItem["pcat"].(string); ok { pcat = &temp }
+	if temp, ok := lineItem["man"].(string); ok { man = &temp }
+	if temp, ok := lineItem["model"].(string); ok { model = &temp }
+	if temp, ok := lineItem["duration"].(string); ok { duration = &temp }
+	if temp, ok := lineItem["currency"].(string); ok { currency = &temp } else { defaultCurrency := "USD"; currency = &defaultCurrency }
+	if temp, ok := lineItem["country"].(string); ok { country = &temp }
+	if temp, ok := lineItem["rcode"].(string); ok { rcode = &temp }
+	if temp, ok := lineItem["region"].(string); ok { region = &temp }
+	if temp, ok := lineItem["campaign_id"].(string); ok { campaignID = &temp }
 
 	// Float fields
 	parseFloat := func(key string) *float64 {
-		if temp, ok := v[key].(string); ok {
+		if temp, ok := lineItem[key].(string); ok {
 			if val, err := strconv.ParseFloat(temp, 64); err == nil {
 				return &val
 			}
-		} else if val, ok := v[key].(float64); ok {
+		} else if val, ok := lineItem[key].(float64); ok {
 			return &val
 		}
 		return nil
@@ -2498,7 +2610,7 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 
 	// Date fields
 	parseTime := func(key string) *time.Time {
-		if temp, ok := v[key].(string); ok {
+		if temp, ok := lineItem[key].(string); ok {
 			if t, err := time.Parse(time.RFC3339, temp); err == nil {
 				return &t
 			}
@@ -2511,7 +2623,6 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 	paidAt = parseTime("paid_at")
 
 	// Insert into payments table with full line item schema
-	orgValue := getStringValue(v["org"])
 	if err := i.batchInsert("payments", `INSERT INTO payments (
 		id, oid, org, tid, uid, invid, invoiced_at,
 		product, product_id, pcat, man, model,
@@ -2524,7 +2635,7 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 		created_at, updated_at
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			lineItemID, oid, orgValue, tid, uid, invid, invoicedAt,
+			lineItemID, oid, org, tid, uid, invid, invoicedAt,
 			product, productID, pcat, man, model,
 			qty, duration, starts, ends,
 			price, discount, revenue, margin, cost,
@@ -2533,54 +2644,84 @@ func (i *ClickhouseService) writeLTV(ctx context.Context, w *WriteArgs, v map[st
 			currency, country, rcode, region,
 			campaignID, paidAt,
 			created, updated,
-		}, v); err != nil {
-		return err
+		}, lineItem); err != nil {
+		return 0.0, err
 	}
 
-	// Update LTV calculations using revenue from line item
-	if revenue != nil && uid != nil {
-		// Build payments JSON array with this line item
-		paymentEntry := map[string]interface{}{
-			"id":         lineItemID.String(),
-			"date":       updated.Format(time.RFC3339),
-			"amount":     *revenue,
-			"status":     "completed",
-		}
-		if currency != nil {
-			paymentEntry["currency"] = *currency
-		}
-		if product != nil {
-			paymentEntry["product"] = *product
-		}
-		if productID != nil {
-			paymentEntry["product_id"] = productID.String()
-		}
+	// Return revenue for LTV aggregation
+	if revenue != nil {
+		return *revenue, nil
+	}
+	return 0.0, nil
+}
 
-		paymentsArray := []map[string]interface{}{paymentEntry}
-		paymentsJSON, err := json.Marshal(paymentsArray)
-		if err != nil {
-			return fmt.Errorf("failed to marshal payments JSON: %w", err)
-		}
-
-		ltvData := map[string]interface{}{
+// updateLTVRecords updates LTV records for uid, vid, and orid
+func (i *ClickhouseService) updateLTVRecords(hhash *string, uid, vid, invid, oid *uuid.UUID, org *string, revenue float64, updated, created *time.Time, updater, owner *uuid.UUID) error {
+	// Write LTV record for uid (if available)
+	if uid != nil {
+		ltvDataUID := map[string]interface{}{
 			"hhash":      hhash,
-			"uid":        uid,
-			"vid":        vid,
-			"sid":        sid,
-			"payments":   string(paymentsJSON),
+			"id":         uid,
+			"id_type":    "uid",
 			"paid":       revenue,
 			"oid":        oid,
-			"org":        orgValue,
+			"org":        org,
 			"updated_at": updated,
 			"updater":    updater,
 			"created_at": created,
 			"owner":      owner,
 		}
 		if err := i.batchInsert("ltv", `INSERT INTO ltv (
-			hhash, uid, vid, sid, payments, paid, oid, org,
+			hhash, id, id_type, paid, oid, org,
 			updated_at, updater, created_at, owner
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			[]interface{}{hhash, uid, vid, sid, string(paymentsJSON), revenue, oid, orgValue, updated, updater, created, owner}, ltvData); err != nil {
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[]interface{}{hhash, uid, "uid", revenue, oid, org, updated, updater, created, owner}, ltvDataUID); err != nil {
+			return err
+		}
+	}
+
+	// Write LTV record for vid (if available)
+	if vid != nil {
+		ltvDataVID := map[string]interface{}{
+			"hhash":      hhash,
+			"id":         vid,
+			"id_type":    "vid",
+			"paid":       revenue,
+			"oid":        oid,
+			"org":        org,
+			"updated_at": updated,
+			"updater":    updater,
+			"created_at": created,
+			"owner":      owner,
+		}
+		if err := i.batchInsert("ltv", `INSERT INTO ltv (
+			hhash, id, id_type, paid, oid, org,
+			updated_at, updater, created_at, owner
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[]interface{}{hhash, vid, "vid", revenue, oid, org, updated, updater, created, owner}, ltvDataVID); err != nil {
+			return err
+		}
+	}
+
+	// Write LTV record for orid (if invid is available, use as order ID)
+	if invid != nil {
+		ltvDataORID := map[string]interface{}{
+			"hhash":      hhash,
+			"id":         invid,
+			"id_type":    "orid",
+			"paid":       revenue,
+			"oid":        oid,
+			"org":        org,
+			"updated_at": updated,
+			"updater":    updater,
+			"created_at": created,
+			"owner":      owner,
+		}
+		if err := i.batchInsert("ltv", `INSERT INTO ltv (
+			hhash, id, id_type, paid, oid, org,
+			updated_at, updater, created_at, owner
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[]interface{}{hhash, invid, "orid", revenue, oid, org, updated, updater, created, owner}, ltvDataORID); err != nil {
 			return err
 		}
 	}
