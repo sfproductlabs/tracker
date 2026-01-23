@@ -2417,7 +2417,7 @@ func (i *ClickhouseService) writeLTVBatch(ctx context.Context, w *WriteArgs, v m
 	}
 
 	// Parse common UUID fields
-	var uid, oid, tid, invid, vid, updater, owner *uuid.UUID
+	var uid, oid, tid, invid, vid, sid, updater, owner *uuid.UUID
 	if temp, ok := v["uid"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			uid = &parsed
@@ -2443,6 +2443,11 @@ func (i *ClickhouseService) writeLTVBatch(ctx context.Context, w *WriteArgs, v m
 			vid = &parsed
 		}
 	}
+	if temp, ok := v["sid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			sid = &parsed
+		}
+	}
 	if temp, ok := v["updater"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			updater = &parsed
@@ -2465,7 +2470,7 @@ func (i *ClickhouseService) writeLTVBatch(ctx context.Context, w *WriteArgs, v m
 		}
 
 		// Process this line item
-		lineItemRevenue, err := i.processLineItem(ctx, paymentMap, hhash, oid, &orgValue, tid, uid, invid, created, &updated)
+		lineItemRevenue, err := i.processLineItem(ctx, paymentMap, hhash, oid, &orgValue, tid, uid, invid, vid, sid, created, &updated)
 		if err != nil {
 			return fmt.Errorf("failed to process line item: %v", err)
 		}
@@ -2500,7 +2505,7 @@ func (i *ClickhouseService) writeLTVSingle(ctx context.Context, w *WriteArgs, v 
 	}
 
 	// Parse UUID fields
-	var uid, oid, tid, invid, vid, updater, owner *uuid.UUID
+	var uid, oid, tid, invid, vid, sid, updater, owner *uuid.UUID
 	if temp, ok := v["uid"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			uid = &parsed
@@ -2526,6 +2531,11 @@ func (i *ClickhouseService) writeLTVSingle(ctx context.Context, w *WriteArgs, v 
 			vid = &parsed
 		}
 	}
+	if temp, ok := v["sid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			sid = &parsed
+		}
+	}
 	if temp, ok := v["updater"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			updater = &parsed
@@ -2540,7 +2550,7 @@ func (i *ClickhouseService) writeLTVSingle(ctx context.Context, w *WriteArgs, v 
 	orgValue := getStringValue(v["org"])
 
 	// Process this single line item
-	revenue, err := i.processLineItem(ctx, v, hhash, oid, &orgValue, tid, uid, invid, created, &updated)
+	revenue, err := i.processLineItem(ctx, v, hhash, oid, &orgValue, tid, uid, invid, vid, sid, created, &updated)
 	if err != nil {
 		return err
 	}
@@ -2556,9 +2566,9 @@ func (i *ClickhouseService) writeLTVSingle(ctx context.Context, w *WriteArgs, v 
 }
 
 // processLineItem handles a single payment line item insertion
-func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[string]interface{}, hhash *string, oid *uuid.UUID, org *string, tid, uid, invid *uuid.UUID, created, updated *time.Time) (float64, error) {
+func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[string]interface{}, hhash *string, oid *uuid.UUID, org *string, tid, uid, invid, vid, sid *uuid.UUID, created, updated *time.Time) (float64, error) {
 	lineItemID := uuid.New()
-	var productID *uuid.UUID
+	var productID, orid *uuid.UUID
 	var product, pcat, man, model, duration, currency, country, rcode, region, campaignID *string
 	var qty, price, discount, revenue, margin, cost, tax, taxRate, commission, referral, fees, subtotal, total, paymentAmount *float64
 	var starts, ends, invoicedAt, paidAt *time.Time
@@ -2567,6 +2577,13 @@ func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[st
 	if temp, ok := lineItem["product_id"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			productID = &parsed
+		}
+	}
+
+	// Parse orid UUID (order ID)
+	if temp, ok := lineItem["orid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			orid = &parsed
 		}
 	}
 
@@ -2624,7 +2641,7 @@ func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[st
 
 	// Insert into payments table with full line item schema
 	if err := i.batchInsert("payments", `INSERT INTO payments (
-		id, oid, org, tid, uid, invid, invoiced_at,
+		id, oid, org, tid, uid, vid, sid, invid, orid, invoiced_at,
 		product, product_id, pcat, man, model,
 		qty, duration, starts, ends,
 		price, discount, revenue, margin, cost,
@@ -2633,9 +2650,9 @@ func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[st
 		currency, country, rcode, region,
 		campaign_id, paid_at,
 		created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			lineItemID, oid, org, tid, uid, invid, invoicedAt,
+			lineItemID, oid, org, tid, uid, vid, sid, invid, orid, invoicedAt,
 			product, productID, pcat, man, model,
 			qty, duration, starts, ends,
 			price, discount, revenue, margin, cost,

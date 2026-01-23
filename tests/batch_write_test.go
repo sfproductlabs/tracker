@@ -170,38 +170,61 @@ func (service *TestClickhouseService) writeLTV(writeArgs *WriteArgs) error {
 	productID := uuid.New() // Generate if not provided
 	testOID := uuid.New()
 	testUID := uuid.New()
+	testVID := uuid.New()
+	testSID := uuid.New()
 	testTID := uuid.New()
 	testInvID := uuid.New()
+	testOrdID := uuid.New()
 
-	// Insert into payments table using actual schema
+	// Insert into payments table using actual schema (matches users.1.sql)
 	err := service.Session.Exec(ctx, `INSERT INTO payments (
-		id, oid, org, tid, uid, invid, invoiced_at,
-		product, product_id, pcat, qty, price, discount, revenue, margin, cost, subtotal,
-		tax, commission, fees, total, payment, currency, paid_at, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, oid, org, tid, uid, vid, sid, invid, orid, invoiced_at,
+		product, product_id, pcat, man, model,
+		qty, duration, starts, ends,
+		price, discount, revenue, margin, cost,
+		tax, tax_rate, commission, referral, fees,
+		subtotal, total, payment,
+		currency, country, rcode, region,
+		campaign_id, paid_at,
+		created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		paymentID,
 		testOID,
 		getStringValue(values, "org", ""),
 		testTID,
 		testUID,
+		testVID,
+		testSID,
 		testInvID,
+		testOrdID,
 		now,
 		getStringValue(values, "product", ""),
 		productID,
 		getStringValue(values, "pcat", ""),
+		getStringValue(values, "man", ""),
+		getStringValue(values, "model", ""),
 		getFloatValue(values, "qty", 1.0),
+		int32(0), // duration
+		now,      // starts
+		now,      // ends
 		getFloatValue(values, "amount", 0.0),
 		getFloatValue(values, "discount", 0.0),
 		getFloatValue(values, "amount", 0.0),
 		getFloatValue(values, "margin", 0.0),
 		getFloatValue(values, "cost", 0.0),
-		getFloatValue(values, "amount", 0.0),
 		getFloatValue(values, "tax", 0.0),
+		getFloatValue(values, "tax_rate", 0.0),
 		getFloatValue(values, "commission", 0.0),
+		getFloatValue(values, "referral", 0.0),
 		getFloatValue(values, "fees", 0.0),
 		getFloatValue(values, "amount", 0.0),
 		getFloatValue(values, "amount", 0.0),
+		getFloatValue(values, "amount", 0.0),
 		getStringValue(values, "currency", "USD"),
+		getStringValue(values, "country", ""),
+		getStringValue(values, "rcode", ""),
+		getStringValue(values, "region", ""),
+		uuid.Nil, // campaign_id
 		now,
 		now,
 		now,
