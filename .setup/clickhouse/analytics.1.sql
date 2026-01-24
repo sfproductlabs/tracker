@@ -599,23 +599,6 @@ WHERE uid IS NOT NULL
 ORDER BY created_at DESC
 LIMIT 1 BY oid, uid, ename;
 
--- Revenue by campaign by month
--- NOTE: payments table contains LINE ITEMS (multiple rows per invoice)
--- This view aggregates at line item level - use invoice_totals view for invoice-level aggregation
-CREATE OR REPLACE VIEW campaign_revenue_monthly AS
-SELECT
-    oid,
-    campaign_id,
-    toYYYYMM(created_at) as month,
-    sum(revenue) as total_revenue, -- Revenue across all line items
-    count() as line_item_count, -- Count of line items (NOT invoice count)
-    uniq(invid) as invoice_count, -- Actual number of invoices
-    avg(revenue) as avg_line_item_value, -- Average revenue per line item
-    max(created_at) as latest_purchase
-FROM payments
-WHERE campaign_id IS NOT NULL AND campaign_id != ''
-GROUP BY oid, campaign_id, month;
-
 -- Conversion funnel with lag times
 -- NOTE: Uses events.invoice_id to link to invoice-level payment data
 CREATE OR REPLACE VIEW conversion_funnel AS

@@ -4,7 +4,7 @@ SET enable_json_type = 1;
 USE sfpla;
 
 -- Payments table - Stores individual payment/transaction line items
-CREATE TABLE payments ON CLUSTER my_cluster (
+CREATE TABLE IF NOT EXISTS payments ON CLUSTER my_cluster (
     id UUID,                      -- Payment/line item ID - unique identifier
     oid UUID,                     -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -44,9 +44,69 @@ CREATE TABLE payments ON CLUSTER my_cluster (
     campaign_id UUID,             -- Campaign ID - marketing campaign attribution
     paid_at DateTime64(3),        -- Payment date - when payment was received
     created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
-    updated_at DateTime64(3) DEFAULT now64(3)  -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+
+    -- Projection for fast invoice line item lookups
+    PROJECTION invid_proj
+    (
+        SELECT _part_offset ORDER BY invid
+    )
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
-ORDER BY (oid, id);
+PARTITION BY (toYYYYMM(created_at), oid)
+ORDER BY (oid, org, id)
+SETTINGS index_granularity = 8192,
+         deduplicate_merge_projection_mode = 'rebuild';
+
+-- Invoice totals view - Aggregates line items to invoice level
+-- Use this view to get complete invoice summaries without manually aggregating
+CREATE VIEW invoice_totals AS
+SELECT
+    oid,
+    org,
+    invid,
+    tid, -- Thread ID from first line item
+    any(invoiced_at) as invoiced_at, -- Invoice creation time (same across line items)
+    any(paid_at) as paid_at, -- Payment time (same across line items)
+    any(currency) as currency, -- Currency (same across line items)
+    any(country) as country, -- Country (same across line items)
+    any(campaign_id) as campaign_id, -- Campaign (same across line items)
+    count() as line_item_count, -- Number of products in invoice
+    SUM(qty) as total_qty, -- Total quantity across all line items
+    SUM(price * qty) as total_list_price, -- Total list price before discounts
+    SUM(discount) as total_discount, -- Total discount amount
+    SUM(subtotal) as invoice_subtotal, -- Invoice subtotal (sum of line items before tax)
+    SUM(tax) as invoice_tax, -- Total tax across all line items
+    SUM(total) as invoice_total, -- Total invoice amount including tax
+    SUM(revenue) as total_revenue, -- Total revenue (amount hitting bank)
+    SUM(margin) as total_margin, -- Total profit margin
+    SUM(cost) as total_cost, -- Total costs
+    any(commission) as commission, -- Commission (typically same across line items)
+    any(referral) as referral, -- Referral fee (typically same across line items)
+    any(fees) as fees, -- Service fees (typically same across line items)
+    groupArray(product) as products, -- Array of all products in invoice
+    groupArray(product_id) as product_ids, -- Array of all product IDs
+    min(created_at) as created_at, -- When first line item was created
+    max(updated_at) as updated_at -- When last line item was updated
+FROM payments
+GROUP BY oid, org, invid, tid;
+
+-- Revenue by campaign by month
+-- NOTE: payments table contains LINE ITEMS (multiple rows per invoice)
+-- This view aggregates at line item level - use invoice_totals view for invoice-level aggregation
+CREATE OR REPLACE VIEW campaign_revenue_monthly AS
+SELECT
+    oid,
+    campaign_id,
+    toYYYYMM(created_at) as month,
+    sum(revenue) as total_revenue, -- Revenue across all line items
+    count() as line_item_count, -- Count of line items (NOT invoice count)
+    uniq(invid) as invoice_count, -- Actual number of invoices
+    avg(revenue) as avg_line_item_value, -- Average revenue per line item
+    max(created_at) as latest_purchase
+FROM payments
+WHERE campaign_id IS NOT NULL AND campaign_id != '00000000-0000-0000-0000-000000000000'
+GROUP BY oid, campaign_id, month;
 
 -- Materialized view for looking up payments by user - Enables efficient user payment history
 CREATE MATERIALIZED VIEW payments_by_user

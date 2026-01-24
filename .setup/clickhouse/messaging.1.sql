@@ -220,6 +220,8 @@ CREATE TABLE mthreads ON CLUSTER my_cluster (
     oid UUID, -- Organization ID - which oid this thread belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID, -- Owner user ID - who created this thread
+    uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - authenticated user who owns/created this thread
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - anonymous visitor who initiated this thread
     updatedms Int64, -- Update milliseconds - participant updated timestamp
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID, -- Updater user ID - who last modified this thread
@@ -281,6 +283,8 @@ CREATE TABLE mtriage ON CLUSTER my_cluster (
     oid UUID, -- Organization ID - which oid this message belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID, -- Owner user ID - who created this message
+    uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - user requiring follow-up
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - visitor requiring follow-up
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID, -- Updater user ID - who last modified this message
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -323,6 +327,8 @@ CREATE TABLE mstore ON CLUSTER my_cluster (
     oid UUID,
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID,
+    uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - authenticated user who sent this message
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - anonymous visitor who sent this message
     updated_at DateTime64(3),
     updater UUID,
     interest JSON,
@@ -399,6 +405,7 @@ CREATE TABLE impression_daily ON CLUSTER my_cluster (
     oid UUID, -- Organization ID - which oid this failure record belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     tid UUID, -- Thread ID - reference to message thread
+    campaign_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Campaign ID - for campaign-level aggregation (alternative to tid-based aggregation)
     day Date, -- Day - date for aggregation
     variant_id String, -- Variant ID - content variant ('all' for all variants)
     total_impressions Int64, -- Total impressions - all views
