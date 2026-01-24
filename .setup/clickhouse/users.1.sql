@@ -6,43 +6,43 @@ USE sfpla;
 -- Payments table - Stores individual payment/transaction line items
 CREATE TABLE IF NOT EXISTS payments ON CLUSTER my_cluster (
     id UUID,                      -- Payment/line item ID - unique identifier
-    oid UUID,                     -- Organization ID - for multi-tenant data isolation
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                     -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    tid UUID,                     -- Thread ID - reference to message thread
-    uid UUID,                     -- User ID - customer who made the payment
-    vid UUID,                     -- Visitor ID - anonymous identifier
-    sid UUID,                     -- Session ID - session when payment was made
-    invid UUID,                   -- Invoice ID - reference to invoice
-    orid UUID,                    -- Order ID - unique identifier for the order
-    invoiced_at DateTime64(3),   -- Invoice date - when invoice was issued
-    product String,               -- Product name - what was purchased
-    product_id UUID,              -- Product identifier - reference to product catalog
-    pcat String,                  -- Product category - for grouping/reporting
-    man String,                   -- Manufacturer - product manufacturer
-    model String,                 -- Model - product model/variant
-    qty Float64,                  -- Quantity - number of units purchased
-    duration Int32,               -- Duration - for subscription products (in days/months)
-    starts DateTime64(3),         -- Start date - when service/subscription begins
-    ends DateTime64(3),           -- End date - when service/subscription ends
-    price Float64,                -- Unit price - price per unit
-    discount Float64,             -- Discount amount - total discount applied
-    revenue Float64,              -- Revenue - actual revenue after discounts
-    margin Float64,               -- Margin - profit margin
-    cost Float64,                 -- Cost - cost of goods sold
-    tax Float64,                  -- Tax amount - total tax charged
-    tax_rate Float64,             -- Tax rate - percentage tax rate applied
-    commission Float64,           -- Commission - sales commission amount
-    referral Float64,             -- Referral fee - affiliate/referral payout
-    fees Float64,                 -- Fees - processing or other fees
-    subtotal Float64,             -- Subtotal - before tax and fees
-    total Float64,                -- Total - final amount charged
-    payment Float64,              -- Payment amount - actual amount paid
-    currency String,              -- Currency code - ISO currency code (USD, EUR, etc.)
-    country String,               -- Country - where payment was made
-    rcode String,                 -- Region code - region/state code
-    region String,                -- Region name - region/state name
-    campaign_id UUID,             -- Campaign ID - marketing campaign attribution
-    paid_at DateTime64(3),        -- Payment date - when payment was received
+    tid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                     -- Thread ID - reference to message thread
+    uid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                     -- User ID - customer who made the payment
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                     -- Visitor ID - anonymous identifier
+    sid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                     -- Session ID - session when payment was made
+    invid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                   -- Invoice ID - reference to invoice
+    orid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                    -- Order ID - unique identifier for the order
+    invoiced_at DateTime64(3) DEFAULT now64(3),   -- Invoice date - when invoice was issued
+    product String DEFAULT '',               -- Product name - what was purchased
+    product_id UUID DEFAULT '00000000-0000-0000-0000-000000000000',              -- Product identifier - reference to product catalog
+    pcat String DEFAULT '',                  -- Product category - for grouping/reporting
+    man String DEFAULT '',                   -- Manufacturer - product manufacturer
+    model String DEFAULT '',                 -- Model - product model/variant
+    qty Float64 DEFAULT 0.0,                  -- Quantity - number of units purchased
+    duration Int32 DEFAULT 0,               -- Duration - for subscription products (in days/months)
+    starts DateTime64(3) DEFAULT now64(3),         -- Start date - when service/subscription begins
+    ends DateTime64(3) DEFAULT now64(3),           -- End date - when service/subscription ends
+    price Float64 DEFAULT 0.0,                -- Unit price - price per unit
+    discount Float64 DEFAULT 0.0,             -- Discount amount - total discount applied
+    revenue Float64 DEFAULT 0.0,              -- Revenue - actual revenue after discounts
+    margin Float64 DEFAULT 0.0,               -- Margin - profit margin
+    cost Float64 DEFAULT 0.0,                 -- Cost - cost of goods sold
+    tax Float64 DEFAULT 0.0,                  -- Tax amount - total tax charged
+    tax_rate Float64 DEFAULT 0.0,             -- Tax rate - percentage tax rate applied
+    commission Float64 DEFAULT 0.0,           -- Commission - sales commission amount
+    referral Float64 DEFAULT 0.0,             -- Referral fee - affiliate/referral payout
+    fees Float64 DEFAULT 0.0,                 -- Fees - processing or other fees
+    subtotal Float64 DEFAULT 0.0,             -- Subtotal - before tax and fees
+    total Float64 DEFAULT 0.0,                -- Total - final amount charged
+    payment Float64 DEFAULT 0.0,              -- Payment amount - actual amount paid
+    currency String DEFAULT 'USD',              -- Currency code - ISO currency code (USD, EUR, etc.)
+    country String DEFAULT '',               -- Country - where payment was made
+    rcode String DEFAULT '',                 -- Region code - region/state code
+    region String DEFAULT '',                -- Region name - region/state name
+    campaign_id UUID DEFAULT '00000000-0000-0000-0000-000000000000',             -- Campaign ID - marketing campaign attribution
+    paid_at DateTime64(3) DEFAULT now64(3),        -- Payment date - when payment was received
     created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
 
@@ -136,16 +136,16 @@ SELECT * FROM payments;
 -- Note: Payment details are stored in the payments table, not here
 -- SummingMergeTree automatically sums the 'paid' column for matching keys
 CREATE TABLE ltv ON CLUSTER my_cluster (
-    hhash String, -- Host hash - identifier for the site/app
-    id UUID, -- Generic identifier - can be uid, vid, sid, orid, etc.
-    id_type LowCardinality(String), -- Type of identifier: 'uid', 'vid', 'sid', 'orid'
-    paid Float64, -- Total amount paid - cumulative lifetime value for this id (auto-summed)
-    oid UUID, -- Organization ID - which oid this record belongs to
+    hhash String DEFAULT '', -- Host hash - identifier for the site/app
+    id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Generic identifier - can be uid, vid, sid, orid, etc.
+    id_type LowCardinality(String) DEFAULT '', -- Type of identifier: 'uid', 'vid', 'sid', 'orid'
+    paid Float64 DEFAULT 0.0, -- Total amount paid - cumulative lifetime value for this id (auto-summed)
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this record belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
-    updater UUID, -- Updater user ID - who last modified this record
+    updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this record
     created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
-    owner UUID, -- Owner user ID - who created this record
+    owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this record
 ) ENGINE = ReplicatedSummingMergeTree(paid)
 ORDER BY (hhash, id, id_type);
 
@@ -187,10 +187,10 @@ INSERT INTO sequences (name, seq) VALUES ('SFPL_VER', 1);
 
 -- Userhosts table - Maps relationships between users, visitors, and host sites
 CREATE TABLE userhosts ON CLUSTER my_cluster (
-    hhash String, -- Host hash - identifier for the site/app
-    uid UUID, -- User ID - authenticated user identifier
-    vid UUID, -- Visitor ID - anonymous tracking identifier
-    sid UUID, -- Session ID - for the current/last session
+    hhash String DEFAULT '', -- Host hash - identifier for the site/app
+    uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - authenticated user identifier
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - anonymous tracking identifier
+    sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - for the current/last session
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY hhash
@@ -199,48 +199,48 @@ ORDER BY (hhash, uid, vid);
 -- Address type as a structured format - Stores physical address information
 CREATE TABLE addresses ON CLUSTER my_cluster (
     id UUID DEFAULT generateUUIDv4(), -- Address ID - unique identifier
-    fullname String, -- Full name - recipient name
-    st1 String, -- Street line 1 - primary address line
-    st2 String, -- Street line 2 - secondary address line (apt, suite, etc.)
-    city String, -- City name
-    province String, -- Province/state/region
-    country String, -- Country code (ISO format)
-    zip String, -- ZIP/postal code
-    active Boolean, -- Active flag - whether this address is currently valid
-    type String, -- Address type (e.g., "billing", "shipping", "home", "work")
-    phone String, -- Contact phone number for this address
+    fullname String DEFAULT '', -- Full name - recipient name
+    st1 String DEFAULT '', -- Street line 1 - primary address line
+    st2 String DEFAULT '', -- Street line 2 - secondary address line (apt, suite, etc.)
+    city String DEFAULT '', -- City name
+    province String DEFAULT '', -- Province/state/region
+    country String DEFAULT '', -- Country code (ISO format)
+    zip String DEFAULT '', -- ZIP/postal code
+    active Boolean DEFAULT false, -- Active flag - whether this address is currently valid
+    type String DEFAULT '', -- Address type (e.g., "billing", "shipping", "home", "work")
+    phone String DEFAULT '', -- Contact phone number for this address
     updated_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY id;
 
 -- Organizations table - Stores organization information and hierarchical relationships
 CREATE TABLE orgs ON CLUSTER my_cluster (
-    oid UUID, -- Organization ID - unique identifier
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - unique identifier
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    parent UUID, -- Parent organization ID - for hierarchical structure
-    root UUID, -- Root organization ID - top-level parent in hierarchy
-    lname String, -- Legal name - official registered name
-    hname String, -- Human-friendly display name
-    notes String, -- Administrative notes about this organization
-    roles Array(String), -- Roles defined within this organization
-    rights Array(String), -- Rights/permissions defined within this organization
-    etype String, -- Entity type (e.g., "company", "nonprofit", "government")
-    country String, -- Primary country of operation
-    lang String, -- Primary language/locale
-    hq_id UUID, -- Headquarters address ID - reference to addresses table
-    addresses JSON, -- All registered addresses for this organization
-    host String, -- Primary host domain
-    hhash String, -- Host hash - for efficient lookups
-    taxid String, -- Tax identification number
-    terms_accepted DateTime64(3), -- When terms of service were accepted
-    mcerts JSON, -- Marketing certifications/compliance records
-    expiry Date, -- Expiration date for organization account
-    email String, -- Primary contact email
-    phone String, -- Primary contact phone number
+    parent UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Parent organization ID - for hierarchical structure
+    root UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Root organization ID - top-level parent in hierarchy
+    lname String DEFAULT '', -- Legal name - official registered name
+    hname String DEFAULT '', -- Human-friendly display name
+    notes String DEFAULT '', -- Administrative notes about this organization
+    roles Array(String) DEFAULT [], -- Roles defined within this organization
+    rights Array(String) DEFAULT [], -- Rights/permissions defined within this organization
+    etype String DEFAULT '', -- Entity type (e.g., "company", "nonprofit", "government")
+    country String DEFAULT '', -- Primary country of operation
+    lang String DEFAULT '', -- Primary language/locale
+    hq_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Headquarters address ID - reference to addresses table
+    addresses JSON DEFAULT '{}', -- All registered addresses for this organization
+    host String DEFAULT '', -- Primary host domain
+    hhash String DEFAULT '', -- Host hash - for efficient lookups
+    taxid String DEFAULT '', -- Tax identification number
+    terms_accepted DateTime64(3) DEFAULT toDateTime64(0, 3), -- When terms of service were accepted
+    mcerts JSON DEFAULT '{}', -- Marketing certifications/compliance records
+    expiry Date DEFAULT today(), -- Expiration date for organization account
+    email String DEFAULT '', -- Primary contact email
+    phone String DEFAULT '', -- Primary contact phone number
     created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
-    owner UUID, -- Owner user ID - who created this organization
+    owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this organization
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
-    updater UUID, -- Updater user ID - who last modified this record
+    updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this record
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY (oid, org);
 
@@ -254,70 +254,70 @@ WHERE root IS NOT NULL;
 
 -- Enhanced Users table - Comprehensive user information with authentication and profile data
 CREATE TABLE users ON CLUSTER my_cluster (
-    uid UUID, -- User ID - unique identifier
-    username String, -- Username - unique login identifier
-    pwd String, -- Password hash - stored securely
-    uhash String, -- Username hash - for efficient lookups
-    email String, -- Email address - for communications and recovery
-    ehash String, -- Email hash - for efficient lookups
-    vids Array(UUID), -- Visitor IDs - associated anonymous sessions
-    roles Array(String), -- User roles - for permission management
-    rights Array(String), -- Direct rights/permissions assigned to user
-    ref UUID, -- Referrer user ID - who invited/referred this user
-    aff String, -- Affiliate code - for tracking marketing attribution
-    promo String, -- Promotion code - special offers applied
-    origin_url String, -- Origin URL - where user first registered
-    ip String, -- IP address - at registration time
-    ips Array(String), -- IP history - all IPs this user has connected from
-    params JSON, -- Additional parameters - customizable user attributes
-    cohorts Array(String), -- Cohort assignments - for segmentation
-    splits JSON, -- A/B test assignments - experiment participations
-    lang String, -- Language preference
+    uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - unique identifier
+    username String DEFAULT '', -- Username - unique login identifier
+    pwd String DEFAULT '', -- Password hash - stored securely
+    uhash String DEFAULT '', -- Username hash - for efficient lookups
+    email String DEFAULT '', -- Email address - for communications and recovery
+    ehash String DEFAULT '', -- Email hash - for efficient lookups
+    vids Array(UUID) DEFAULT [], -- Visitor IDs - associated anonymous sessions
+    roles Array(String) DEFAULT [], -- User roles - for permission management
+    rights Array(String) DEFAULT [], -- Direct rights/permissions assigned to user
+    ref UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Referrer user ID - who invited/referred this user
+    aff String DEFAULT '', -- Affiliate code - for tracking marketing attribution
+    promo String DEFAULT '', -- Promotion code - special offers applied
+    origin_url String DEFAULT '', -- Origin URL - where user first registered
+    ip String DEFAULT '', -- IP address - at registration time
+    ips Array(String) DEFAULT [], -- IP history - all IPs this user has connected from
+    params JSON DEFAULT '{}', -- Additional parameters - customizable user attributes
+    cohorts Array(String) DEFAULT [], -- Cohort assignments - for segmentation
+    splits JSON DEFAULT '{}', -- A/B test assignments - experiment participations
+    lang String DEFAULT '', -- Language preference
     created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
-    oid UUID, -- Organization ID - primary organization affiliation
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - primary organization affiliation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    owner UUID, -- Owner user ID - who created this user
+    owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this user
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
-    updater UUID, -- Updater user ID - who last modified this user
+    updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this user
     -- Additional fields from schema.4
-    mdevices JSON, -- Message devices - registered notification endpoints
-    mtypes Array(String), -- Message types - what kinds of messages user accepts
-    mlast Int64, -- Message last - timestamp of last message received
-    cell String, -- Cell phone number - for SMS/text messaging
-    additional_emails JSON, -- Additional emails - {"email@example.com": {"created_at": "2024-01-01", "verified_at": "2024-01-02"}}
-    additional_cells JSON, -- Additional cell numbers - {"+1234567890": {"created_at": "2024-01-01", "verified_at": "2024-01-02"}}
-    chash String, -- Cell hash - for efficient lookups
-    mcerts JSON, -- Marketing certifications - consent records
+    mdevices JSON DEFAULT '{}', -- Message devices - registered notification endpoints
+    mtypes Array(String) DEFAULT [], -- Message types - what kinds of messages user accepts
+    mlast Int64 DEFAULT 0, -- Message last - timestamp of last message received
+    cell String DEFAULT '', -- Cell phone number - for SMS/text messaging
+    additional_emails JSON DEFAULT '{}', -- Additional emails - {"email@example.com": {"created_at": "2024-01-01", "verified_at": "2024-01-02"}}
+    additional_cells JSON DEFAULT '{}', -- Additional cell numbers - {"+1234567890": {"created_at": "2024-01-01", "verified_at": "2024-01-02"}}
+    chash String DEFAULT '', -- Cell hash - for efficient lookups
+    mcerts JSON DEFAULT '{}', -- Marketing certifications - consent records
     -- Experimental schema fields
-    lat Float64, -- Latitude - geographical location
-    lon Float64, -- Longitude - geographical location
-    caption String, -- Profile caption/bio
-    gender Boolean, -- Gender flag - if tracked for demographic purposes
-    dob Date, -- Date of birth - for age verification
-    image_url String, -- Profile image URL - processed/optimized version
-    image_url_original String, -- Original profile image URL - pre-processing
-    v_score Decimal64(4), -- Verification score - confidence level in identity
-    fn String, -- First name
-    ln String, -- Last name
-    locked DateTime64(3), -- Account lock timestamp - if account is locked
-    active DateTime64(3), -- Last active timestamp
-    magic String, -- Magic link token - for passwordless authentication
-    magic_exp DateTime64(3), -- Magic link expiration
-    magic_attempts Int32, -- Magic link attempts - for rate limiting
-    magic_attempted DateTime64(3), -- Last magic link attempt timestamp
-    terms_accepted DateTime64(3), -- When terms of service were accepted
-    perms JSON, -- Permissions - detailed permission configuration
+    lat Float64 DEFAULT 0.0, -- Latitude - geographical location
+    lon Float64 DEFAULT 0.0, -- Longitude - geographical location
+    caption String DEFAULT '', -- Profile caption/bio
+    gender Boolean DEFAULT false, -- Gender flag - if tracked for demographic purposes
+    dob Date DEFAULT today(), -- Date of birth - for age verification
+    image_url String DEFAULT '', -- Profile image URL - processed/optimized version
+    image_url_original String DEFAULT '', -- Original profile image URL - pre-processing
+    v_score Decimal64(4) DEFAULT 0.0, -- Verification score - confidence level in identity
+    fn String DEFAULT '', -- First name
+    ln String DEFAULT '', -- Last name
+    locked DateTime64(3) DEFAULT toDateTime64(0, 3), -- Account lock timestamp - if account is locked
+    active DateTime64(3) DEFAULT toDateTime64(0, 3), -- Last active timestamp
+    magic String DEFAULT '', -- Magic link token - for passwordless authentication
+    magic_exp DateTime64(3) DEFAULT toDateTime64(0, 3), -- Magic link expiration
+    magic_attempts Int32 DEFAULT 0, -- Magic link attempts - for rate limiting
+    magic_attempted DateTime64(3) DEFAULT toDateTime64(0, 3), -- Last magic link attempt timestamp
+    terms_accepted DateTime64(3) DEFAULT toDateTime64(0, 3), -- When terms of service were accepted
+    perms JSON DEFAULT '{}', -- Permissions - detailed permission configuration
 
     -- Use cases and user attributes for targeting/matching
-    use_cases Array(String), -- User use cases for this product (e.g., ["email_marketing", "analytics"])
+    use_cases Array(String) DEFAULT [], -- User use cases for this product (e.g., ["email_marketing", "analytics"])
     use_case_gtesmall Array(Float32) DEFAULT [], -- GTE-small embedding of use cases (384-dim)
-    user_attribs JSON, -- User attributes for clustering and matching (JSON format)
+    user_attribs JSON DEFAULT '{}', -- User attributes for clustering and matching (JSON format)
     user_attribs_gtesmall Array(Float32) DEFAULT [], -- GTE-small embedding of user attributes (384-dim)
 
     -- Embedding metadata
     embedding_model String DEFAULT 'gte-small', -- Embedding model used
     embedding_dimensions UInt16 DEFAULT 384, -- Dimensions of embedding vectors
-    embedding_generated_at DateTime64(3) -- When embeddings were generated
+    embedding_generated_at DateTime64(3) DEFAULT toDateTime64(0, 3) -- When embeddings were generated
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)
 ORDER BY uid;
@@ -337,73 +337,73 @@ ARRAY JOIN cohorts;
 
 -- User verifications table - Tracks identity verification methods and statuses
 CREATE TABLE user_verifications ON CLUSTER my_cluster (
-    uid UUID, -- User ID - whose identity is being verified
-    vmethod String, -- Verification method (e.g., "email", "phone", "id", "document")
-    verifier UUID, -- Verifier user ID - who performed the verification
+    uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - whose identity is being verified
+    vmethod String DEFAULT '', -- Verification method (e.g., "email", "phone", "id", "document")
+    verifier UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Verifier user ID - who performed the verification
     created_at DateTime64(3) DEFAULT now64(3), -- Verification timestamp - when verification occurred
-    oid UUID, -- Organization ID - which oid this verification is for
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this verification is for
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    owner UUID, -- Owner user ID - who initiated this verification
+    owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who initiated this verification
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
-    updater UUID, -- Updater user ID - who last modified this verification
+    updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this verification
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY (uid, vmethod);
 
 -- Enhanced Queues table - Advanced task management system with additional metadata
 CREATE TABLE files ON CLUSTER my_cluster (
-    slug String, -- Slug - unique URL-friendly identifier
-    oid UUID, -- Organization ID - for multi-tenant data isolation
+    slug String DEFAULT '', -- Slug - unique URL-friendly identifier
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    fprint String, -- Fingerprint - hash of file contents (SHA256)
-    ftype String, -- File type - category (v=video, i=image, d=document)
-    suffix String, -- Suffix - file extension (jpg, jpeg, doc, etc.)
-    name String, -- Name - optimized/reconstructed filename
-    mime String, -- MIME type - content type for browsers
-    description String, -- Description - notes entered at upload
-    lat Float64, -- Latitude - geographic location
-    lon Float64, -- Longitude - geographic location
-    oname String, -- Original name - original filename
-    ocreated DateTime64(3), -- Original created date - from file metadata
-    omime String, -- Original MIME type - before processing
-    alt String, -- Alt text - for accessibility
-    meta JSON, -- Metadata - additional file information
-    x Int32, -- Width - in pixels for images/videos
-    y Int32, -- Height - in pixels for images/videos
-    size Int32, -- Size - file size in bytes
-    private Boolean, -- Private flag - requires authentication
-    bucket String, -- Storage bucket - where file is stored
-    url_prefix String, -- URL prefix - for proxy access (private/public)
-    ourl String, -- Original URL - source URL if imported
-    hqurl String, -- High quality URL - high resolution version
-    mqurl String, -- Medium quality URL - medium resolution version
-    lqurl String, -- Low quality URL - low resolution version
-    thumb String, -- Thumbnail URL - preview image
-    used_in Array(String), -- Usage references - where file is used
-    owner UUID, -- Owner user ID - who uploaded the file
-    o_r Boolean, -- Owner read permission
-    o_w Boolean, -- Owner write permission
-    orgs Array(UUID), -- Organization IDs - associated organizations
-    g_r Boolean, -- Group/oid read permission
-    g_w Boolean, -- Group/oid write permission
-    roles Array(String), -- Role permissions - which roles can access
-    r_r Boolean, -- Role read permission
-    r_w Boolean, -- Role write permission
+    fprint String DEFAULT '', -- Fingerprint - hash of file contents (SHA256)
+    ftype String DEFAULT '', -- File type - category (v=video, i=image, d=document)
+    suffix String DEFAULT '', -- Suffix - file extension (jpg, jpeg, doc, etc.)
+    name String DEFAULT '', -- Name - optimized/reconstructed filename
+    mime String DEFAULT '', -- MIME type - content type for browsers
+    description String DEFAULT '', -- Description - notes entered at upload
+    lat Float64 DEFAULT 0.0, -- Latitude - geographic location
+    lon Float64 DEFAULT 0.0, -- Longitude - geographic location
+    oname String DEFAULT '', -- Original name - original filename
+    ocreated DateTime64(3) DEFAULT toDateTime64(0, 3), -- Original created date - from file metadata
+    omime String DEFAULT '', -- Original MIME type - before processing
+    alt String DEFAULT '', -- Alt text - for accessibility
+    meta JSON DEFAULT '{}', -- Metadata - additional file information
+    x Int32 DEFAULT 0, -- Width - in pixels for images/videos
+    y Int32 DEFAULT 0, -- Height - in pixels for images/videos
+    size Int32 DEFAULT 0, -- Size - file size in bytes
+    private Boolean DEFAULT false, -- Private flag - requires authentication
+    bucket String DEFAULT '', -- Storage bucket - where file is stored
+    url_prefix String DEFAULT '', -- URL prefix - for proxy access (private/public)
+    ourl String DEFAULT '', -- Original URL - source URL if imported
+    hqurl String DEFAULT '', -- High quality URL - high resolution version
+    mqurl String DEFAULT '', -- Medium quality URL - medium resolution version
+    lqurl String DEFAULT '', -- Low quality URL - low resolution version
+    thumb String DEFAULT '', -- Thumbnail URL - preview image
+    used_in Array(String) DEFAULT [], -- Usage references - where file is used
+    owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who uploaded the file
+    o_r Boolean DEFAULT false, -- Owner read permission
+    o_w Boolean DEFAULT false, -- Owner write permission
+    orgs Array(UUID) DEFAULT [], -- Organization IDs - associated organizations
+    g_r Boolean DEFAULT false, -- Group/oid read permission
+    g_w Boolean DEFAULT false, -- Group/oid write permission
+    roles Array(String) DEFAULT [], -- Role permissions - which roles can access
+    r_r Boolean DEFAULT false, -- Role read permission
+    r_w Boolean DEFAULT false, -- Role write permission
     created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
-    expires DateTime64(3), -- Expiration timestamp
-    updater UUID -- Updater user ID - who last modified this file
+    expires DateTime64(3) DEFAULT toDateTime64(0, 3), -- Expiration timestamp
+    updater UUID DEFAULT '00000000-0000-0000-0000-000000000000' -- Updater user ID - who last modified this file
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY slug;
 
 -- Payment Provider table - Stores information about payment service providers
 CREATE TABLE pprovider ON CLUSTER my_cluster (
-    name String, -- Provider name - unique identifier (e.g., "stripe", "paypal")
-    oid UUID, -- Organization ID - for multi-tenant data isolation
+    name String DEFAULT '', -- Provider name - unique identifier (e.g., "stripe", "paypal")
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
-    owner UUID, -- Owner user ID - who created this provider record
+    owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this provider record
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
-    updater UUID, -- Updater user ID - who last modified this provider
+    updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this provider
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY name;
 
@@ -416,19 +416,19 @@ SELECT * FROM pprovider;
 
 -- Payment Authorization table - Stores user payment method information
 CREATE TABLE pauth ON CLUSTER my_cluster (
-    id UUID, -- Authorization ID - unique identifier for this payment method
-    oid UUID, -- Organization ID - for multi-tenant data isolation
+    id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Authorization ID - unique identifier for this payment method
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    pprovider String, -- Payment provider name (references pprovider.name)
-    pcustomer String, -- Customer ID in the payment provider's system
-    psource String, -- Payment source identifier (e.g., card ID, bank account token)
-    meta String, -- Metadata about the payment method in JSON format
-    priority Int32, -- Priority order for multiple payment methods
-    active DateTime64(3), -- Timestamp when this payment method became active
+    pprovider String DEFAULT '', -- Payment provider name (references pprovider.name)
+    pcustomer String DEFAULT '', -- Customer ID in the payment provider's system
+    psource String DEFAULT '', -- Payment source identifier (e.g., card ID, bank account token)
+    meta String DEFAULT '', -- Metadata about the payment method in JSON format
+    priority Int32 DEFAULT 0, -- Priority order for multiple payment methods
+    active DateTime64(3) DEFAULT toDateTime64(0, 3), -- Timestamp when this payment method became active
     created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
-    owner UUID, -- Owner user ID - who owns this payment method
+    owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who owns this payment method
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
-    updater UUID, -- Updater user ID - who last modified this payment method
+    updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this payment method
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY id;
 
@@ -441,17 +441,17 @@ SELECT * FROM pauth;
 
 -- Payment Confirmation table - Stores payment event confirmations
 CREATE TABLE pconfirmation ON CLUSTER my_cluster (
-    id String, -- Event ID - unique identifier for this payment event
-    oid UUID, -- Organization ID - for multi-tenant data isolation
+    id String DEFAULT '', -- Event ID - unique identifier for this payment event
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    ctype String, -- Confirmation type (e.g., "charge", "refund", "subscription")
-    ref String, -- Reference ID - typically an external transaction ID
-    rtype String, -- Reference type - describes what the ref field references
-    meta String, -- Metadata about the payment event in JSON format
+    ctype String DEFAULT '', -- Confirmation type (e.g., "charge", "refund", "subscription")
+    ref String DEFAULT '', -- Reference ID - typically an external transaction ID
+    rtype String DEFAULT '', -- Reference type - describes what the ref field references
+    meta String DEFAULT '', -- Metadata about the payment event in JSON format
     created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
-    owner UUID, -- Owner user ID - who owns this payment confirmation
+    owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who owns this payment confirmation
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
-    updater UUID, -- Updater user ID - who last modified this confirmation
+    updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this confirmation
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY id;
 

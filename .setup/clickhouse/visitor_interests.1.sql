@@ -18,36 +18,36 @@ USE sfpla;
 
 CREATE TABLE IF NOT EXISTS visitor_interests ON CLUSTER my_cluster (
     -- Identity (Multi-tenant + Visitor + User)
-    vid UUID,                              -- Visitor ID (always present, anonymous tracking)
-    uid UUID,                              -- User ID (nullable, populated when user authenticates)
-    oid UUID,                              -- Organization ID (multi-tenant data isolation)
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                              -- Visitor ID (always present, anonymous tracking)
+    uid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                              -- User ID (nullable, populated when user authenticates)
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                              -- Organization ID (multi-tenant data isolation)
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
 
     -- DIMENSION 1: AUDIENCE Tags (WHO they are)
-    audience_tags Array(String),          -- ["ceo", "executive", "founder", "developer"]
-    audience_counts JSON,                  -- {"ceo": 5, "executive": 3}
-    audience_vector Array(Float32) CODEC(NONE),  -- 384-dim (via taxonomy arithmetic)
+    audience_tags Array(String) DEFAULT [],          -- ["ceo", "executive", "founder", "developer"]
+    audience_counts JSON DEFAULT '{}',                  -- {"ceo": 5, "executive": 3}
+    audience_vector Array(Float32) DEFAULT [] CODEC(NONE),  -- 384-dim (via taxonomy arithmetic)
     audience_confidence Float32 DEFAULT 0, -- Confidence in audience classification (0-1)
 
     -- DIMENSION 2: CONTENT Tags (WHAT they're interested in)
-    content_tags Array(String),           -- ["sports", "technology", "finance", "health"]
-    content_counts JSON,                   -- {"sports": 12, "technology": 8}
-    content_vector Array(Float32) CODEC(NONE),   -- 384-dim (via taxonomy arithmetic)
+    content_tags Array(String) DEFAULT [],           -- ["sports", "technology", "finance", "health"]
+    content_counts JSON DEFAULT '{}',                   -- {"sports": 12, "technology": 8}
+    content_vector Array(Float32) DEFAULT [] CODEC(NONE),   -- 384-dim (via taxonomy arithmetic)
     content_confidence Float32 DEFAULT 0,  -- Confidence in content interests (0-1)
 
     -- COMBINED (for backward compatibility)
-    interests Array(String),               -- All tags combined (audience + content)
-    interest_counts JSON,                  -- Combined tag frequencies
-    interest_vector Array(Float32) CODEC(NONE),  -- 384-dim combined embedding
-    top_interests Array(String),           -- Top 10 interests by frequency
+    interests Array(String) DEFAULT [],               -- All tags combined (audience + content)
+    interest_counts JSON DEFAULT '{}',                  -- Combined tag frequencies
+    interest_vector Array(Float32) DEFAULT [] CODEC(NONE),  -- 384-dim combined embedding
+    top_interests Array(String) DEFAULT [],           -- Top 10 interests by frequency
 
     -- Campaign Tracking
-    campaign_sources JSON,                 -- Which campaigns revealed which tags
+    campaign_sources JSON DEFAULT '{}',                 -- Which campaigns revealed which tags
                                           -- Format: {"campaign_id": {"audience": ["ceo"], "content": ["sports"]}}
 
     -- Vector Computation Tracking (Smart Scheduling)
     vector_model String DEFAULT 'gte-small',      -- Embedding model used
-    vector_generated_at DateTime64(3),            -- When vectors were last generated
+    vector_generated_at DateTime64(3) DEFAULT toDateTime64(0, 3),            -- When vectors were last generated
     vector_computed_at DateTime64(3) DEFAULT toDateTime64(0, 3),  -- For incremental updates
 
     -- Geographic Data (Zero-join architecture)
@@ -69,14 +69,14 @@ CREATE TABLE IF NOT EXISTS visitor_interests ON CLUSTER my_cluster (
         if(last_lat != 0 AND last_lon != 0, geohashEncode(last_lon, last_lat, 7), ''),
 
     -- Metadata
-    first_seen DateTime64(3),              -- When first interest was recorded
-    last_updated DateTime64(3),            -- Last tag update
-    total_interactions Int64,              -- Total tracked interactions
-    unique_campaigns Int64,                -- Number of unique campaigns
-    confidence_score Float32,              -- Overall confidence (0-1)
+    first_seen DateTime64(3) DEFAULT toDateTime64(0, 3),              -- When first interest was recorded
+    last_updated DateTime64(3) DEFAULT toDateTime64(0, 3),            -- Last tag update
+    total_interactions Int64 DEFAULT 0,              -- Total tracked interactions
+    unique_campaigns Int64 DEFAULT 0,                -- Number of unique campaigns
+    confidence_score Float32 DEFAULT 0,              -- Overall confidence (0-1)
 
     -- Optional Context
-    context JSON,                          -- Additional context {"platform": "web", "device": "mobile"}
+    context JSON DEFAULT '{}',                          -- Additional context {"platform": "web", "device": "mobile"}
 
     -- Timestamps (Standard audit fields)
     created_at DateTime64(3) DEFAULT now64(3),  -- Record creation
@@ -163,16 +163,16 @@ WHERE last_city != '';
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS interest_taxonomy ON CLUSTER my_cluster (
-    oid UUID,                              -- Organization ID (multi-tenant)
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                              -- Organization ID (multi-tenant)
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    interest_tag String,                   -- Tag name (e.g., "ceo", "sports")
-    tag_type String,                       -- "audience" or "content"
-    category String,                       -- Category (e.g., "job_title", "activity")
-    subcategory String,                    -- Subcategory (e.g., "c_level", "outdoor_sports")
-    description String,                    -- Human-readable description
-    canonical_tag String,                  -- Canonical form (e.g., "ceo" for "CEO", "Chief Executive")
-    aliases Array(String),                 -- Alternative names ["ceo", "chief-executive", "chief executive officer"]
-    embedding Array(Float32) CODEC(NONE), -- Pre-computed 384-dim embedding (computed ONCE!)
+    interest_tag String DEFAULT '',                   -- Tag name (e.g., "ceo", "sports")
+    tag_type String DEFAULT '',                       -- "audience" or "content"
+    category String DEFAULT '',                       -- Category (e.g., "job_title", "activity")
+    subcategory String DEFAULT '',                    -- Subcategory (e.g., "c_level", "outdoor_sports")
+    description String DEFAULT '',                    -- Human-readable description
+    canonical_tag String DEFAULT '',                  -- Canonical form (e.g., "ceo" for "CEO", "Chief Executive")
+    aliases Array(String) DEFAULT [],                 -- Alternative names ["ceo", "chief-executive", "chief executive officer"]
+    embedding Array(Float32) DEFAULT [] CODEC(NONE), -- Pre-computed 384-dim embedding (computed ONCE!)
     usage_count Int64 DEFAULT 0,           -- How many visitors have this tag
     created_at DateTime64(3) DEFAULT now64(3),
     updated_at DateTime64(3) DEFAULT now64(3)

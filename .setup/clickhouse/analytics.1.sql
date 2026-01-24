@@ -14,46 +14,46 @@ USE sfpla;
 --   * rid -> depends on relation field (many-to-one)
 CREATE TABLE events ON CLUSTER my_cluster (
     eid UUID DEFAULT generateUUIDv4(), -- Event ID - unique identifier for each event
-    oid UUID, -- Organization ID - for multi-tenant data isolation
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    vid UUID, -- Visitor ID - links to the visitor who triggered this event
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to the visitor who triggered this event
     did UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'), -- Device ID
-    sid UUID, -- Session ID - links to the session this event occurred in
-    hhash String, -- Host hash - identifies the website/application
-    app String, -- Application name
-    rel String, -- Application release/version
-    cflags Int64, -- Compliance flags
+    sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - links to the session this event occurred in
+    hhash String DEFAULT '', -- Host hash - identifies the website/application
+    app String DEFAULT '', -- Application name
+    rel String DEFAULT '', -- Application release/version
+    cflags Int64 DEFAULT 0, -- Compliance flags
     created_at DateTime64(3) DEFAULT now64(3), -- When this event was recorded
-    uid UUID, -- User ID if authenticated
-    tid UUID, -- Thread ID - linked to message thread
-    last String, -- Previous action/URL
-    url String, -- Current URL where event occurred
-    ip String, -- Client IP address
-    iphash String, -- Hashed IP for privacy
-    lat Float64, -- Location latitude
-    lon Float64, -- Location longitude
-    ptyp String, -- Page type where event occurred
-    bhash String, -- Browser hash
-    auth UUID, -- Content author ID
-    duration Int64, -- Time since last interaction (in milliseconds)
+    uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID if authenticated
+    tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Thread ID - linked to message thread
+    last String DEFAULT '', -- Previous action/URL
+    url String DEFAULT '', -- Current URL where event occurred
+    ip String DEFAULT '', -- Client IP address
+    iphash String DEFAULT '', -- Hashed IP for privacy
+    lat Float64 DEFAULT 0.0, -- Location latitude
+    lon Float64 DEFAULT 0.0, -- Location longitude
+    ptyp String DEFAULT '', -- Page type where event occurred
+    bhash String DEFAULT '', -- Browser hash
+    auth UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Content author ID
+    duration Int64 DEFAULT 0, -- Time since last interaction (in milliseconds)
     -- Experiment and Tracking Fields
-    xid String, -- Experiment ID
-    split String, -- Experiment split (A/B)
-    ename String, -- Event name/action (e.g., "click", "purchase")
-    source String, -- Traffic source (utm_source)
-    medium String, -- Traffic medium (utm_medium)
-    campaign String, -- Campaign name (utm_campaign)
+    xid String DEFAULT '', -- Experiment ID
+    split String DEFAULT '', -- Experiment split (A/B)
+    ename String DEFAULT '', -- Event name/action (e.g., "click", "purchase")
+    source String DEFAULT '', -- Traffic source (utm_source)
+    medium String DEFAULT '', -- Traffic medium (utm_medium)
+    campaign String DEFAULT '', -- Campaign name (utm_campaign)
     content String DEFAULT '', -- Content ID for bandit optimization and A/B testing
-    country String, -- Country code
-    region String, -- Region name
-    city String, -- City name
-    zip String, -- ZIP/postal code
-    term String, -- Search term (utm_term)
-    etyp String, -- Event category
-    ver Int32, -- Version or variation
-    sink String, -- Target conversion goal
-    score Float64, -- Conversion funnel progress score
-    params JSON, -- Additional parameters as JSON format:
+    country String DEFAULT '', -- Country code
+    region String DEFAULT '', -- Region name
+    city String DEFAULT '', -- City name
+    zip String DEFAULT '', -- ZIP/postal code
+    term String DEFAULT '', -- Search term (utm_term)
+    etyp String DEFAULT '', -- Event category
+    ver Int32 DEFAULT 0, -- Version or variation
+    sink String DEFAULT '', -- Target conversion goal
+    score Float64 DEFAULT 0.0, -- Conversion funnel progress score
+    params JSON DEFAULT '{}', -- Additional parameters as JSON format:
                -- {
                --   "utm_source": "string", // Original traffic source if available
                --   "utm_medium": "string", // Original medium if available
@@ -65,13 +65,13 @@ CREATE TABLE events ON CLUSTER my_cluster (
                --   "custom_dimensions": {...} // Custom tracking dimensions
                -- }
     -- Additional Fields
-    invoice_id UUID, -- Reference to invoice (payments.invid) if this event involved a transaction
+    invoice_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Reference to invoice (payments.invid) if this event involved a transaction
                      -- Events track at INVOICE level, not line-item level
                      -- To get line items: JOIN payments ON payments.invid = events.invoice_id
-    targets JSON, -- Components interacted with (videos, ads, etc.)
-    relation String, -- Related object reference (e.g., "content_library")
-    rid UUID, -- Related ID (content_library ID,newsletter ID, etc.)
-    ja4h String, -- JA4H HTTP client fingerprint for advanced client identification
+    targets JSON DEFAULT '{}', -- Components interacted with (videos, ads, etc.)
+    relation String DEFAULT '', -- Related object reference (e.g., "content_library")
+    rid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Related ID (content_library ID,newsletter ID, etc.)
+    ja4h String DEFAULT '', -- JA4H HTTP client fingerprint for advanced client identification
     gaid String DEFAULT '', -- Google Analytics ID
     idfa String DEFAULT '', -- Apple IDFA
     msid String DEFAULT '', -- Microsoft ID
@@ -392,10 +392,10 @@ LIMIT 1 BY hhash, uid, vid, sid;
 
 -- Usernames table - Maps usernames to visitor IDs for username tracking
 CREATE TABLE usernames ON CLUSTER my_cluster (
-    hhash String, -- Host hash - identifies the website/application
-    uhash String, -- Username hash - hashed for privacy and efficient lookups
-    vid UUID, -- Visitor ID - links to a visitor record
-    sid UUID, -- Session ID - identifies the session when username was recorded
+    hhash String DEFAULT '', -- Host hash - identifies the website/application
+    uhash String DEFAULT '', -- Username hash - hashed for privacy and efficient lookups
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
+    sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when username was recorded
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY hhash
@@ -403,10 +403,10 @@ ORDER BY (hhash, uhash, vid);
 
 -- Cells table - Maps cell phone hashes to visitor IDs for phone number tracking
 CREATE TABLE cells ON CLUSTER my_cluster (
-    hhash String, -- Host hash - identifies the website/application
-    chash String, -- Cell phone hash - hashed for privacy and efficient lookups
-    vid UUID, -- Visitor ID - links to a visitor record
-    sid UUID, -- Session ID - identifies the session when cell number was recorded
+    hhash String DEFAULT '', -- Host hash - identifies the website/application
+    chash String DEFAULT '', -- Cell phone hash - hashed for privacy and efficient lookups
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
+    sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when cell number was recorded
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY hhash
@@ -414,10 +414,10 @@ ORDER BY (hhash, chash, vid);
 
 -- Emails table - Maps email hashes to visitor IDs for email tracking
 CREATE TABLE emails ON CLUSTER my_cluster (
-    hhash String, -- Host hash - identifies the website/application
-    ehash String, -- Email hash - hashed for privacy and efficient lookups
-    vid UUID, -- Visitor ID - links to a visitor record
-    sid UUID, -- Session ID - identifies the session when email was recorded
+    hhash String DEFAULT '', -- Host hash - identifies the website/application
+    ehash String DEFAULT '', -- Email hash - hashed for privacy and efficient lookups
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
+    sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when email was recorded
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY hhash
@@ -425,9 +425,9 @@ ORDER BY (hhash, ehash);
 
 -- Hits table - URL hit counter (replacing Cassandra counter)
 CREATE TABLE hits ON CLUSTER my_cluster (
-    hhash String, -- Host hash - identifies the website/application
-    url String, -- URL path that was visited
-    total UInt64, -- Counter for number of hits to this URL
+    hhash String DEFAULT '', -- Host hash - identifies the website/application
+    url String DEFAULT '', -- URL path that was visited
+    total UInt64 DEFAULT 0, -- Counter for number of hits to this URL
     date Date DEFAULT today() -- Date when hits were recorded, for partitioning
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
@@ -445,9 +445,9 @@ WHERE url != '';
 
 -- IPs table - IP address counter (replacing Cassandra counter)
 CREATE TABLE ips ON CLUSTER my_cluster (
-    hhash String, -- Host hash - identifies the website/application
-    ip String, -- IP address
-    total UInt64, -- Counter for number of requests from this IP
+    hhash String DEFAULT '', -- Host hash - identifies the website/application
+    ip String DEFAULT '', -- IP address
+    total UInt64 DEFAULT 0, -- Counter for number of requests from this IP
     date Date DEFAULT today() -- Date when requests were recorded, for partitioning
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
@@ -477,9 +477,9 @@ LIMIT 1 BY hhash, ip;
 
 -- Reqs table - Visitor request counter (replacing Cassandra counter)
 CREATE TABLE reqs ON CLUSTER my_cluster (
-    hhash String, -- Host hash - identifies the website/application
-    vid UUID, -- Visitor ID - links to a visitor record
-    total UInt64, -- Counter for number of requests from this visitor
+    hhash String DEFAULT '', -- Host hash - identifies the website/application
+    vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
+    total UInt64 DEFAULT 0, -- Counter for number of requests from this visitor
     date Date DEFAULT today() -- Date when requests were recorded, for partitioning
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
@@ -497,10 +497,10 @@ WHERE vid IS NOT NULL;
 
 -- Browsers table - Browser usage statistics (replacing Cassandra counter)
 CREATE TABLE browsers ON CLUSTER my_cluster (
-    hhash String, -- Host hash - identifies the website/application
-    bhash String, -- Browser hash - hashed browser identifier
-    browser String, -- User agent string
-    total UInt64, -- Counter for usage frequency of this browser
+    hhash String DEFAULT '', -- Host hash - identifies the website/application
+    bhash String DEFAULT '', -- Browser hash - hashed browser identifier
+    browser String DEFAULT '', -- User agent string
+    total UInt64 DEFAULT 0, -- Counter for usage frequency of this browser
     date Date DEFAULT today() -- Date when browser was used, for partitioning
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
@@ -519,9 +519,9 @@ WHERE bhash != '' AND browser != '';
 
 -- Referrers table - Tracks referring URLs (replacing Cassandra counter)
 CREATE TABLE referrers ON CLUSTER my_cluster (
-    hhash String, -- Host hash - identifies the website/application
-    url String, -- Referring URL
-    total UInt64, -- Counter for number of visits from this referrer
+    hhash String DEFAULT '', -- Host hash - identifies the website/application
+    url String DEFAULT '', -- Referring URL
+    total UInt64 DEFAULT 0, -- Counter for number of visits from this referrer
     date Date DEFAULT today() -- Date when referrals occurred, for partitioning
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
