@@ -69,6 +69,10 @@ import (
 	goja4h "github.com/lum8rjack/go-ja4h"
 )
 
+// zeroUUID is a constant representing the zero UUID (all zeros)
+// Used as default value when UUID is nil to prevent ClickHouse binding panics
+var zeroUUID = uuid.MustParse("00000000-0000-0000-0000-000000000000")
+
 // //////////////////////////////////////
 // hash
 // //////////////////////////////////////
@@ -593,15 +597,31 @@ func getStringPtr(v interface{}) *string {
 }
 
 // parseUUID converts interface{} to *uuid.UUID with error handling
-func parseUUID(v interface{}) interface{} {
+// By default returns a pointer to the zero UUID instead of nil to prevent ClickHouse binding panics
+// Pass allowNil=true as second argument to allow nil returns (for optional UUID fields)
+func parseUUID(v interface{}, allowNil ...bool) *uuid.UUID {
+	// Check if nil is allowed (default: false)
+	canReturnNil := false
+	if len(allowNil) > 0 {
+		canReturnNil = allowNil[0]
+	}
+
 	str := getStringValue(v)
 	if str == "" {
+		if canReturnNil {
+			return nil
+		}
+		return &zeroUUID
+	}
+
+	if parsed, err := uuid.Parse(str); err == nil {
+		return &parsed
+	}
+
+	if canReturnNil {
 		return nil
 	}
-	if parsed, err := uuid.Parse(str); err == nil {
-		return parsed // Return UUID value, not pointer
-	}
-	return nil
+	return &zeroUUID
 }
 
 // //////////////////////////////////////

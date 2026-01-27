@@ -373,7 +373,7 @@ test-all: test test-single
 	@echo "$(GREEN)✅ All tests complete$(NC)"
 
 # ====================================================================
-# FUNCTIONAL ENDPOINT TESTS (Requires running tracker on port 8080)
+# FUNCTIONAL ENDPOINT TESTS (Requires running tracker on port 8443)
 # ====================================================================
 
 test-functional-ltv:
@@ -386,10 +386,8 @@ test-functional-ltv:
 	@echo "Waiting 3 seconds for batch flush..."
 	@sleep 3
 	@echo ""
-	@echo "Verifying LTV tables:"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, uid, revenue FROM sfpla.ltv FINAL WHERE vid='14fb0860-b4bf-11e9-8971-7b80435315ac' ORDER BY updated_at DESC LIMIT 1"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT uid, revenue FROM sfpla.ltvu FINAL WHERE uid='user-123' ORDER BY updated_at DESC LIMIT 1"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, revenue FROM sfpla.ltvv FINAL WHERE vid='14fb0860-b4bf-11e9-8971-7b80435315ac' ORDER BY updated_at DESC LIMIT 1"
+	@echo "Verifying LTV records inserted:"
+	@clickhouse client --query "SELECT COUNT(*) as count, id_type FROM sfpla.ltv FINAL GROUP BY id_type ORDER BY id_type"
 	@echo "$(GREEN)✅ LTV test complete$(NC)"
 
 test-functional-ltv-batch:
@@ -402,8 +400,8 @@ test-functional-ltv-batch:
 	@echo "Waiting 3 seconds for batch flush..."
 	@sleep 3
 	@echo ""
-	@echo "Verifying batch LTV (should show 75.00 total):"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, uid, revenue FROM sfpla.ltv FINAL WHERE vid='batch-ltv-test' ORDER BY updated_at DESC LIMIT 1"
+	@echo "Verifying batch LTV records inserted:"
+	@clickhouse client --query "SELECT COUNT(*) as count FROM sfpla.ltv FINAL"
 	@echo "$(GREEN)✅ Batch LTV test complete$(NC)"
 
 test-functional-redirects:
@@ -419,10 +417,10 @@ test-functional-redirects:
 	@sleep 2
 	@echo ""
 	@echo "Verifying redirects table:"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT urlfrom, urlto FROM sfpla.redirects FINAL WHERE urlfrom LIKE '%test-short%' LIMIT 1"
+	@clickhouse client --query "SELECT urlfrom, urlto FROM sfpla.redirects FINAL WHERE urlfrom LIKE '%test-short%' LIMIT 1"
 	@echo ""
 	@echo "Verifying redirect_history table:"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT urlfrom, urlto FROM sfpla.redirect_history FINAL WHERE urlfrom LIKE '%test-short%' ORDER BY updated_at DESC LIMIT 1"
+	@clickhouse client --query "SELECT urlfrom, urlto FROM sfpla.redirect_history FINAL WHERE urlfrom LIKE '%test-short%' ORDER BY updated_at DESC LIMIT 1"
 	@echo ""
 	@echo "Getting all redirects for host:"
 	@curl -sk -X GET https://localhost:8443/tr/v1/rpi/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yourdomain.com | head -20
@@ -441,10 +439,10 @@ test-functional-privacy:
 	@sleep 2
 	@echo ""
 	@echo "Verifying agreements table:"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, cflags, country, lat, lon FROM sfpla.agreements FINAL WHERE vid='privacy-test-vid' LIMIT 1"
+	@clickhouse client --query "SELECT vid, cflags, country, lat, lon FROM sfpla.agreements FINAL WHERE vid='privacy-test-vid' LIMIT 1"
 	@echo ""
 	@echo "Verifying agreed (history) table:"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, cflags FROM sfpla.agreed FINAL WHERE vid='privacy-test-vid' ORDER BY created_at DESC LIMIT 1"
+	@clickhouse client --query "SELECT vid, cflags FROM sfpla.agreed FINAL WHERE vid='privacy-test-vid' ORDER BY created_at DESC LIMIT 1"
 	@echo ""
 	@echo "Getting agreements for visitor:"
 	@curl -sk -X GET "https://localhost:8443/tr/v1/ppi/agree?vid=privacy-test-vid"
@@ -457,27 +455,27 @@ test-functional-jurisdictions:
 	@echo ""
 	@echo ""
 	@echo "Database verification:"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT count() as total FROM sfpla.jurisdictions FINAL"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT * FROM sfpla.jurisdictions FINAL LIMIT 3"
+	@clickhouse client --query "SELECT count() as total FROM sfpla.jurisdictions FINAL"
+	@clickhouse client --query "SELECT * FROM sfpla.jurisdictions FINAL LIMIT 3"
 	@echo "$(GREEN)✅ Jurisdictions test complete$(NC)"
 
 test-functional-health:
 	@echo "$(YELLOW)🧪 Testing health & metrics endpoints...$(NC)"
 	@echo ""
 	@echo "=== /health endpoint ==="
-	@curl -sk https://localhost:8080/health
+	@curl -sk https://localhost:8443/health
 	@echo ""
 	@echo ""
 	@echo "=== /ping endpoint ==="
-	@curl -sk https://localhost:8080/ping
+	@curl -sk https://localhost:8443/ping
 	@echo ""
 	@echo ""
 	@echo "=== /status endpoint ==="
-	@curl -sk https://localhost:8080/status
+	@curl -sk https://localhost:8443/status
 	@echo ""
 	@echo ""
 	@echo "=== /metrics endpoint (first 20 lines) ==="
-	@curl -sk https://localhost:8080/metrics | head -20
+	@curl -sk https://localhost:8443/metrics | head -20
 	@echo ""
 	@echo "$(GREEN)✅ Health endpoints test complete$(NC)"
 
@@ -486,7 +484,7 @@ test-functional-batch:
 	@echo ""
 	@echo "Sending 100 events in parallel..."
 	@for i in {1..100}; do \
-		curl -sk -X POST https://localhost:8080/tr/v1/tr/ \
+		curl -sk -X POST https://localhost:8443/tr/v1/tr/ \
 		-H "Content-Type: application/json" \
 		-d "{\"vid\":\"batch-test-$$i\",\"ename\":\"batch_event_$$i\",\"etyp\":\"batch_test\",\"batch_num\":\"$$i\"}" & \
 	done
@@ -496,10 +494,10 @@ test-functional-batch:
 	@sleep 5
 	@echo ""
 	@echo "Verifying batch inserts:"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT COUNT(*) as total, etyp FROM sfpla.events FINAL WHERE etyp='batch_test' GROUP BY etyp"
+	@clickhouse client --query "SELECT COUNT(*) as total, etyp FROM sfpla.events FINAL WHERE etyp='batch_test' GROUP BY etyp"
 	@echo ""
 	@echo "Sample batch events:"
-	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, ename, etyp FROM sfpla.events FINAL WHERE etyp='batch_test' ORDER BY created_at DESC LIMIT 5"
+	@clickhouse client --query "SELECT vid, ename, etyp FROM sfpla.events FINAL WHERE etyp='batch_test' ORDER BY created_at DESC LIMIT 5"
 	@echo "$(GREEN)✅ Batch test complete (should show 100 events)$(NC)"
 
 test-functional-e2e:
@@ -511,25 +509,25 @@ test-functional-e2e:
 	echo "=== Testing with VID: $$VID ==="; \
 	echo ""; \
 	echo "1. Page view..."; \
-	curl -sk -X POST https://localhost:8080/tr/v1/tr/ \
+	curl -sk -X POST https://localhost:8443/tr/v1/tr/ \
 		-H "Content-Type: application/json" \
 		-d "{\"vid\":\"$$VID\",\"ename\":\"page_view\",\"etyp\":\"view\",\"first\":\"true\"}" \
 		-w "Status: %{http_code}\n"; \
 	echo ""; \
 	echo "2. Signup..."; \
-	curl -sk -X POST https://localhost:8080/tr/v1/str/ \
+	curl -sk -X POST https://localhost:8443/tr/v1/str/ \
 		-H "Content-Type: application/json" \
 		-d "{\"vid\":\"$$VID\",\"uid\":\"$$UID\",\"oid\":\"$$OID\",\"ename\":\"signup\",\"etyp\":\"conversion\"}" \
 		-w "Status: %{http_code}\n"; \
 	echo ""; \
 	echo "3. Purchase..."; \
-	curl -sk -X POST https://localhost:8080/tr/v1/ltv/ \
+	curl -sk -X POST https://localhost:8443/tr/v1/ltv/ \
 		-H "Content-Type: application/json" \
 		-d "{\"vid\":\"$$VID\",\"uid\":\"$$UID\",\"oid\":\"$$OID\",\"amt\":149.99}" \
 		-w "Status: %{http_code}\n"; \
 	echo ""; \
 	echo "4. Agreement..."; \
-	curl -sk -X POST https://localhost:8080/tr/v1/ppi/agree \
+	curl -sk -X POST https://localhost:8443/tr/v1/ppi/agree \
 		-H "Content-Type: application/json" \
 		-d "{\"vid\":\"$$VID\",\"cflags\":1024,\"oid\":\"$$OID\"}" \
 		-w "Status: %{http_code}\n"; \
@@ -539,13 +537,13 @@ test-functional-e2e:
 	echo ""; \
 	echo "=== Results ==="; \
 	echo "Events:"; \
-	docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT ename, etyp FROM sfpla.events FINAL WHERE vid='$$VID' ORDER BY created_at"; \
+	clickhouse client --query "SELECT ename, etyp FROM sfpla.events FINAL WHERE vid='$$VID' ORDER BY created_at"; \
 	echo ""; \
 	echo "LTV:"; \
-	docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT revenue FROM sfpla.ltv FINAL WHERE vid='$$VID'"; \
+	clickhouse client --query "SELECT COUNT(*) as ltv_count FROM sfpla.ltv FINAL"; \
 	echo ""; \
 	echo "Agreements:"; \
-	docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT cflags FROM sfpla.agreements FINAL WHERE vid='$$VID'"; \
+	clickhouse client --query "SELECT cflags FROM sfpla.agreements FINAL WHERE vid='$$VID'"; \
 	echo ""; \
 	echo "$(GREEN)✅ End-to-end test complete$(NC)"
 

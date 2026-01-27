@@ -456,13 +456,6 @@ curl -k "https://localhost:8443/status"
 
 The tracker includes an advanced batching system that provides **5-10x performance improvements** for ClickHouse.
 
-### Performance Impact
-
-- **🔥 5-10x Performance Improvement** in throughput
-- **⚡ 80-90% Reduction** in database load
-- **📈 500-1000% Increase** in events per second
-- **🎯 50-70% Reduction** in network overhead
-- **⚙️ Automatic Optimization** based on load patterns
 
 ### Batching Strategies
 
