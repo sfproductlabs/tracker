@@ -12,7 +12,8 @@ USE sfpla;
 --   * auth -> users.uid (many-to-one)
 --   * invoice_id -> payments.invid (many-to-many: one invoice has multiple line items)
 --   * rid -> depends on relation field (many-to-one)
-CREATE TABLE events ON CLUSTER my_cluster (
+CREATE TABLE events_local ON CLUSTER tracker_cluster (
+
     eid UUID DEFAULT generateUUIDv4(), -- Event ID - unique identifier for each event
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -99,12 +100,18 @@ CREATE TABLE events ON CLUSTER my_cluster (
         SELECT _part_offset ORDER BY vid
     )
 
+
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY (oid, hhash, toYYYYMM(created_at))
 ORDER BY (created_at, eid)
 SETTINGS index_granularity = 8192, 
          min_bytes_for_wide_part = 0,
          deduplicate_merge_projection_mode = 'rebuild';
+
+-- Distributed table for events
+CREATE TABLE IF NOT EXISTS events ON CLUSTER tracker_cluster
+AS events_local
+ENGINE = Distributed(tracker_cluster, sfpla, events_local, rand());
 
 
 -- Visitors view - Gets first visit information for each visitor (earliest event by created_at)
@@ -391,47 +398,75 @@ ORDER BY created_at ASC
 LIMIT 1 BY hhash, uid, vid, sid;
 
 -- Usernames table - Maps usernames to visitor IDs for username tracking
-CREATE TABLE usernames ON CLUSTER my_cluster (
+CREATE TABLE usernames_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     uhash String DEFAULT '', -- Username hash - hashed for privacy and efficient lookups
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when username was recorded
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY hhash
 ORDER BY (hhash, uhash, vid);
 
+-- Distributed table for usernames
+CREATE TABLE IF NOT EXISTS usernames ON CLUSTER tracker_cluster
+AS usernames_local
+ENGINE = Distributed(tracker_cluster, sfpla, usernames_local, rand());
+
 -- Cells table - Maps cell phone hashes to visitor IDs for phone number tracking
-CREATE TABLE cells ON CLUSTER my_cluster (
+CREATE TABLE cells_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     chash String DEFAULT '', -- Cell phone hash - hashed for privacy and efficient lookups
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when cell number was recorded
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY hhash
 ORDER BY (hhash, chash, vid);
 
+-- Distributed table for cells
+CREATE TABLE IF NOT EXISTS cells ON CLUSTER tracker_cluster
+AS cells_local
+ENGINE = Distributed(tracker_cluster, sfpla, cells_local, rand());
+
 -- Emails table - Maps email hashes to visitor IDs for email tracking
-CREATE TABLE emails ON CLUSTER my_cluster (
+CREATE TABLE emails_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     ehash String DEFAULT '', -- Email hash - hashed for privacy and efficient lookups
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when email was recorded
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY hhash
 ORDER BY (hhash, ehash);
 
+-- Distributed table for emails
+CREATE TABLE IF NOT EXISTS emails ON CLUSTER tracker_cluster
+AS emails_local
+ENGINE = Distributed(tracker_cluster, sfpla, emails_local, rand());
+
 -- Hits table - URL hit counter (replacing Cassandra counter)
-CREATE TABLE hits ON CLUSTER my_cluster (
+CREATE TABLE hits_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     url String DEFAULT '', -- URL path that was visited
     total UInt64 DEFAULT 0, -- Counter for number of hits to this URL
     date Date DEFAULT today() -- Date when hits were recorded, for partitioning
+
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
 ORDER BY (hhash, url, date);
+
+-- Distributed table for hits
+CREATE TABLE IF NOT EXISTS hits ON CLUSTER tracker_cluster
+AS hits_local
+ENGINE = Distributed(tracker_cluster, sfpla, hits_local, rand());
 
 -- Materialized view to auto-populate hits from events
 CREATE MATERIALIZED VIEW hits_mv TO hits AS
@@ -444,14 +479,21 @@ FROM events
 WHERE url != '';
 
 -- IPs table - IP address counter (replacing Cassandra counter)
-CREATE TABLE ips ON CLUSTER my_cluster (
+CREATE TABLE ips_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     ip String DEFAULT '', -- IP address
     total UInt64 DEFAULT 0, -- Counter for number of requests from this IP
     date Date DEFAULT today() -- Date when requests were recorded, for partitioning
+
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
 ORDER BY (hhash, ip, date);
+
+-- Distributed table for ips
+CREATE TABLE IF NOT EXISTS ips ON CLUSTER tracker_cluster
+AS ips_local
+ENGINE = Distributed(tracker_cluster, sfpla, ips_local, rand());
 
 -- Materialized view to auto-populate ips from events
 CREATE MATERIALIZED VIEW ips_mv TO ips AS
@@ -476,14 +518,21 @@ ORDER BY created_at DESC
 LIMIT 1 BY hhash, ip;
 
 -- Reqs table - Visitor request counter (replacing Cassandra counter)
-CREATE TABLE reqs ON CLUSTER my_cluster (
+CREATE TABLE reqs_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
     total UInt64 DEFAULT 0, -- Counter for number of requests from this visitor
     date Date DEFAULT today() -- Date when requests were recorded, for partitioning
+
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
 ORDER BY (hhash, vid, date);
+
+-- Distributed table for reqs
+CREATE TABLE IF NOT EXISTS reqs ON CLUSTER tracker_cluster
+AS reqs_local
+ENGINE = Distributed(tracker_cluster, sfpla, reqs_local, rand());
 
 -- Materialized view to auto-populate reqs from events
 CREATE MATERIALIZED VIEW reqs_mv TO reqs AS
@@ -496,15 +545,22 @@ FROM events
 WHERE vid IS NOT NULL;
 
 -- Browsers table - Browser usage statistics (replacing Cassandra counter)
-CREATE TABLE browsers ON CLUSTER my_cluster (
+CREATE TABLE browsers_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     bhash String DEFAULT '', -- Browser hash - hashed browser identifier
     browser String DEFAULT '', -- User agent string
     total UInt64 DEFAULT 0, -- Counter for usage frequency of this browser
     date Date DEFAULT today() -- Date when browser was used, for partitioning
+
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
 ORDER BY (hhash, bhash, browser, date);
+
+-- Distributed table for browsers
+CREATE TABLE IF NOT EXISTS browsers ON CLUSTER tracker_cluster
+AS browsers_local
+ENGINE = Distributed(tracker_cluster, sfpla, browsers_local, rand());
 
 -- Materialized view to auto-populate browsers from events
 CREATE MATERIALIZED VIEW browsers_mv TO browsers AS
@@ -518,14 +574,21 @@ FROM events
 WHERE bhash != '' AND browser != '';
 
 -- Referrers table - Tracks referring URLs (replacing Cassandra counter)
-CREATE TABLE referrers ON CLUSTER my_cluster (
+CREATE TABLE referrers_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     url String DEFAULT '', -- Referring URL
     total UInt64 DEFAULT 0, -- Counter for number of visits from this referrer
     date Date DEFAULT today() -- Date when referrals occurred, for partitioning
+
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
 ORDER BY (hhash, url, date);
+
+-- Distributed table for referrers
+CREATE TABLE IF NOT EXISTS referrers ON CLUSTER tracker_cluster
+AS referrers_local
+ENGINE = Distributed(tracker_cluster, sfpla, referrers_local, rand());
 
 -- Materialized view to auto-populate referrers from events
 CREATE MATERIALIZED VIEW referrers_mv TO referrers AS

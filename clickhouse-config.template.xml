@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <http_port>8123</http_port>
+    <tcp_port>9000</tcp_port>
+    <interserver_http_port>9009</interserver_http_port>
+    <listen_host>0.0.0.0</listen_host>
+
+    <path>${CLICKHOUSE_DATA_DIR}/</path>
+    <tmp_path>${CLICKHOUSE_DATA_DIR}/tmp/</tmp_path>
+    <user_files_path>${CLICKHOUSE_DATA_DIR}/user_files/</user_files_path>
+    <format_schema_path>${CLICKHOUSE_DATA_DIR}/format_schemas/</format_schema_path>
+
+    <logger>
+        <log>${CLICKHOUSE_LOG_DIR}/clickhouse-server.log</log>
+        <errorlog>${CLICKHOUSE_LOG_DIR}/clickhouse-server.err.log</errorlog>
+        <size>1000M</size>
+        <count>10</count>
+    </logger>
+
+    <!-- Embedded Keeper (ClickHouse Keeper) Setup -->
+    <keeper_server>
+        <tcp_port>2181</tcp_port>
+        <server_id>${SERVER_ID}</server_id>
+        <log_storage_path>${CLICKHOUSE_DATA_DIR}/coordination/log</log_storage_path>
+        <snapshot_storage_path>${CLICKHOUSE_DATA_DIR}/coordination/snapshots</snapshot_storage_path>
+
+        <coordination_settings>
+            <operation_timeout_ms>10000</operation_timeout_ms>
+            <session_timeout_ms>30000</session_timeout_ms>
+            <raft_logs_level>information</raft_logs_level>
+        </coordination_settings>
+
+        <raft_configuration>
+            ${KEEPER_RAFT_CONFIG}
+        </raft_configuration>
+    </keeper_server>
+
+    <!-- Cluster Configuration -->
+    <remote_servers>
+        <${CLUSTER_NAME}>
+            ${CLUSTER_TOPOLOGY}
+        </${CLUSTER_NAME}>
+    </remote_servers>
+
+    <!-- Macros for this node -->
+    <macros>
+        <shard>${SHARD}</shard>
+        <replica>${REPLICA}</replica>
+        <layer>${LAYER}</layer>
+    </macros>
+
+    <!-- Default replica paths -->
+    <default_replica_path>/clickhouse/tables/{layer}-{shard}/{database}/{table}</default_replica_path>
+    <default_replica_name>{replica}</default_replica_name>
+
+    <!-- Distributed DDL -->
+    <distributed_ddl>
+        <path>/clickhouse/task_queue/ddl</path>
+        <task_max_lifetime>300</task_max_lifetime>
+    </distributed_ddl>
+
+    <!-- Profiles -->
+    <profiles>
+        <default>
+            <distributed_ddl_task_timeout>300</distributed_ddl_task_timeout>
+        </default>
+    </profiles>
+
+    <!-- Single-node replication support -->
+    <replication>
+        <replicated_can_become_leader>1</replicated_can_become_leader>
+        <min_replicated_logs_to_keep>10</min_replicated_logs_to_keep>
+        <max_replicated_logs_to_keep>1000</max_replicated_logs_to_keep>
+    </replication>
+
+    <!-- Enable experimental features -->
+    <merge_tree>
+        <allow_experimental_reverse_key>1</allow_experimental_reverse_key>
+    </merge_tree>
+</clickhouse>

@@ -1692,7 +1692,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	updated := time.Now().UTC()
 
 	// Parse UUID fields
-	var vid, sid, uid, auth, rid, oid, paymentID *uuid.UUID
+	var vid, sid, uid, auth, rid, oid, invoiceID *uuid.UUID
 	if temp, ok := v["vid"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			vid = &parsed
@@ -1723,9 +1723,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			oid = &parsed
 		}
 	}
-	if temp, ok := v["payment_id"].(string); ok {
+	if temp, ok := v["invoice_id"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
-			paymentID = &parsed
+			invoiceID = &parsed
 		}
 	}
 
@@ -2078,7 +2078,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			created_at, uid, tid, last, url, ip, iphash, lat, lon, ptyp,
 			bhash, auth, duration, xid, split, ename, source, medium, campaign, content,
 			country, region, city, zip, term, etyp, ver, sink, score, params,
-			payment_id, targets, relation, rid, ja4h
+			invoice_id, targets, relation, rid, ja4h
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 SETTINGS insert_deduplicate = 1`,
 			[]interface{}{
@@ -2086,7 +2086,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"], v["content"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
-				parseUUID(paymentID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
+				parseUUID(invoiceID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
 		}
@@ -2849,14 +2849,89 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
+	// Parse optional UUIDs
+	var owner, uid, vid, updater *uuid.UUID
+	if temp, ok := v["owner"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			owner = &parsed
+		}
+	}
+	if temp, ok := v["uid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			uid = &parsed
+		}
+	}
+	if temp, ok := v["vid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			vid = &parsed
+		}
+	}
+	if temp, ok := v["updater"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			updater = &parsed
+		}
+	}
+
+	// Parse urgency (Int32 with default 0)
+	urgency := int32(0)
+	if u, ok := v["urgency"].(float64); ok {
+		urgency = int32(u)
+	} else if u, ok := v["urgency"].(int); ok {
+		urgency = int32(u)
+	} else if u, ok := v["urgency"].(int32); ok {
+		urgency = u
+	}
+
+	// Parse boolean flags with defaults
+	sys := false
+	if s, ok := v["sys"].(bool); ok {
+		sys = s
+	}
+	ephemeral := false
+	if e, ok := v["ephemeral"].(bool); ok {
+		ephemeral = e
+	}
+	archived := false
+	if a, ok := v["archived"].(bool); ok {
+		archived = a
+	}
+	broadcast := false
+	if b, ok := v["broadcast"].(bool); ok {
+		broadcast = b
+	}
+
 	// Insert or update mthreads record (batched)
 	return i.batchInsert("mthreads", `INSERT INTO mthreads (
-		tid, oid, org, thread_type, status, metadata,
-		provider_metrics, performance_metrics, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tid, alias, xstatus, name, ddata, provider, medium,
+		urgency, sys, ephemeral, archived, broadcast,
+		campaign_id, campaign_status,
+		oid, org, owner, uid, vid, created_at, updated_at, updater
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	SETTINGS insert_deduplicate = 1`,
 		[]interface{}{
-			tid, oid, getStringValue(v["org"]), "campaign", "active",
-			jsonOrNull(v), jsonOrNull(v), jsonOrNull(v), updated, updated,
+			tid,
+			getStringValue(v["alias"]),        // Thread alias (e.g., URL for web pages, campaign ID for ads)
+			getStringValue(v["xstatus"]),      // Thread status
+			getStringValue(v["name"]),         // Thread name
+			getStringValue(v["ddata"]),        // Thread description/data
+			getStringValue(v["provider"]),     // Provider (e.g., "website", "email", "sms")
+			getStringValue(v["medium"]),       // Medium (e.g., "page", "chat", "campaign")
+			urgency,                           // Urgency level (0-10)
+			sys,                               // System message flag
+			ephemeral,                         // Ephemeral message flag
+			archived,                          // Archived flag
+			broadcast,                         // Broadcast flag
+			getStringValue(v["campaign_id"]),  // Campaign ID for tracking
+			getStringValue(v["campaign_status"]), // Campaign status
+			oid,
+			getStringValue(v["org"]),
+			owner,
+			uid,
+			vid,
+			updated,
+			updated,
+			updater,
 		}, v)
 }
 
@@ -2867,14 +2942,140 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	eventID := uuid.Must(uuid.NewUUID())
+
+	// Generate message ID
+	mid := uuid.Must(uuid.NewUUID())
+
+	// Parse optional UUIDs
+	var pmid, qid, rid, owner, uid, vid, updater *uuid.UUID
+	if temp, ok := v["pmid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			pmid = &parsed
+		}
+	}
+	if temp, ok := v["qid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			qid = &parsed
+		}
+	}
+	if temp, ok := v["rid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			rid = &parsed
+		}
+	}
+	if temp, ok := v["owner"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			owner = &parsed
+		}
+	}
+	if temp, ok := v["uid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			uid = &parsed
+		}
+	}
+	if temp, ok := v["vid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			vid = &parsed
+		}
+	}
+	if temp, ok := v["updater"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			updater = &parsed
+		}
+	}
+
+	// Parse urgency
+	urgency := int32(0)
+	if u, ok := v["urgency"].(float64); ok {
+		urgency = int32(u)
+	} else if u, ok := v["urgency"].(int); ok {
+		urgency = int32(u)
+	} else if u, ok := v["urgency"].(int32); ok {
+		urgency = u
+	}
+
+	// Parse boolean flags
+	sys := false
+	if s, ok := v["sys"].(bool); ok {
+		sys = s
+	}
+	broadcast := false
+	if b, ok := v["broadcast"].(bool); ok {
+		broadcast = b
+	}
+	keep := false
+	if k, ok := v["keep"].(bool); ok {
+		keep = k
+	}
+	hidden := false
+	if h, ok := v["hidden"].(bool); ok {
+		hidden = h
+	}
+
+	// Parse createdms
+	createdms := int64(0)
+	if c, ok := v["createdms"].(float64); ok {
+		createdms = int64(c)
+	} else if c, ok := v["createdms"].(int64); ok {
+		createdms = c
+	}
+
+	// Parse conversion_events
+	conversionEvents := int64(0)
+	if c, ok := v["conversion_events"].(float64); ok {
+		conversionEvents = int64(c)
+	} else if c, ok := v["conversion_events"].(int64); ok {
+		conversionEvents = c
+	}
+
 	return i.batchInsert("mstore", `INSERT INTO mstore (
-		id, tid, oid, org, event_type,
-		content, metadata, parent_id, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tid, mid, pmid, subject, msg, data,
+		urgency, sys, broadcast, mtempl, repl, svc,
+		qid, rid, relation, meta,
+		planned, scheduled, started, completed,
+		xid, split, keep, createdms,
+		oid, org, owner, uid, vid, created_at, updated_at, updater,
+		interest, perf, hidden, funnel_stage, conversion_events
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	SETTINGS insert_deduplicate = 1`,
 		[]interface{}{
-			eventID, tid, oid, getStringValue(v["org"]),
-			getStringValue(v["event_type"]), jsonOrNull(v), jsonOrNull(v), nil, updated, updated,
+			tid,
+			mid,
+			pmid,
+			getStringValue(v["subject"]),      // Subject line
+			getStringValue(v["msg"]),          // Message text content
+			getStringValue(v["data"]),         // JSON structured data
+			urgency,
+			sys,
+			broadcast,
+			getStringValue(v["mtempl"]),       // Message template URL
+			jsonOrNull(v["repl"]),             // Replacement tokens JSON
+			getStringValue(v["svc"]),          // Service (e.g., "SES", "message", "sms")
+			qid,
+			rid,
+			getStringValue(v["relation"]),
+			jsonOrNull(v["meta"]),             // Metadata JSON
+			jsonOrNull(v["planned"]),          // Planned time (mstore-specific, not in mtriage)
+			jsonOrNull(v["scheduled"]),        // Scheduled time
+			jsonOrNull(v["started"]),          // Start time
+			jsonOrNull(v["completed"]),        // Completion time
+			getStringValue(v["xid"]),          // Experiment ID
+			getStringValue(v["split"]),        // Split variant
+			keep,
+			createdms,
+			oid,
+			getStringValue(v["org"]),
+			owner,
+			uid,
+			vid,
+			updated,
+			updated,
+			updater,
+			jsonOrNull(v["interest"]),         // Interest JSON
+			jsonOrNull(v["perf"]),             // Performance JSON
+			hidden,
+			getStringValue(v["funnel_stage"]),
+			conversionEvents,
 		}, v)
 }
 
@@ -2885,20 +3086,128 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
 	// Only create triage entries for specific event types that require follow-up
 	eventType := getStringValue(v["event_type"])
 	if eventType != "conversion" && eventType != "high_value_action" {
 		return nil // Skip non-actionable events
 	}
 
-	triageID := uuid.Must(uuid.NewUUID())
+	// Generate message ID
+	mid := uuid.Must(uuid.NewUUID())
+
+	// Parse optional UUIDs
+	var pmid, qid, rid, owner, uid, vid, updater *uuid.UUID
+	if temp, ok := v["pmid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			pmid = &parsed
+		}
+	}
+	if temp, ok := v["qid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			qid = &parsed
+		}
+	}
+	if temp, ok := v["rid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			rid = &parsed
+		}
+	}
+	if temp, ok := v["owner"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			owner = &parsed
+		}
+	}
+	if temp, ok := v["uid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			uid = &parsed
+		}
+	}
+	if temp, ok := v["vid"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			vid = &parsed
+		}
+	}
+	if temp, ok := v["updater"].(string); ok {
+		if parsed, err := uuid.Parse(temp); err == nil {
+			updater = &parsed
+		}
+	}
+
+	// Parse urgency (high priority for triage = urgency 8)
+	urgency := int32(8)
+	if u, ok := v["urgency"].(float64); ok {
+		urgency = int32(u)
+	} else if u, ok := v["urgency"].(int); ok {
+		urgency = int32(u)
+	} else if u, ok := v["urgency"].(int32); ok {
+		urgency = u
+	}
+
+	// Parse boolean flags
+	sys := false
+	if s, ok := v["sys"].(bool); ok {
+		sys = s
+	}
+	broadcast := false
+	if b, ok := v["broadcast"].(bool); ok {
+		broadcast = b
+	}
+	keep := true // Default true for triage (need to retain for processing)
+	if k, ok := v["keep"].(bool); ok {
+		keep = k
+	}
+
+	// Parse createdms
+	createdms := int64(0)
+	if c, ok := v["createdms"].(float64); ok {
+		createdms = int64(c)
+	} else if c, ok := v["createdms"].(int64); ok {
+		createdms = c
+	}
+
 	return i.batchInsert("mtriage", `INSERT INTO mtriage (
-		id, tid, oid, org, priority,
-		message_type, content, metadata, status, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tid, mid, pmid, subject, msg, data,
+		urgency, sys, broadcast, mtempl, repl, svc,
+		qid, rid, relation, meta,
+		scheduled, started, completed,
+		xid, split, keep, createdms,
+		oid, org, owner, uid, vid, created_at, updated_at, updater
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	SETTINGS insert_deduplicate = 1`,
 		[]interface{}{
-			triageID, tid, oid, getStringValue(v["org"]),
-			"high", "follow_up", jsonOrNull(v), jsonOrNull(v), "pending", updated, updated,
+			tid,
+			mid,
+			pmid,
+			getStringValue(v["subject"]),      // Subject line
+			getStringValue(v["msg"]),          // Message text content
+			getStringValue(v["data"]),         // JSON structured data
+			urgency,                           // High urgency for triage
+			sys,
+			broadcast,
+			getStringValue(v["mtempl"]),       // Message template URL
+			jsonOrNull(v["repl"]),             // Replacement tokens JSON
+			getStringValue(v["svc"]),          // Service (e.g., "SES", "message", "sms")
+			qid,
+			rid,
+			getStringValue(v["relation"]),
+			jsonOrNull(v["meta"]),             // Metadata JSON
+			// Note: NO 'planned' field in mtriage (only in mstore)
+			jsonOrNull(v["scheduled"]),        // Scheduled time
+			jsonOrNull(v["started"]),          // Start time
+			jsonOrNull(v["completed"]),        // Completion time
+			getStringValue(v["xid"]),          // Experiment ID
+			getStringValue(v["split"]),        // Split variant
+			keep,
+			createdms,
+			oid,
+			getStringValue(v["org"]),
+			owner,
+			uid,
+			vid,
+			updated,
+			updated,
+			updater,
 		}, v)
 }
 

@@ -3,15 +3,22 @@
 SET enable_json_type = 1;
 USE sfpla;
 
-CREATE TABLE affiliates ON CLUSTER my_cluster (
+CREATE TABLE affiliates_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     aff String DEFAULT '', -- Affiliate ID or code
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - the visitor who came through the affiliate
     created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
     version_ts Int64 DEFAULT 0 -- Version timestamp (negative created_at for keeping oldest record)
+
 ) ENGINE = ReplicatedReplacingMergeTree(version_ts)
 PARTITION BY hhash
 ORDER BY (hhash, vid);
+
+-- Distributed table for affiliates
+CREATE TABLE IF NOT EXISTS affiliates ON CLUSTER tracker_cluster
+AS affiliates_local
+ENGINE = Distributed(tracker_cluster, sfpla, affiliates_local, rand());
 
 -- Create a materialized view for time-based queries - Enables efficient queries by creation time
 CREATE MATERIALIZED VIEW affiliates_by_time 
@@ -30,7 +37,8 @@ POPULATE AS
 SELECT * FROM affiliates;
 
 -- Redirects table - Stores URL redirection mappings
-CREATE TABLE redirects ON CLUSTER my_cluster (
+CREATE TABLE redirects_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     urlfrom String DEFAULT '', -- Source URL without protocol (e.g., 'example.com/old-path')
     urlto String DEFAULT '', -- Destination URL with protocol (e.g., 'https://example.com/new-path')
@@ -39,11 +47,18 @@ CREATE TABLE redirects ON CLUSTER my_cluster (
     updated_at DateTime64(3) DEFAULT now64(3), -- When this redirect was last updated
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID of the person who created/updated this redirect
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY urlfrom;
 
+-- Distributed table for redirects
+CREATE TABLE IF NOT EXISTS redirects ON CLUSTER tracker_cluster
+AS redirects_local
+ENGINE = Distributed(tracker_cluster, sfpla, redirects_local, rand());
+
 -- Redirect history table - Tracks the history of redirects for auditing
-CREATE TABLE redirect_history ON CLUSTER my_cluster (
+CREATE TABLE redirect_history_local ON CLUSTER tracker_cluster (
+
     urlfrom String DEFAULT '', -- Source URL without protocol
     hostfrom String DEFAULT '', -- Source host/domain
     slugfrom String DEFAULT '', -- Source path/slug
@@ -55,9 +70,15 @@ CREATE TABLE redirect_history ON CLUSTER my_cluster (
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID of the person who created this redirect
     updated_at DateTime64(3) DEFAULT now64(3) -- Record updated timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY hostfrom
 ORDER BY (urlfrom, updated_at);
+
+-- Distributed table for redirect_history
+CREATE TABLE IF NOT EXISTS redirect_history ON CLUSTER tracker_cluster
+AS redirect_history_local
+ENGINE = Distributed(tracker_cluster, sfpla, redirect_history_local, rand());
 
 -- Create a materialized view for hostto lookup - Enables querying redirects by destination host
 CREATE MATERIALIZED VIEW redirect_history_by_hostto
@@ -67,7 +88,8 @@ POPULATE AS
 SELECT * FROM redirect_history;
 
 -- Accounts table - Stores user authentication and permission information
-CREATE TABLE msec ON CLUSTER my_cluster (
+CREATE TABLE msec_local ON CLUSTER tracker_cluster (
+
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Thread ID - reference to message thread
     secid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Security record ID - unique identifier for this security record
     perm_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Permission ID - reference to associated permission
@@ -81,9 +103,15 @@ CREATE TABLE msec ON CLUSTER my_cluster (
     updatedms Int64 DEFAULT 0, -- Update milliseconds - participant updated timestamp in ms
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this security record
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, tid, secid, created_at);
+
+-- Distributed table for msec
+CREATE TABLE IF NOT EXISTS msec ON CLUSTER tracker_cluster
+AS msec_local
+ENGINE = Distributed(tracker_cluster, sfpla, msec_local, rand());
 
 -- Materialized view for finding pending security requests - Enables efficient approval workflows
 CREATE MATERIALIZED VIEW msec_by_pending
@@ -93,7 +121,8 @@ POPULATE AS
 SELECT * FROM msec;
 
 -- Message threads table - Comprehensive messaging system for user communications and campaigns
-CREATE TABLE mthreads ON CLUSTER my_cluster (
+CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
+
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Thread ID - unique identifier for this message thread
     alias String DEFAULT '', -- Alias - identifier for the thread, for chat it will be the alphabetized list of participants like user1:user2 or with the chat title if it exists chat_title:user1:user2 or chat_id for web pages it will be the full url ex. https://www.google.com/page1/page2/page3, for ads it may be the ad_with_experiment_and_variant_name
     xid String DEFAULT '', -- Experiment ID - for A/B testing
@@ -225,9 +254,15 @@ CREATE TABLE mthreads ON CLUSTER my_cluster (
     updatedms Int64 DEFAULT 0, -- Update milliseconds - participant updated timestamp
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this thread
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, tid, created_at);
+
+-- Distributed table for mthreads
+CREATE TABLE IF NOT EXISTS mthreads ON CLUSTER tracker_cluster
+AS mthreads_local
+ENGINE = Distributed(tracker_cluster, sfpla, mthreads_local, rand());
 
 DROP VIEW IF EXISTS mthreads_by_website_page;
 CREATE MATERIALIZED VIEW mthreads_by_website_page
@@ -249,7 +284,8 @@ FROM mthreads
 WHERE medium = 'chat';
 
 -- Message triage table - Tracks messages in processing state for delivery and management
-CREATE TABLE mtriage ON CLUSTER my_cluster (
+CREATE TABLE mtriage_local ON CLUSTER tracker_cluster (
+
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Thread ID - reference to parent thread
     mid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Message ID - unique identifier for this message
     pmid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Parent message ID - for threaded replies
@@ -287,12 +323,19 @@ CREATE TABLE mtriage ON CLUSTER my_cluster (
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - visitor requiring follow-up
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this message
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)
 ORDER BY (tid, mid, created_at);
 
+-- Distributed table for mtriage
+CREATE TABLE IF NOT EXISTS mtriage ON CLUSTER tracker_cluster
+AS mtriage_local
+ENGINE = Distributed(tracker_cluster, sfpla, mtriage_local, rand());
+
 -- Message store table - Permanent archive for messages that have been scheduled or sent
-CREATE TABLE mstore ON CLUSTER my_cluster (
+CREATE TABLE mstore_local ON CLUSTER tracker_cluster (
+
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000',
     mid UUID DEFAULT '00000000-0000-0000-0000-000000000000',
     pmid UUID DEFAULT '00000000-0000-0000-0000-000000000000',
@@ -337,9 +380,15 @@ CREATE TABLE mstore ON CLUSTER my_cluster (
     hidden Boolean DEFAULT false,
     funnel_stage String DEFAULT '',
     conversion_events Int64 DEFAULT 0
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, tid, mid, created_at);
+
+-- Distributed table for mstore
+CREATE TABLE IF NOT EXISTS mstore ON CLUSTER tracker_cluster
+AS mstore_local
+ENGINE = Distributed(tracker_cluster, sfpla, mstore_local, rand());
 
 -- Materialized view for finding scheduled messages - Enables efficient message scheduling
 CREATE MATERIALIZED VIEW mstore_by_scheduled
@@ -350,7 +399,8 @@ SELECT * FROM mstore
 WHERE scheduled IS NOT NULL;
 
 -- Message device type as structured data - Stores device information for message delivery
-CREATE TABLE mdevices ON CLUSTER my_cluster (
+CREATE TABLE mdevices_local ON CLUSTER tracker_cluster (
+
     id UUID DEFAULT generateUUIDv4(), -- Device ID - unique identifier
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -358,12 +408,19 @@ CREATE TABLE mdevices ON CLUSTER my_cluster (
     did String DEFAULT '', -- Device identifier - token or address for the device
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     created_at DateTime64(3) DEFAULT now64(3) -- Creation timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY oid
 ORDER BY (oid, org, id);
 
+-- Distributed table for mdevices
+CREATE TABLE IF NOT EXISTS mdevices ON CLUSTER tracker_cluster
+AS mdevices_local
+ENGINE = Distributed(tracker_cluster, sfpla, mdevices_local, rand());
+
 -- Message failures table - Tracks delivery failures for retry and reporting
-CREATE TABLE mfailures ON CLUSTER my_cluster (
+CREATE TABLE mfailures_local ON CLUSTER tracker_cluster (
+
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Thread ID - reference to parent thread
     mid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Message ID - reference to failed message
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - recipient who didn't receive the message
@@ -378,12 +435,19 @@ CREATE TABLE mfailures ON CLUSTER my_cluster (
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created the original message
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this failure record
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, tid, mid, uid, mtype);
 
+-- Distributed table for mfailures
+CREATE TABLE IF NOT EXISTS mfailures ON CLUSTER tracker_cluster
+AS mfailures_local
+ENGINE = Distributed(tracker_cluster, sfpla, mfailures_local, rand());
+
 -- Thread-Visitor Relationship table - Tracks anonymous visitor interactions with message threads
-CREATE TABLE thread_visitors ON CLUSTER my_cluster (
+CREATE TABLE thread_visitors_local ON CLUSTER tracker_cluster (
+
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this failure record belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Thread ID - reference to message thread
@@ -396,12 +460,19 @@ CREATE TABLE thread_visitors ON CLUSTER my_cluster (
     conversion Boolean DEFAULT false, -- Conversion flag - whether visitor converted
     conversion_value Float64 DEFAULT 0.0, -- Conversion value - monetary value of conversion
     created_at DateTime64(3) DEFAULT now64(3) -- Creation timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY (oid, tid)
 ORDER BY (oid, org, tid, vid);
 
+-- Distributed table for thread_visitors
+CREATE TABLE IF NOT EXISTS thread_visitors ON CLUSTER tracker_cluster
+AS thread_visitors_local
+ENGINE = Distributed(tracker_cluster, sfpla, thread_visitors_local, rand());
+
 -- Daily impression tracking - Aggregates impression metrics by day for reporting
-CREATE TABLE impression_daily ON CLUSTER my_cluster (
+CREATE TABLE impression_daily_local ON CLUSTER tracker_cluster (
+
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this failure record belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Thread ID - reference to message thread
@@ -414,12 +485,19 @@ CREATE TABLE impression_daily ON CLUSTER my_cluster (
     unique_visitors Int64 DEFAULT 0, -- Unique visitors - distinct visitors
     conversions Int64 DEFAULT 0, -- Conversions - successful conversion events
     updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(day))
 ORDER BY (oid, org, tid, day, variant_id);
 
+-- Distributed table for impression_daily
+CREATE TABLE IF NOT EXISTS impression_daily ON CLUSTER tracker_cluster
+AS impression_daily_local
+ENGINE = Distributed(tracker_cluster, sfpla, impression_daily_local, rand());
+
 -- Channel-specific Tracking - Measures effectiveness of different marketing channels
-CREATE TABLE channel_metrics ON CLUSTER my_cluster (
+CREATE TABLE channel_metrics_local ON CLUSTER tracker_cluster (
+
     channel String DEFAULT '', -- Channel name - marketing channel (web, social, email, etc.)
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -430,12 +508,19 @@ CREATE TABLE channel_metrics ON CLUSTER my_cluster (
     conversions Int64 DEFAULT 0, -- Conversions - successful conversion events
     conversion_value Float64 DEFAULT 0.0, -- Conversion value - monetary value of conversions
     updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
+
 ) ENGINE = ReplicatedSummingMergeTree((impressions, unique_visitors, clicks, conversions, conversion_value))
 PARTITION BY (oid, toYYYYMM(day))
 ORDER BY (oid, org, channel, day);
 
+-- Distributed table for channel_metrics
+CREATE TABLE IF NOT EXISTS channel_metrics ON CLUSTER tracker_cluster
+AS channel_metrics_local
+ENGINE = Distributed(tracker_cluster, sfpla, channel_metrics_local, rand());
+
 -- Hourly metrics - Provides more granular time-based metrics for analysis
-CREATE TABLE impression_hourly ON CLUSTER my_cluster (
+CREATE TABLE impression_hourly_local ON CLUSTER tracker_cluster (
+
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Thread ID - reference to message thread
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -448,8 +533,14 @@ CREATE TABLE impression_hourly ON CLUSTER my_cluster (
     unique_visitors Int64 DEFAULT 0, -- Unique visitors - distinct visitors
     conversions Int64 DEFAULT 0, -- Conversions - successful conversion events
     updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
+
 ) ENGINE = ReplicatedSummingMergeTree((total_impressions, anonymous_impressions, identified_impressions, unique_visitors, conversions))
 PARTITION BY (oid, toYYYYMM(day))
 ORDER BY (oid, org, tid, day, hour, variant_id);
+
+-- Distributed table for impression_hourly
+CREATE TABLE IF NOT EXISTS impression_hourly ON CLUSTER tracker_cluster
+AS impression_hourly_local
+ENGINE = Distributed(tracker_cluster, sfpla, impression_hourly_local, rand());
 
 -- Files table - Stores information about uploaded files and media assets

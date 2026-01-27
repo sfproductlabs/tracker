@@ -140,7 +140,7 @@ func (service *TestClickhouseService) writeLTV(writeArgs *WriteArgs) error {
 	values := *writeArgs.Values
 
 	// Extract payment data
-	paymentID, _ := uuid.Parse(values["payment_id"].(string))
+	paymentID, _ := uuid.Parse(values["invoice_id"].(string))
 	productID := uuid.New() // Generate if not provided
 	testOID := uuid.New()
 	testUID := uuid.New()
@@ -355,7 +355,7 @@ func testSingleLTVWrite(t *testing.T, service *TestClickhouseService) {
 	testOrgID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
 
 	ltvParams := map[string]interface{}{
-		"payment_id":     paymentID.String(),
+		"invoice_id":     paymentID.String(),
 		"product":        "Single Test Product",
 		"amount":         99.99,
 		"currency":       "USD",

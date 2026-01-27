@@ -16,7 +16,8 @@ USE sfpla;
 -- CORE TABLE: visitor_interests
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS visitor_interests ON CLUSTER my_cluster (
+CREATE TABLE visitor_interests_local ON CLUSTER tracker_cluster (
+
     -- Identity (Multi-tenant + Visitor + User)
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                              -- Visitor ID (always present, anonymous tracking)
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                              -- User ID (nullable, populated when user authenticates)
@@ -82,9 +83,15 @@ CREATE TABLE IF NOT EXISTS visitor_interests ON CLUSTER my_cluster (
     created_at DateTime64(3) DEFAULT now64(3),  -- Record creation
     updated_at DateTime64(3) DEFAULT now64(3)   -- Last update (for ReplacingMergeTree)
 
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, vid, uid);
+
+-- Distributed table for visitor_interests
+CREATE TABLE IF NOT EXISTS visitor_interests ON CLUSTER tracker_cluster
+AS visitor_interests_local
+ENGINE = Distributed(tracker_cluster, sfpla, visitor_interests_local, rand());
 
 -- ============================================================================
 -- MATERIALIZED VIEWS: Zero-Join Queries (ALL dimensions exploded!)
@@ -162,7 +169,8 @@ WHERE last_city != '';
 -- TAXONOMY TABLE: Pre-computed Embeddings (Single Source of Truth!)
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS interest_taxonomy ON CLUSTER my_cluster (
+CREATE TABLE interest_taxonomy_local ON CLUSTER tracker_cluster (
+
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                              -- Organization ID (multi-tenant)
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     interest_tag String DEFAULT '',                   -- Tag name (e.g., "ceo", "sports")
@@ -176,8 +184,14 @@ CREATE TABLE IF NOT EXISTS interest_taxonomy ON CLUSTER my_cluster (
     usage_count Int64 DEFAULT 0,           -- How many visitors have this tag
     created_at DateTime64(3) DEFAULT now64(3),
     updated_at DateTime64(3) DEFAULT now64(3)
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY (oid, org, tag_type, interest_tag);
+
+-- Distributed table for interest_taxonomy
+CREATE TABLE IF NOT EXISTS interest_taxonomy ON CLUSTER tracker_cluster
+AS interest_taxonomy_local
+ENGINE = Distributed(tracker_cluster, sfpla, interest_taxonomy_local, rand());
 
 -- ============================================================================
 -- USAGE EXAMPLES

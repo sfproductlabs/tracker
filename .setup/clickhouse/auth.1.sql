@@ -3,7 +3,8 @@
 SET enable_json_type = 1;
 USE sfpla;
 
-CREATE TABLE accounts ON CLUSTER my_cluster (
+CREATE TABLE accounts_local ON CLUSTER tracker_cluster (
+
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - unique identifier for the user
     pwd String DEFAULT '', -- Password hash - securely stored password
     ip String DEFAULT '', -- Client IP - IP address used during account creation/last login
@@ -13,9 +14,15 @@ CREATE TABLE accounts ON CLUSTER my_cluster (
     created_at DateTime64(3) DEFAULT now64(3), -- Account creation timestamp
     updated_at DateTime64(3) DEFAULT now64(3), -- Account updated timestamp
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this account
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)
 ORDER BY uid;
+
+-- Distributed table for accounts
+CREATE TABLE IF NOT EXISTS accounts ON CLUSTER tracker_cluster
+AS accounts_local
+ENGINE = Distributed(tracker_cluster, sfpla, accounts_local, rand());
 
 -- -- Initial admin user
 INSERT INTO accounts (
@@ -39,7 +46,8 @@ INSERT INTO accounts (
 );
 
 -- Services table - INTERNAL & EXTERNAL SERVICES - Stores service authentication and permission information
-CREATE TABLE services ON CLUSTER my_cluster (
+CREATE TABLE services_local ON CLUSTER tracker_cluster (
+
     name String DEFAULT '', -- Service name - unique identifier for the service
     secret String DEFAULT '', -- Secret hash - securely stored authentication secret
     roles Array(String) DEFAULT [], -- Service roles - array of role names granted to this service
@@ -50,19 +58,33 @@ CREATE TABLE services ON CLUSTER my_cluster (
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this service
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID of who last updated this service
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)
 ORDER BY name;
 
+-- Distributed table for services
+CREATE TABLE IF NOT EXISTS services ON CLUSTER tracker_cluster
+AS services_local
+ENGINE = Distributed(tracker_cluster, sfpla, services_local, rand());
+
 -- Action names table - Registry of valid action types in the system
-CREATE TABLE action_names ON CLUSTER my_cluster (
+CREATE TABLE action_names_local ON CLUSTER tracker_cluster (
+
     name String DEFAULT '', -- Action name - unique identifier for this action type
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 ORDER BY name;
 
+-- Distributed table for action_names
+CREATE TABLE IF NOT EXISTS action_names ON CLUSTER tracker_cluster
+AS action_names_local
+ENGINE = Distributed(tracker_cluster, sfpla, action_names_local, rand());
+
 -- Actions table - Tracks execution of various actions in the system
-CREATE TABLE actions ON CLUSTER my_cluster (
+CREATE TABLE actions_local ON CLUSTER tracker_cluster (
+
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this action belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Source ID - identifier of the source entity (e.g., message ID)
@@ -75,12 +97,19 @@ CREATE TABLE actions ON CLUSTER my_cluster (
     started DateTime64(3) DEFAULT toDateTime64(0, 3), -- When action execution started
     completed DateTime64(3) DEFAULT toDateTime64(0, 3), -- When action execution completed
     updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)
 ORDER BY (sid, did, created_at);
 
+-- Distributed table for actions
+CREATE TABLE IF NOT EXISTS actions ON CLUSTER tracker_cluster
+AS actions_local
+ENGINE = Distributed(tracker_cluster, sfpla, actions_local, rand());
+
 -- External actions table - Tracks actions from external systems (e.g., email delivery services)
-CREATE TABLE actions_ext ON CLUSTER my_cluster (
+CREATE TABLE actions_ext_local ON CLUSTER tracker_cluster (
+
     sid String DEFAULT '', -- Source ID - external identifier (e.g., SES message ID)
     svc String DEFAULT '', -- Service - name of the external service (e.g., "SES", "message", "sms")
     iid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Internal ID - corresponding internal record ID
@@ -90,31 +119,52 @@ CREATE TABLE actions_ext ON CLUSTER my_cluster (
     created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     meta JSON DEFAULT '{}' -- Metadata - additional information about the action (e.g., email hash, bounce status)
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)
 ORDER BY (sid, svc)
 TTL toDateTime(created_at) + INTERVAL 14 DAY;
 
+-- Distributed table for actions_ext
+CREATE TABLE IF NOT EXISTS actions_ext ON CLUSTER tracker_cluster
+AS actions_ext_local
+ENGINE = Distributed(tracker_cluster, sfpla, actions_ext_local, rand());
+
 -- Dailies table (replacing counter with SummingMergeTree) - NATS Specializations - limit service usage
-CREATE TABLE dailies ON CLUSTER my_cluster (
+CREATE TABLE dailies_local ON CLUSTER tracker_cluster (
+
     ip String DEFAULT '', -- client IP
     day Date DEFAULT today(), -- day for aggregation
     total UInt64 DEFAULT 0 -- counter
+
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(day)
 ORDER BY (ip, day);
 
+-- Distributed table for dailies
+CREATE TABLE IF NOT EXISTS dailies ON CLUSTER tracker_cluster
+AS dailies_local
+ENGINE = Distributed(tracker_cluster, sfpla, dailies_local, rand());
+
 -- Counters table (replacing counter with SummingMergeTree)
-CREATE TABLE counters ON CLUSTER my_cluster (
+CREATE TABLE counters_local ON CLUSTER tracker_cluster (
+
     id String DEFAULT '', -- Unique identifier for the counter
     total UInt64 DEFAULT 0, -- Accumulating counter value
     date Date DEFAULT today() -- Date of counter record for aggregation
+
 ) ENGINE = ReplicatedSummingMergeTree((total))
 PARTITION BY toYYYYMM(date)
 ORDER BY id;
 
+-- Distributed table for counters
+CREATE TABLE IF NOT EXISTS counters ON CLUSTER tracker_cluster
+AS counters_local
+ENGINE = Distributed(tracker_cluster, sfpla, counters_local, rand());
+
 -- Logs table - Server debugging and audit logs
-CREATE TABLE logs ON CLUSTER my_cluster (
+CREATE TABLE logs_local ON CLUSTER tracker_cluster (
+
     id UUID DEFAULT generateUUIDv4(), -- Unique log entry identifier
     ldate Date DEFAULT today(), -- Log date for partitioning and querying
     created_at DateTime64(3) DEFAULT now64(3), -- When the log entry was created
@@ -139,6 +189,7 @@ CREATE TABLE logs ON CLUSTER my_cluster (
     (
         SELECT _part_offset ORDER BY topic
     )
+
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(ldate)
 ORDER BY (created_at, id)
@@ -146,8 +197,14 @@ SETTINGS index_granularity = 8192,
          min_bytes_for_wide_part = 0,
          deduplicate_merge_projection_mode = 'rebuild';
 
+-- Distributed table for logs
+CREATE TABLE IF NOT EXISTS logs ON CLUSTER tracker_cluster
+AS logs_local
+ENGINE = Distributed(tracker_cluster, sfpla, logs_local, rand());
+
 -- Updates table - For tracking system-wide updates
-CREATE TABLE updates ON CLUSTER my_cluster (
+CREATE TABLE updates_local ON CLUSTER tracker_cluster (
+
     id String DEFAULT '', -- Unique identifier for the update
     updated_at DateTime64(3) DEFAULT now64(3), -- When the update occurred
     msg String DEFAULT '', -- Description of the update
@@ -155,14 +212,21 @@ CREATE TABLE updates ON CLUSTER my_cluster (
     (
         SELECT _part_offset ORDER BY updated_at
     )
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY id
 SETTINGS index_granularity = 8192, 
          min_bytes_for_wide_part = 0,
          deduplicate_merge_projection_mode = 'rebuild';
 
+-- Distributed table for updates
+CREATE TABLE IF NOT EXISTS updates ON CLUSTER tracker_cluster
+AS updates_local
+ENGINE = Distributed(tracker_cluster, sfpla, updates_local, rand());
+
 -- Zips table - Geographic and demographic data by ZIP/postal code
-CREATE TABLE permissions ON CLUSTER my_cluster (
+CREATE TABLE permissions_local ON CLUSTER tracker_cluster (
+
     id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Permission ID - unique identifier for this permission
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - the organization granting the permission
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -173,8 +237,14 @@ CREATE TABLE permissions ON CLUSTER my_cluster (
     action String DEFAULT '', -- Action being permitted (e.g., "read", "write", "delete")
     effect Boolean DEFAULT false, -- Effect - true=allow, false=deny
     updated_at DateTime64(3) DEFAULT now64(3) -- Creation timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY (oid, org, rtype, rpath, ref, action);
+
+-- Distributed table for permissions
+CREATE TABLE IF NOT EXISTS permissions ON CLUSTER tracker_cluster
+AS permissions_local
+ENGINE = Distributed(tracker_cluster, sfpla, permissions_local, rand());
 
 -- Create indices for permissions
 -- Index for looking up permissions by ID
@@ -214,7 +284,8 @@ POPULATE AS
 SELECT * FROM permissions;
 
 -- Platform Credentials - OAuth2 token storage for Google & Bing Ads
-CREATE TABLE IF NOT EXISTS platform_credentials ON CLUSTER my_cluster (
+CREATE TABLE platform_credentials_local ON CLUSTER tracker_cluster (
+
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                               -- Organization ID - multi-tenant isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid
     platform String DEFAULT '',                        -- Platform: 'google_ads', 'bing_ads', etc.
@@ -232,10 +303,16 @@ CREATE TABLE IF NOT EXISTS platform_credentials ON CLUSTER my_cluster (
     -- Index for token expiry checks
     INDEX idx_expiry token_expires_at TYPE minmax GRANULARITY 1
 
+
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/platform_credentials', '{replica}', updated_at)
 PARTITION BY (oid, platform)
 ORDER BY (oid, org, platform, account_id)
 SETTINGS index_granularity = 8192;
+
+-- Distributed table for platform_credentials
+CREATE TABLE IF NOT EXISTS platform_credentials ON CLUSTER tracker_cluster
+AS platform_credentials_local
+ENGINE = Distributed(tracker_cluster, sfpla, platform_credentials_local, rand());
 
 -- View: Active Platform Credentials (valid and not expired)
 CREATE OR REPLACE VIEW active_platform_credentials AS

@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  # Single-node tracker with default paths
+  tracker-default:
+    image: tracker:latest
+    container_name: tracker
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+      - "8123:8123"
+      - "2181:2181"
+    environment:
+      - SHARD=1
+      - REPLICA=1
+      - SERVER_ID=1
+      - NUM_NODES=1
+      - CLUSTER_NAME=tracker_cluster
+    # Optional: mount volumes for persistence
+    # volumes:
+    #   - ./data/clickhouse:/var/lib/clickhouse
+    #   - ./logs/clickhouse:/var/log/clickhouse-server
+
+  # Production deployment with AWS EBS volumes
+  tracker-production:
+    image: tracker:latest
+    container_name: tracker-prod
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+      - "8123:8123"
+      - "2181:2181"
+    environment:
+      - SHARD=1
+      - REPLICA=1
+      - SERVER_ID=1
+      - NUM_NODES=1
+      - CLUSTER_NAME=tracker_cluster
+      # Custom data and log directories
+      - CLICKHOUSE_DATA_DIR=/data/clickhouse
+      - CLICKHOUSE_LOG_DIR=/logs/clickhouse
+    volumes:
+      # Mount AWS EBS volumes or any persistent storage
+      - /mnt/ebs-data:/data/clickhouse
+      - /mnt/ebs-logs:/logs/clickhouse
+
+  # 3-node cluster example (node 1)
+  tracker-node-1:
+    image: tracker:latest
+    container_name: v4-tracker-1
+    networks:
+      - tracker-net
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+      - "8123:8123"
+      - "2181:2181"
+      - "9444:9444"
+    environment:
+      - SHARD=1
+      - REPLICA=1
+      - SERVER_ID=1
+      - NUM_NODES=3
+      - CONTAINER_NAME_PATTERN=v4-tracker
+      - CLUSTER_NAME=tracker_cluster
+      - CLICKHOUSE_DATA_DIR=/data/clickhouse
+      - CLICKHOUSE_LOG_DIR=/logs/clickhouse
+    volumes:
+      - ./cluster-data/node1:/data/clickhouse
+      - ./cluster-logs/node1:/logs/clickhouse
+
+  # 3-node cluster example (node 2)
+  tracker-node-2:
+    image: tracker:latest
+    container_name: v4-tracker-2
+    networks:
+      - tracker-net
+    ports:
+      - "8081:8080"
+      - "9001:9000"
+      - "8124:8123"
+      - "2182:2181"
+      - "9445:9444"
+    environment:
+      - SHARD=2
+      - REPLICA=1
+      - SERVER_ID=2
+      - NUM_NODES=3
+      - CONTAINER_NAME_PATTERN=v4-tracker
+      - CLUSTER_NAME=tracker_cluster
+      - CLICKHOUSE_DATA_DIR=/data/clickhouse
+      - CLICKHOUSE_LOG_DIR=/logs/clickhouse
+    volumes:
+      - ./cluster-data/node2:/data/clickhouse
+      - ./cluster-logs/node2:/logs/clickhouse
+
+  # 3-node cluster example (node 3)
+  tracker-node-3:
+    image: tracker:latest
+    container_name: v4-tracker-3
+    networks:
+      - tracker-net
+    ports:
+      - "8082:8080"
+      - "9002:9000"
+      - "8125:8123"
+      - "2183:2181"
+      - "9446:9444"
+    environment:
+      - SHARD=3
+      - REPLICA=1
+      - SERVER_ID=3
+      - NUM_NODES=3
+      - CONTAINER_NAME_PATTERN=v4-tracker
+      - CLUSTER_NAME=tracker_cluster
+      - CLICKHOUSE_DATA_DIR=/data/clickhouse
+      - CLICKHOUSE_LOG_DIR=/logs/clickhouse
+    volumes:
+      - ./cluster-data/node3:/data/clickhouse
+      - ./cluster-logs/node3:/logs/clickhouse
+
+networks:
+  tracker-net:
+    driver: bridge

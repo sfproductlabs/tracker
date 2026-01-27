@@ -4,7 +4,8 @@ SET enable_json_type = 1;
 USE sfpla;
 
 -- Payments table - Stores individual payment/transaction line items
-CREATE TABLE IF NOT EXISTS payments ON CLUSTER my_cluster (
+CREATE TABLE payments_local ON CLUSTER tracker_cluster (
+
     id UUID,                      -- Payment/line item ID - unique identifier
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                     -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -52,11 +53,17 @@ CREATE TABLE IF NOT EXISTS payments ON CLUSTER my_cluster (
         SELECT _part_offset ORDER BY invid
     )
 
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (toYYYYMM(created_at), oid)
 ORDER BY (oid, org, id)
 SETTINGS index_granularity = 8192,
          deduplicate_merge_projection_mode = 'rebuild';
+
+-- Distributed table for payments
+CREATE TABLE IF NOT EXISTS payments ON CLUSTER tracker_cluster
+AS payments_local
+ENGINE = Distributed(tracker_cluster, sfpla, payments_local, rand());
 
 -- Invoice totals view - Aggregates line items to invoice level
 -- Use this view to get complete invoice summaries without manually aggregating
@@ -135,7 +142,8 @@ SELECT * FROM payments;
 -- Generic design: multiple rows per entity (one per id_type)
 -- Note: Payment details are stored in the payments table, not here
 -- SummingMergeTree automatically sums the 'paid' column for matching keys
-CREATE TABLE ltv ON CLUSTER my_cluster (
+CREATE TABLE ltv_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifier for the site/app
     id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Generic identifier - can be uid, vid, sid, orid, etc.
     id_type LowCardinality(String) DEFAULT '', -- Type of identifier: 'uid', 'vid', 'sid', 'orid'
@@ -146,8 +154,14 @@ CREATE TABLE ltv ON CLUSTER my_cluster (
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this record
     created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this record
+
 ) ENGINE = ReplicatedSummingMergeTree(paid)
 ORDER BY (hhash, id, id_type);
+
+-- Distributed table for ltv
+CREATE TABLE IF NOT EXISTS ltv ON CLUSTER tracker_cluster
+AS ltv_local
+ENGINE = Distributed(tracker_cluster, sfpla, ltv_local, rand());
 
 -- Materialized view: ltv by user ID - Fast queries for user lifetime value
 CREATE MATERIALIZED VIEW ltv_by_uid
@@ -186,18 +200,26 @@ INSERT INTO sequences (name, seq) VALUES ('CREATOR_ECONOMY_VER', 1);
 INSERT INTO sequences (name, seq) VALUES ('SFPL_VER', 1);
 
 -- Userhosts table - Maps relationships between users, visitors, and host sites
-CREATE TABLE userhosts ON CLUSTER my_cluster (
+CREATE TABLE userhosts_local ON CLUSTER tracker_cluster (
+
     hhash String DEFAULT '', -- Host hash - identifier for the site/app
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - authenticated user identifier
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - anonymous tracking identifier
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - for the current/last session
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY hhash
 ORDER BY (hhash, uid, vid);
 
+-- Distributed table for userhosts
+CREATE TABLE IF NOT EXISTS userhosts ON CLUSTER tracker_cluster
+AS userhosts_local
+ENGINE = Distributed(tracker_cluster, sfpla, userhosts_local, rand());
+
 -- Address type as a structured format - Stores physical address information
-CREATE TABLE addresses ON CLUSTER my_cluster (
+CREATE TABLE addresses_local ON CLUSTER tracker_cluster (
+
     id UUID DEFAULT generateUUIDv4(), -- Address ID - unique identifier
     fullname String DEFAULT '', -- Full name - recipient name
     st1 String DEFAULT '', -- Street line 1 - primary address line
@@ -210,11 +232,18 @@ CREATE TABLE addresses ON CLUSTER my_cluster (
     type String DEFAULT '', -- Address type (e.g., "billing", "shipping", "home", "work")
     phone String DEFAULT '', -- Contact phone number for this address
     updated_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY id;
 
+-- Distributed table for addresses
+CREATE TABLE IF NOT EXISTS addresses ON CLUSTER tracker_cluster
+AS addresses_local
+ENGINE = Distributed(tracker_cluster, sfpla, addresses_local, rand());
+
 -- Organizations table - Stores organization information and hierarchical relationships
-CREATE TABLE orgs ON CLUSTER my_cluster (
+CREATE TABLE orgs_local ON CLUSTER tracker_cluster (
+
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - unique identifier
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     parent UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Parent organization ID - for hierarchical structure
@@ -241,8 +270,14 @@ CREATE TABLE orgs ON CLUSTER my_cluster (
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this organization
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this record
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY (oid, org);
+
+-- Distributed table for orgs
+CREATE TABLE IF NOT EXISTS orgs ON CLUSTER tracker_cluster
+AS orgs_local
+ENGINE = Distributed(tracker_cluster, sfpla, orgs_local, rand());
 
 -- Create a materialized view for conglomerate (orgs by root) - Enables efficient querying of organization hierarchies
 CREATE MATERIALIZED VIEW orgs_conglomerate
@@ -253,7 +288,8 @@ SELECT * FROM orgs
 WHERE root IS NOT NULL;
 
 -- Enhanced Users table - Comprehensive user information with authentication and profile data
-CREATE TABLE users ON CLUSTER my_cluster (
+CREATE TABLE users_local ON CLUSTER tracker_cluster (
+
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - unique identifier
     username String DEFAULT '', -- Username - unique login identifier
     pwd String DEFAULT '', -- Password hash - stored securely
@@ -318,9 +354,15 @@ CREATE TABLE users ON CLUSTER my_cluster (
     embedding_model String DEFAULT 'gte-small', -- Embedding model used
     embedding_dimensions UInt16 DEFAULT 384, -- Dimensions of embedding vectors
     embedding_generated_at DateTime64(3) DEFAULT toDateTime64(0, 3) -- When embeddings were generated
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)
 ORDER BY uid;
+
+-- Distributed table for users
+CREATE TABLE IF NOT EXISTS users ON CLUSTER tracker_cluster
+AS users_local
+ENGINE = Distributed(tracker_cluster, sfpla, users_local, rand());
 
 -- Note: Old simple user lookup views removed - replaced by comprehensive views at end of schema
 -- (user_by_email, user_by_username, user_by_cell superseded by user_by_all_emails, user_by_username, user_by_all_cells)
@@ -336,7 +378,8 @@ ARRAY JOIN cohorts;
 -- Note: Duplicate user_by_all_emails and user_by_all_cells views removed - final versions at end of schema
 
 -- User verifications table - Tracks identity verification methods and statuses
-CREATE TABLE user_verifications ON CLUSTER my_cluster (
+CREATE TABLE user_verifications_local ON CLUSTER tracker_cluster (
+
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - whose identity is being verified
     vmethod String DEFAULT '', -- Verification method (e.g., "email", "phone", "id", "document")
     verifier UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Verifier user ID - who performed the verification
@@ -346,11 +389,18 @@ CREATE TABLE user_verifications ON CLUSTER my_cluster (
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who initiated this verification
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this verification
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY (uid, vmethod);
 
+-- Distributed table for user_verifications
+CREATE TABLE IF NOT EXISTS user_verifications ON CLUSTER tracker_cluster
+AS user_verifications_local
+ENGINE = Distributed(tracker_cluster, sfpla, user_verifications_local, rand());
+
 -- Enhanced Queues table - Advanced task management system with additional metadata
-CREATE TABLE files ON CLUSTER my_cluster (
+CREATE TABLE files_local ON CLUSTER tracker_cluster (
+
     slug String DEFAULT '', -- Slug - unique URL-friendly identifier
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -392,11 +442,18 @@ CREATE TABLE files ON CLUSTER my_cluster (
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     expires DateTime64(3) DEFAULT toDateTime64(0, 3), -- Expiration timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000' -- Updater user ID - who last modified this file
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY slug;
 
+-- Distributed table for files
+CREATE TABLE IF NOT EXISTS files ON CLUSTER tracker_cluster
+AS files_local
+ENGINE = Distributed(tracker_cluster, sfpla, files_local, rand());
+
 -- Payment Provider table - Stores information about payment service providers
-CREATE TABLE pprovider ON CLUSTER my_cluster (
+CREATE TABLE pprovider_local ON CLUSTER tracker_cluster (
+
     name String DEFAULT '', -- Provider name - unique identifier (e.g., "stripe", "paypal")
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -404,8 +461,14 @@ CREATE TABLE pprovider ON CLUSTER my_cluster (
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this provider record
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this provider
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY name;
+
+-- Distributed table for pprovider
+CREATE TABLE IF NOT EXISTS pprovider ON CLUSTER tracker_cluster
+AS pprovider_local
+ENGINE = Distributed(tracker_cluster, sfpla, pprovider_local, rand());
 
 -- Materialized view for looking up payment providers by owner - Enables efficient provider management
 CREATE MATERIALIZED VIEW pprovider_by_owner
@@ -415,7 +478,8 @@ POPULATE AS
 SELECT * FROM pprovider;
 
 -- Payment Authorization table - Stores user payment method information
-CREATE TABLE pauth ON CLUSTER my_cluster (
+CREATE TABLE pauth_local ON CLUSTER tracker_cluster (
+
     id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Authorization ID - unique identifier for this payment method
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -429,8 +493,14 @@ CREATE TABLE pauth ON CLUSTER my_cluster (
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who owns this payment method
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this payment method
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY id;
+
+-- Distributed table for pauth
+CREATE TABLE IF NOT EXISTS pauth ON CLUSTER tracker_cluster
+AS pauth_local
+ENGINE = Distributed(tracker_cluster, sfpla, pauth_local, rand());
 
 -- Materialized view for looking up payment methods by owner - Enables efficient user payment management
 CREATE MATERIALIZED VIEW pauth_by_owner
@@ -440,7 +510,8 @@ POPULATE AS
 SELECT * FROM pauth;
 
 -- Payment Confirmation table - Stores payment event confirmations
-CREATE TABLE pconfirmation ON CLUSTER my_cluster (
+CREATE TABLE pconfirmation_local ON CLUSTER tracker_cluster (
+
     id String DEFAULT '', -- Event ID - unique identifier for this payment event
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
@@ -452,8 +523,14 @@ CREATE TABLE pconfirmation ON CLUSTER my_cluster (
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who owns this payment confirmation
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this confirmation
+
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY id;
+
+-- Distributed table for pconfirmation
+CREATE TABLE IF NOT EXISTS pconfirmation ON CLUSTER tracker_cluster
+AS pconfirmation_local
+ENGINE = Distributed(tracker_cluster, sfpla, pconfirmation_local, rand());
 
 -- Permissions table - Stores access control permissions for resources
 CREATE MATERIALIZED VIEW user_by_username
