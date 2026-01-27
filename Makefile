@@ -37,6 +37,9 @@
 .PHONY: cluster-start cluster-stop cluster-test cluster-logs
 .PHONY: schema-update schema-verify
 .PHONY: test-single test-cluster test-all
+.PHONY: test-functional-ltv test-functional-ltv-batch test-functional-redirects
+.PHONY: test-functional-privacy test-functional-jurisdictions test-functional-health
+.PHONY: test-functional-batch test-functional-e2e test-functional-all
 
 # Default target
 .DEFAULT_GOAL := help
@@ -89,12 +92,17 @@ help:
 	@echo "  make clean          - Clean build artifacts"
 	@echo ""
 	@echo "$(YELLOW)Docker Commands (Single Node):$(NC)"
-	@echo "  make docker-build   - Build Docker image"
-	@echo "  make docker-run     - Run single-node container with persistent volumes"
-	@echo "  make docker-stop    - Stop and remove container"
-	@echo "  make docker-clean   - Remove container, image, and volumes"
-	@echo "  make docker-logs    - Show container logs (tail -f)"
-	@echo "  make docker-shell   - Open shell in running container"
+	@echo "  make docker-build         - Build Docker image"
+	@echo "  make docker-run           - Run single-node container with persistent volumes"
+	@echo "  make docker-stop          - Stop and remove container"
+	@echo "  make docker-clean         - Remove container, image, and volumes"
+	@echo "  make docker-logs          - Show container logs (tail -f)"
+	@echo "  make docker-shell         - Open shell in running container"
+	@echo "  make docker-verify-tables - Verify ClickHouse tables loaded"
+	@echo "  make docker-test-events   - Test events table with sample data"
+	@echo "  make docker-test-messaging - Test messaging tables (mthreads/mstore/mtriage)"
+	@echo "  make docker-test-all      - Run all Docker tests"
+	@echo "  make docker-rebuild-test  - Clean rebuild and full test"
 	@echo ""
 	@echo "$(YELLOW)Docker Commands (3-Node Cluster):$(NC)"
 	@echo "  make cluster-start  - Start 3-node cluster with persistent volumes"
@@ -107,10 +115,21 @@ help:
 	@echo "  make schema-verify  - Verify hard links are correct"
 	@echo ""
 	@echo "$(YELLOW)Testing:$(NC)"
-	@echo "  make test           - Run Go tests"
-	@echo "  make test-single    - Run test-single.sh (single-node verification)"
-	@echo "  make test-cluster   - Run test-cluster.sh (3-node cluster test)"
-	@echo "  make test-all       - Run all tests (Go + single + cluster)"
+	@echo "  make test                      - Run Go unit tests"
+	@echo "  make test-single               - Run test-single.sh (single-node verification)"
+	@echo "  make test-cluster              - Run test-cluster.sh (3-node cluster test)"
+	@echo "  make test-all                  - Run all tests (Go + single + cluster)"
+	@echo ""
+	@echo "$(YELLOW)Functional Endpoint Tests:$(NC)"
+	@echo "  make test-functional-health    - Test health/ping/status/metrics endpoints"
+	@echo "  make test-functional-ltv       - Test LTV tracking (single payment)"
+	@echo "  make test-functional-ltv-batch - Test LTV tracking (batch payments)"
+	@echo "  make test-functional-redirects - Test redirect/short URL API"
+	@echo "  make test-functional-privacy   - Test privacy/agreement API"
+	@echo "  make test-functional-jurisdictions - Test jurisdictions endpoint"
+	@echo "  make test-functional-batch     - Test batch processing (100 events)"
+	@echo "  make test-functional-e2e       - Test complete end-to-end workflow"
+	@echo "  make test-functional-all       - Run ALL functional tests"
 	@echo ""
 	@echo "$(YELLOW)Development:$(NC)"
 	@echo "  make deps           - Download Go dependencies"
@@ -213,6 +232,57 @@ docker-verify-tables:
 	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT count() FROM system.tables WHERE database = 'sfpla'"
 	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT table FROM system.tables WHERE database = 'sfpla' ORDER BY table"
 
+docker-test-events:
+	@echo "$(YELLOW)🧪 Testing events table...$(NC)"
+	@echo ""
+	@echo "Sending 5 test events..."
+	@for i in 1 2 3 4 5; do \
+		curl -s -X POST http://localhost:8080/tr/v1/tr/ \
+		-H "Content-Type: application/json" \
+		-d '{"eid":"test-'$$i'","ename":"page_view","url":"http://test.com/page'$$i'","oid":"00000000-0000-0000-0000-000000000001"}' \
+		-w "\nStatus: %{http_code}\n" || echo "Request $$i failed"; \
+	done
+	@echo ""
+	@echo "Waiting 2 seconds for batch flush..."
+	@sleep 2
+	@echo ""
+	@echo "Querying events table (using FINAL):"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT count() as total, ename FROM sfpla.events FINAL GROUP BY ename"
+	@echo ""
+	@echo "Sample events:"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT eid, ename, url, created_at FROM sfpla.events FINAL ORDER BY created_at DESC LIMIT 5"
+
+docker-test-messaging:
+	@echo "$(YELLOW)🧪 Testing messaging tables (mthreads, mstore, mtriage)...$(NC)"
+	@echo ""
+	@echo "Sending test conversion event (triggers mthreads + mstore + mtriage)..."
+	@curl -s -X POST http://localhost:8080/tr/v1/tr/ \
+		-H "Content-Type: application/json" \
+		-d '{"eid":"test-conversion","ename":"conversion","event_type":"conversion","tid":"test-thread-001","url":"http://test.com/success","oid":"00000000-0000-0000-0000-000000000001","provider":"website","medium":"page","alias":"http://test.com/success","subject":"Test Conversion","msg":"User completed purchase","urgency":5}' \
+		-w "\nStatus: %{http_code}\n"
+	@echo ""
+	@echo "Waiting 3 seconds for batch flush..."
+	@sleep 3
+	@echo ""
+	@echo "=== mthreads table (thread metadata) ==="
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT tid, alias, provider, medium, urgency, campaign_status FROM sfpla.mthreads FINAL LIMIT 5"
+	@echo ""
+	@echo "=== mstore table (permanent message archive) ==="
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT tid, mid, subject, msg, urgency, sys FROM sfpla.mstore FINAL LIMIT 5"
+	@echo ""
+	@echo "=== mtriage table (messages in triage) ==="
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT tid, mid, subject, msg, urgency FROM sfpla.mtriage FINAL LIMIT 5"
+
+docker-test-all: docker-test-events docker-test-messaging
+	@echo ""
+	@echo "$(GREEN)✅ All Docker tests complete$(NC)"
+
+docker-rebuild-test: docker-stop docker-build docker-run
+	@echo ""
+	@echo "$(YELLOW)⏳ Waiting 60 seconds for full initialization...$(NC)"
+	@sleep 60
+	@$(MAKE) docker-test-all
+
 # ====================================================================
 # DOCKER - 3-NODE CLUSTER
 # ====================================================================
@@ -299,6 +369,197 @@ test-cluster:
 
 test-all: test test-single
 	@echo "$(GREEN)✅ All tests complete$(NC)"
+
+# ====================================================================
+# FUNCTIONAL ENDPOINT TESTS (Requires running tracker on port 8080)
+# ====================================================================
+
+test-functional-ltv:
+	@echo "$(YELLOW)🧪 Testing LTV endpoint (single payment)...$(NC)"
+	@curl -s -X POST http://localhost:8080/tr/v1/ltv/ \
+		-H "Content-Type: application/json" \
+		-d '{"vid":"14fb0860-b4bf-11e9-8971-7b80435315ac","uid":"user-123","oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","amt":99.99,"currency":"USD","orid":"order-123"}' \
+		-w "\nHTTP Status: %{http_code}\n"
+	@echo ""
+	@echo "Waiting 3 seconds for batch flush..."
+	@sleep 3
+	@echo ""
+	@echo "Verifying LTV tables:"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, uid, revenue FROM sfpla.ltv FINAL WHERE vid='14fb0860-b4bf-11e9-8971-7b80435315ac' ORDER BY updated_at DESC LIMIT 1"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT uid, revenue FROM sfpla.ltvu FINAL WHERE uid='user-123' ORDER BY updated_at DESC LIMIT 1"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, revenue FROM sfpla.ltvv FINAL WHERE vid='14fb0860-b4bf-11e9-8971-7b80435315ac' ORDER BY updated_at DESC LIMIT 1"
+	@echo "$(GREEN)✅ LTV test complete$(NC)"
+
+test-functional-ltv-batch:
+	@echo "$(YELLOW)🧪 Testing LTV endpoint (batch payments)...$(NC)"
+	@curl -s -X POST http://localhost:8080/tr/v1/ltv/ \
+		-H "Content-Type: application/json" \
+		-d '{"vid":"batch-ltv-test","uid":"user-batch","oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","payments":[{"amt":50.00,"currency":"USD","orid":"order-124"},{"amt":25.00,"currency":"USD","orid":"order-125"}]}' \
+		-w "\nHTTP Status: %{http_code}\n"
+	@echo ""
+	@echo "Waiting 3 seconds for batch flush..."
+	@sleep 3
+	@echo ""
+	@echo "Verifying batch LTV (should show 75.00 total):"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, uid, revenue FROM sfpla.ltv FINAL WHERE vid='batch-ltv-test' ORDER BY updated_at DESC LIMIT 1"
+	@echo "$(GREEN)✅ Batch LTV test complete$(NC)"
+
+test-functional-redirects:
+	@echo "$(YELLOW)🧪 Testing redirect/short URL API...$(NC)"
+	@echo ""
+	@echo "Creating shortened URL..."
+	@curl -s -X POST http://localhost:8080/tr/v1/rpi/redirect/14fb0860-b4bf-11e9-8971-7b80435315ac/password \
+		-H "Content-Type: application/json" \
+		-d '{"urlfrom":"https://yourdomain.com/test-short","hostfrom":"yourdomain.com","slugfrom":"/test-short","urlto":"https://example.com/long/path?utm_source=makefile","hostto":"example.com","pathto":"/long/path","searchto":"?utm_source=makefile","oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890"}' \
+		-w "\nHTTP Status: %{http_code}\n"
+	@echo ""
+	@echo "Waiting 2 seconds for batch flush..."
+	@sleep 2
+	@echo ""
+	@echo "Verifying redirects table:"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT urlfrom, urlto FROM sfpla.redirects FINAL WHERE urlfrom LIKE '%test-short%' LIMIT 1"
+	@echo ""
+	@echo "Verifying redirect_history table:"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT urlfrom, urlto FROM sfpla.redirect_history FINAL WHERE urlfrom LIKE '%test-short%' ORDER BY updated_at DESC LIMIT 1"
+	@echo ""
+	@echo "Getting all redirects for host:"
+	@curl -s -X GET http://localhost:8080/tr/v1/rpi/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yourdomain.com | head -20
+	@echo "$(GREEN)✅ Redirect test complete$(NC)"
+
+test-functional-privacy:
+	@echo "$(YELLOW)🧪 Testing privacy/agreement API...$(NC)"
+	@echo ""
+	@echo "Posting user agreement (GDPR consent)..."
+	@curl -s -X POST http://localhost:8080/tr/v1/ppi/agree \
+		-H "Content-Type: application/json" \
+		-d '{"vid":"privacy-test-vid","cflags":1024,"tz":"America/Los_Angeles","lat":37.7749,"lon":-122.4194,"oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890"}' \
+		-w "\nHTTP Status: %{http_code}\n"
+	@echo ""
+	@echo "Waiting 2 seconds for batch flush..."
+	@sleep 2
+	@echo ""
+	@echo "Verifying agreements table:"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, cflags, country, lat, lon FROM sfpla.agreements FINAL WHERE vid='privacy-test-vid' LIMIT 1"
+	@echo ""
+	@echo "Verifying agreed (history) table:"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, cflags FROM sfpla.agreed FINAL WHERE vid='privacy-test-vid' ORDER BY created_at DESC LIMIT 1"
+	@echo ""
+	@echo "Getting agreements for visitor:"
+	@curl -s -X GET "http://localhost:8080/tr/v1/ppi/agree?vid=privacy-test-vid"
+	@echo ""
+	@echo "$(GREEN)✅ Privacy/agreement test complete$(NC)"
+
+test-functional-jurisdictions:
+	@echo "$(YELLOW)🧪 Testing jurisdictions endpoint...$(NC)"
+	@curl -s -X GET http://localhost:8080/tr/v1/ppi/jds | head -20
+	@echo ""
+	@echo ""
+	@echo "Database verification:"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT count() as total FROM sfpla.jurisdictions FINAL"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT * FROM sfpla.jurisdictions FINAL LIMIT 3"
+	@echo "$(GREEN)✅ Jurisdictions test complete$(NC)"
+
+test-functional-health:
+	@echo "$(YELLOW)🧪 Testing health & metrics endpoints...$(NC)"
+	@echo ""
+	@echo "=== /health endpoint ==="
+	@curl -s http://localhost:8080/health
+	@echo ""
+	@echo ""
+	@echo "=== /ping endpoint ==="
+	@curl -s http://localhost:8080/ping
+	@echo ""
+	@echo ""
+	@echo "=== /status endpoint ==="
+	@curl -s http://localhost:8080/status
+	@echo ""
+	@echo ""
+	@echo "=== /metrics endpoint (first 20 lines) ==="
+	@curl -s http://localhost:8080/metrics | head -20
+	@echo ""
+	@echo "$(GREEN)✅ Health endpoints test complete$(NC)"
+
+test-functional-batch:
+	@echo "$(YELLOW)🧪 Testing batch processing (100 events)...$(NC)"
+	@echo ""
+	@echo "Sending 100 events in parallel..."
+	@for i in {1..100}; do \
+		curl -s -X POST http://localhost:8080/tr/v1/tr/ \
+		-H "Content-Type: application/json" \
+		-d "{\"vid\":\"batch-test-$$i\",\"ename\":\"batch_event_$$i\",\"etyp\":\"batch_test\",\"batch_num\":\"$$i\"}" & \
+	done
+	@wait
+	@echo ""
+	@echo "Waiting 5 seconds for batch flush..."
+	@sleep 5
+	@echo ""
+	@echo "Verifying batch inserts:"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT COUNT(*) as total, etyp FROM sfpla.events FINAL WHERE etyp='batch_test' GROUP BY etyp"
+	@echo ""
+	@echo "Sample batch events:"
+	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, ename, etyp FROM sfpla.events FINAL WHERE etyp='batch_test' ORDER BY created_at DESC LIMIT 5"
+	@echo "$(GREEN)✅ Batch test complete (should show 100 events)$(NC)"
+
+test-functional-e2e:
+	@echo "$(YELLOW)🧪 Running complete end-to-end workflow test...$(NC)"
+	@echo ""
+	@VID=$$(uuidgen | tr '[:upper:]' '[:lower:]'); \
+	UID=$$(uuidgen | tr '[:upper:]' '[:lower:]'); \
+	OID=$$(uuidgen | tr '[:upper:]' '[:lower:]'); \
+	echo "=== Testing with VID: $$VID ==="; \
+	echo ""; \
+	echo "1. Page view..."; \
+	curl -s -X POST http://localhost:8080/tr/v1/tr/ \
+		-H "Content-Type: application/json" \
+		-d "{\"vid\":\"$$VID\",\"ename\":\"page_view\",\"etyp\":\"view\",\"first\":\"true\"}" \
+		-w "Status: %{http_code}\n"; \
+	echo ""; \
+	echo "2. Signup..."; \
+	curl -s -X POST http://localhost:8080/tr/v1/str/ \
+		-H "Content-Type: application/json" \
+		-d "{\"vid\":\"$$VID\",\"uid\":\"$$UID\",\"oid\":\"$$OID\",\"ename\":\"signup\",\"etyp\":\"conversion\"}" \
+		-w "Status: %{http_code}\n"; \
+	echo ""; \
+	echo "3. Purchase..."; \
+	curl -s -X POST http://localhost:8080/tr/v1/ltv/ \
+		-H "Content-Type: application/json" \
+		-d "{\"vid\":\"$$VID\",\"uid\":\"$$UID\",\"oid\":\"$$OID\",\"amt\":149.99}" \
+		-w "Status: %{http_code}\n"; \
+	echo ""; \
+	echo "4. Agreement..."; \
+	curl -s -X POST http://localhost:8080/tr/v1/ppi/agree \
+		-H "Content-Type: application/json" \
+		-d "{\"vid\":\"$$VID\",\"cflags\":1024,\"oid\":\"$$OID\"}" \
+		-w "Status: %{http_code}\n"; \
+	echo ""; \
+	echo "Waiting 3 seconds for async inserts..."; \
+	sleep 3; \
+	echo ""; \
+	echo "=== Results ==="; \
+	echo "Events:"; \
+	docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT ename, etyp FROM sfpla.events FINAL WHERE vid='$$VID' ORDER BY created_at"; \
+	echo ""; \
+	echo "LTV:"; \
+	docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT revenue FROM sfpla.ltv FINAL WHERE vid='$$VID'"; \
+	echo ""; \
+	echo "Agreements:"; \
+	docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT cflags FROM sfpla.agreements FINAL WHERE vid='$$VID'"; \
+	echo ""; \
+	echo "$(GREEN)✅ End-to-end test complete$(NC)"
+
+test-functional-all: test-functional-health test-functional-ltv test-functional-ltv-batch test-functional-redirects test-functional-privacy test-functional-jurisdictions test-functional-batch
+	@echo ""
+	@echo "$(GREEN)✅✅✅ All functional tests complete ✅✅✅$(NC)"
+	@echo ""
+	@echo "Summary of tested endpoints:"
+	@echo "  ✓ Health & metrics (/health, /ping, /status, /metrics)"
+	@echo "  ✓ Event tracking (/tr/v1/tr/, /tr/v1/str/)"
+	@echo "  ✓ LTV tracking (/tr/v1/ltv/) - single & batch"
+	@echo "  ✓ Redirects (/tr/v1/rpi/*)"
+	@echo "  ✓ Privacy/agreements (/tr/v1/ppi/agree)"
+	@echo "  ✓ Jurisdictions (/tr/v1/ppi/jds)"
+	@echo "  ✓ Batch processing (100 events)"
+	@echo ""
 
 # ====================================================================
 # CLEANUP

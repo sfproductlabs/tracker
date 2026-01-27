@@ -124,6 +124,144 @@ Be extremely careful with schema. For performance, the _tracker_ takes client re
 You can run a docker version of tracker using ```docker-compose up``` then ```./tracker``` after tracker is built. There is a setting in the ```config.json``` to enable debug tracing on the command line. It will print any errors to the console of the running service. These are not saved, or distributed to any log for performance reasons. So test test test.
 
 
+### Makefile Commands (Recommended)
+
+The tracker includes a comprehensive Makefile for streamlined development and testing workflows. Use `make help` to see all available commands.
+
+#### Quick Start with Makefile
+
+```bash
+# Build and test everything
+make docker-build         # Build Docker image
+make docker-run           # Start single-node container
+make docker-test-all      # Run comprehensive tests
+
+# Or do it all in one command
+make docker-rebuild-test  # Clean rebuild + full test suite
+```
+
+#### Available Makefile Targets
+
+**Build Commands:**
+```bash
+make build                # Build tracker binary locally
+make run                  # Build and run tracker (local mode)
+make clean                # Clean build artifacts
+make deps                 # Download Go dependencies
+make fmt                  # Format Go code
+make lint                 # Run golangci-lint
+```
+
+**Docker Commands (Single Node):**
+```bash
+make docker-build         # Build Docker image
+make docker-run           # Run single-node container with persistent volumes
+make docker-stop          # Stop and remove container
+make docker-clean         # Remove container, image, and volumes
+make docker-logs          # Show container logs (tail -f)
+make docker-shell         # Open shell in running container
+make docker-clickhouse-shell  # Open ClickHouse client in container
+make docker-verify-tables     # Verify ClickHouse tables loaded (should show 236 tables)
+```
+
+**Docker Testing Commands:**
+```bash
+make docker-test-events   # Test events table with sample data
+make docker-test-messaging # Test messaging tables (mthreads/mstore/mtriage)
+make docker-test-all      # Run all Docker tests
+make docker-rebuild-test  # Clean rebuild and full test
+```
+
+**Functional Endpoint Tests:**
+```bash
+make test-functional-health       # Test /health, /ping, /status, /metrics
+make test-functional-ltv          # Test LTV tracking (single payment)
+make test-functional-ltv-batch    # Test LTV tracking (batch payments)
+make test-functional-redirects    # Test redirect/short URL API
+make test-functional-privacy      # Test privacy/agreement API
+make test-functional-jurisdictions # Test jurisdictions endpoint
+make test-functional-batch        # Test batch processing (100 events)
+make test-functional-e2e          # Test complete end-to-end workflow
+make test-functional-all          # Run ALL functional tests
+```
+
+**Docker Commands (3-Node Cluster):**
+```bash
+make cluster-start        # Start 3-node cluster with persistent volumes
+make cluster-stop         # Stop 3-node cluster
+make cluster-test         # Test cluster connectivity and tables
+make cluster-logs         # Show logs from all 3 nodes
+```
+
+**Schema Management:**
+```bash
+make schema-update        # Update hard links from api schema files
+make schema-verify        # Verify hard links are correct
+```
+
+**Development:**
+```bash
+make info                 # Show configuration information
+make status               # Check build and container status
+```
+
+#### Example Workflow
+
+```bash
+# 1. Build Docker image
+make docker-build
+
+# 2. Start container (creates /tmp/clickhouse-test with persistent data)
+make docker-run
+
+# 3. Wait 60 seconds for full initialization, then verify
+make docker-verify-tables
+# Should show: 236 tables
+
+# 4. Test events table
+make docker-test-events
+# Sends 5 test events, waits for batch flush, queries results
+
+# 5. Test messaging tables (mthreads, mstore, mtriage)
+make docker-test-messaging
+# Sends conversion event, verifies all 3 messaging tables
+
+# 6. View logs
+make docker-logs
+
+# 7. Open ClickHouse client for manual queries
+make docker-clickhouse-shell
+# Then run: SELECT count() FROM sfpla.events FINAL;
+
+# 8. Clean up
+make docker-stop
+```
+
+#### Testing Messaging Tables
+
+The fixed messaging tables (`mthreads`, `mstore`, `mtriage`) now properly map to the actual ClickHouse schema:
+
+**mthreads** (Thread metadata - 140+ columns):
+- Core fields: `tid`, `alias`, `xstatus`, `name`, `provider`, `medium`
+- Campaign tracking: `campaign_id`, `campaign_status`, `campaign_priority`
+- A/B testing: 20+ `abz_*` fields
+- Attribution: `attribution_model`, `attribution_weight`
+
+**mstore** (Permanent message archive - 47 columns):
+- Message content: `mid`, `subject`, `msg`, `data`
+- Delivery: `urgency`, `sys`, `broadcast`, `svc`
+- Timing: `planned`, `scheduled`, `started`, `completed`
+- Performance: `interest` (JSON), `perf` (JSON)
+
+**mtriage** (Messages in triage - 43 columns, identical to mstore except no `planned` field):
+- Same structure as mstore but for messages being processed
+- Default `urgency=8` for high-priority triage
+
+Test with:
+```bash
+make docker-test-messaging
+```
+
 ### Deploy
 
 #### Docker
@@ -236,6 +374,8 @@ curl -w "\n" -k -H 'Content-Type: application/json' -XPOST  "https://localhost:8
 
 ### Testing ClickHouse
 
+#### Unit Tests
+
 ```bash
 go test -v -run TestBatchWrite tests/batch_write_test.go
 ```
@@ -244,6 +384,305 @@ Note: You may need to flush the insert queue and wait for 2 seconds before query
 
 ```bash
 clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2 && clickhouse client --query "SELECT COUNT(*) FROM sfpla.events"
+```
+
+#### Functional Tests - All Endpoints
+
+##### 1. Track Event (Client-side)
+```bash
+# REST/URL format
+curl -k "https://localhost:8443/tr/v1/tr/vid/14fb0860-b4bf-11e9-8971-7b80435315ac/ename/page_view/etyp/view/first/true"
+
+# JSON format
+curl -k -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/tr/" \
+  -d '{
+    "vid": "14fb0860-b4bf-11e9-8971-7b80435315ac",
+    "sid": "14fb0860-b4bf-11e9-8971-7b80435315ac",
+    "ename": "page_view",
+    "etyp": "view",
+    "url": "https://example.com/page",
+    "first": "false",
+    "tz": "America/Los_Angeles",
+    "device": "Desktop",
+    "os": "macOS"
+  }'
+
+# Verify
+clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2
+clickhouse client --query "SELECT ename, etyp, vid FROM sfpla.events ORDER BY created_at DESC LIMIT 5"
+```
+
+##### 2. Track Event (Server-side)
+```bash
+# Server-side tracking (returns event ID)
+curl -k -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/str/" \
+  -d '{
+    "vid": "14fb0860-b4bf-11e9-8971-7b80435315ac",
+    "oid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "ename": "server_event",
+    "etyp": "conversion",
+    "revenue": "99.99"
+  }'
+
+# Verify
+clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2
+clickhouse client --query "SELECT ename, etyp, vid, oid FROM sfpla.events WHERE etyp='conversion' ORDER BY created_at DESC LIMIT 5"
+```
+
+##### 3. Track Lifetime Value (LTV)
+```bash
+# Single payment
+curl -k -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/ltv/" \
+  -d '{
+    "vid": "14fb0860-b4bf-11e9-8971-7b80435315ac",
+    "uid": "user-123",
+    "oid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "amt": 99.99,
+    "currency": "USD",
+    "orid": "order-123"
+  }'
+
+# Batch payments
+curl -k -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/ltv/" \
+  -d '{
+    "vid": "14fb0860-b4bf-11e9-8971-7b80435315ac",
+    "uid": "user-123",
+    "oid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "payments": [
+      {"amt": 50.00, "currency": "USD", "orid": "order-124"},
+      {"amt": 25.00, "currency": "USD", "orid": "order-125"}
+    ]
+  }'
+
+# Verify LTV tables
+clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2
+clickhouse client --query "SELECT vid, uid, revenue FROM sfpla.ltv ORDER BY updated_at DESC LIMIT 5"
+clickhouse client --query "SELECT uid, revenue FROM sfpla.ltvu ORDER BY updated_at DESC LIMIT 5"
+clickhouse client --query "SELECT vid, revenue FROM sfpla.ltvv ORDER BY updated_at DESC LIMIT 5"
+```
+
+##### 4. Redirect/Short URL API
+
+```bash
+# Create a shortened URL
+curl -k -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/rpi/redirect/14fb0860-b4bf-11e9-8971-7b80435315ac/password" \
+  -d '{
+    "urlfrom": "https://yourdomain.com/short",
+    "hostfrom": "yourdomain.com",
+    "slugfrom": "/short",
+    "urlto": "https://example.com/long/path?utm_source=test",
+    "hostto": "example.com",
+    "pathto": "/long/path",
+    "searchto": "?utm_source=test",
+    "oid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }'
+
+# Get all redirects for a host
+curl -k -X GET \
+  "https://localhost:8443/tr/v1/rpi/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yourdomain.com"
+
+# Test the redirect (visit in browser or curl)
+curl -k -L "https://localhost:8443/short"
+
+# Verify in database
+clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2
+clickhouse client --query "SELECT urlfrom, urlto FROM sfpla.redirects LIMIT 10"
+clickhouse client --query "SELECT urlfrom, urlto, updater FROM sfpla.redirect_history ORDER BY updated_at DESC LIMIT 10"
+```
+
+##### 5. Privacy/Agreement API
+
+```bash
+# Post user agreement (GDPR consent)
+curl -k -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/ppi/agree" \
+  -d '{
+    "vid": "14fb0860-b4bf-11e9-8971-7b80435315ac",
+    "cflags": 1024,
+    "tz": "America/Los_Angeles",
+    "lat": 37.7749,
+    "lon": -122.4194,
+    "oid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }'
+
+# Get agreements for a visitor
+curl -k -X GET \
+  "https://localhost:8443/tr/v1/ppi/agree?vid=14fb0860-b4bf-11e9-8971-7b80435315ac"
+
+# Verify
+clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2
+clickhouse client --query "SELECT vid, cflags, country FROM sfpla.agreements ORDER BY created_at DESC LIMIT 5"
+clickhouse client --query "SELECT vid, cflags, country FROM sfpla.agreed ORDER BY created_at DESC LIMIT 10"
+```
+
+##### 6. Get Jurisdictions
+
+```bash
+# Get all jurisdictions (privacy regions)
+curl -k -X GET "https://localhost:8443/tr/v1/ppi/jds"
+
+# Verify
+clickhouse client --query "SELECT * FROM sfpla.jurisdictions LIMIT 10"
+```
+
+##### 7. GeoIP Lookup
+
+```bash
+# Get GeoIP for current IP
+curl -k -X GET "https://localhost:8443/tr/v1/ppi/geoip"
+
+# Get GeoIP for specific IP
+curl -k -X GET "https://localhost:8443/tr/v1/ppi/geoip?ip=8.8.8.8"
+```
+
+##### 8. WebSocket Streaming (LZ4 Compressed)
+
+```javascript
+// JavaScript example (run in browser console)
+const ws = new WebSocket('wss://localhost:8443/tr/v1/ws');
+
+ws.onopen = () => {
+  // Send uncompressed JSON
+  ws.send(JSON.stringify({
+    vid: '14fb0860-b4bf-11e9-8971-7b80435315ac',
+    ename: 'websocket_event',
+    etyp: 'test'
+  }));
+
+  // Send LZ4 compressed binary (if you have lz4 library)
+  // const compressed = lz4.compress(JSON.stringify(data));
+  // ws.send(compressed);
+};
+
+ws.onmessage = (event) => {
+  console.log('Received:', event.data);
+};
+```
+
+##### 9. Campaign/Message Thread Updates
+
+```bash
+# Track campaign event (goes to mthreads, mstore, mtriage)
+curl -k -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/str/" \
+  -d '{
+    "vid": "14fb0860-b4bf-11e9-8971-7b80435315ac",
+    "oid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "tid": "thread-123",
+    "campaign_id": "campaign-456",
+    "experiment_id": "exp-789",
+    "variant_id": "var-abc",
+    "ename": "email_sent",
+    "etyp": "message",
+    "subject": "Test Email",
+    "content": "Email body content",
+    "status": "sent",
+    "channel": "email"
+  }'
+
+# Verify message thread tables
+clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2
+clickhouse client --query "SELECT tid, campaign_id, status, channel FROM sfpla.mthreads ORDER BY updated_at DESC LIMIT 5"
+clickhouse client --query "SELECT tid, subject, content FROM sfpla.mstore ORDER BY updated_at DESC LIMIT 5"
+clickhouse client --query "SELECT tid, status FROM sfpla.mtriage ORDER BY updated_at DESC LIMIT 5"
+```
+
+##### 10. Health & Metrics Endpoints
+
+```bash
+# Health check
+curl -k "https://localhost:8443/health"
+
+# Ping endpoint
+curl -k "https://localhost:8443/ping"
+
+# Metrics endpoint (Prometheus format)
+curl -k "https://localhost:8443/metrics"
+
+# Status endpoint
+curl -k "https://localhost:8443/status"
+```
+
+##### 11. Batch Testing - High Volume
+
+```bash
+# Send 100 events rapidly to test batching
+for i in {1..100}; do
+  curl -k -H 'Content-Type: application/json' -X POST \
+    "https://localhost:8443/tr/v1/tr/" \
+    -d "{
+      \"vid\": \"batch-test-$i\",
+      \"ename\": \"batch_event_$i\",
+      \"etyp\": \"test\",
+      \"batch_num\": \"$i\"
+    }" &
+done
+wait
+
+# Wait for batches to flush
+sleep 5
+clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2
+
+# Verify batch inserts
+clickhouse client --query "SELECT COUNT(*) as total, etyp FROM sfpla.events WHERE etyp='test' GROUP BY etyp"
+```
+
+##### 12. Complete End-to-End Test
+
+```bash
+#!/bin/bash
+# Complete workflow test
+
+VID="e2e-$(uuidgen)"
+UID="user-$(uuidgen)"
+OID="org-$(uuidgen)"
+
+echo "=== Testing with VID: $VID ==="
+
+# 1. First visit (page view)
+echo "1. Page view..."
+curl -sk -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/tr/" \
+  -d "{\"vid\":\"$VID\",\"ename\":\"page_view\",\"etyp\":\"view\",\"first\":\"true\"}"
+
+# 2. User signs up
+echo "2. Signup..."
+curl -sk -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/str/" \
+  -d "{\"vid\":\"$VID\",\"uid\":\"$UID\",\"oid\":\"$OID\",\"ename\":\"signup\",\"etyp\":\"conversion\"}"
+
+# 3. User makes purchase
+echo "3. Purchase..."
+curl -sk -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/ltv/" \
+  -d "{\"vid\":\"$VID\",\"uid\":\"$UID\",\"oid\":\"$OID\",\"amt\":149.99}"
+
+# 4. User agrees to terms
+echo "4. Agreement..."
+curl -sk -H 'Content-Type: application/json' -X POST \
+  "https://localhost:8443/tr/v1/ppi/agree" \
+  -d "{\"vid\":\"$VID\",\"cflags\":1024,\"oid\":\"$OID\"}"
+
+# Wait for async inserts
+sleep 3
+clickhouse client --query "SYSTEM FLUSH ASYNC INSERT QUEUE" && sleep 2
+
+# Verify all tables
+echo ""
+echo "=== Results ==="
+echo "Events:"
+clickhouse client --query "SELECT ename, etyp FROM sfpla.events WHERE vid='$VID' ORDER BY created_at"
+echo ""
+echo "LTV:"
+clickhouse client --query "SELECT revenue FROM sfpla.ltv WHERE vid='$VID'"
+echo ""
+echo "Agreements:"
+clickhouse client --query "SELECT cflags FROM sfpla.agreements WHERE vid='$VID'"
 ```
 
 #### Cleaning up the database
