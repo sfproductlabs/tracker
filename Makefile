@@ -188,17 +188,19 @@ docker-run:
 		--add-host $(CONTAINER_NAME):127.0.0.1 \
 		-v $(TMP_DATA_DIR)/data:/data/clickhouse \
 		-v $(TMP_DATA_DIR)/logs:/logs/clickhouse \
-		-p 8080:8080 -p 9000:9000 -p 8123:8123 -p 2181:2181 \
+		-p 8080:8080 -p 8443:8443 -p 8880:8880 -p 9000:9000 -p 8123:8123 -p 2181:2181 \
 		-e CLICKHOUSE_DATA_DIR="/data/clickhouse" \
 		-e CLICKHOUSE_LOG_DIR="/logs/clickhouse" \
 		$(DOCKER_IMAGE)
 	@echo "$(GREEN)✅ Container started: $(CONTAINER_NAME)$(NC)"
 	@echo ""
 	@echo "Access points:"
-	@echo "  Tracker:     http://localhost:8080/health"
-	@echo "  ClickHouse:  http://localhost:8123"
-	@echo "  Native:      localhost:9000"
-	@echo "  Keeper:      localhost:2181"
+	@echo "  Tracker HTTP:  http://localhost:8080/health"
+	@echo "  Tracker HTTPS: https://localhost:8443/health"
+	@echo "  Tracker Alt:   http://localhost:8880/health"
+	@echo "  ClickHouse:    http://localhost:8123"
+	@echo "  Native:        localhost:9000"
+	@echo "  Keeper:        localhost:2181"
 	@echo ""
 	@echo "Check logs: make docker-logs"
 	@echo "Verify tables: make docker-verify-tables"
@@ -376,7 +378,7 @@ test-all: test test-single
 
 test-functional-ltv:
 	@echo "$(YELLOW)🧪 Testing LTV endpoint (single payment)...$(NC)"
-	@curl -s -X POST http://localhost:8080/tr/v1/ltv/ \
+	@curl -sk -X POST https://localhost:8443/tr/v1/ltv/ \
 		-H "Content-Type: application/json" \
 		-d '{"vid":"14fb0860-b4bf-11e9-8971-7b80435315ac","uid":"user-123","oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","amt":99.99,"currency":"USD","orid":"order-123"}' \
 		-w "\nHTTP Status: %{http_code}\n"
@@ -392,7 +394,7 @@ test-functional-ltv:
 
 test-functional-ltv-batch:
 	@echo "$(YELLOW)🧪 Testing LTV endpoint (batch payments)...$(NC)"
-	@curl -s -X POST http://localhost:8080/tr/v1/ltv/ \
+	@curl -sk -X POST https://localhost:8443/tr/v1/ltv/ \
 		-H "Content-Type: application/json" \
 		-d '{"vid":"batch-ltv-test","uid":"user-batch","oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","payments":[{"amt":50.00,"currency":"USD","orid":"order-124"},{"amt":25.00,"currency":"USD","orid":"order-125"}]}' \
 		-w "\nHTTP Status: %{http_code}\n"
@@ -408,7 +410,7 @@ test-functional-redirects:
 	@echo "$(YELLOW)🧪 Testing redirect/short URL API...$(NC)"
 	@echo ""
 	@echo "Creating shortened URL..."
-	@curl -s -X POST http://localhost:8080/tr/v1/rpi/redirect/14fb0860-b4bf-11e9-8971-7b80435315ac/password \
+	@curl -sk -X POST https://localhost:8443/tr/v1/rpi/redirect/14fb0860-b4bf-11e9-8971-7b80435315ac/password \
 		-H "Content-Type: application/json" \
 		-d '{"urlfrom":"https://yourdomain.com/test-short","hostfrom":"yourdomain.com","slugfrom":"/test-short","urlto":"https://example.com/long/path?utm_source=makefile","hostto":"example.com","pathto":"/long/path","searchto":"?utm_source=makefile","oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890"}' \
 		-w "\nHTTP Status: %{http_code}\n"
@@ -423,14 +425,14 @@ test-functional-redirects:
 	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT urlfrom, urlto FROM sfpla.redirect_history FINAL WHERE urlfrom LIKE '%test-short%' ORDER BY updated_at DESC LIMIT 1"
 	@echo ""
 	@echo "Getting all redirects for host:"
-	@curl -s -X GET http://localhost:8080/tr/v1/rpi/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yourdomain.com | head -20
+	@curl -sk -X GET https://localhost:8443/tr/v1/rpi/redirects/14fb0860-b4bf-11e9-8971-7b80435315ac/password/yourdomain.com | head -20
 	@echo "$(GREEN)✅ Redirect test complete$(NC)"
 
 test-functional-privacy:
 	@echo "$(YELLOW)🧪 Testing privacy/agreement API...$(NC)"
 	@echo ""
 	@echo "Posting user agreement (GDPR consent)..."
-	@curl -s -X POST http://localhost:8080/tr/v1/ppi/agree \
+	@curl -sk -X POST https://localhost:8443/tr/v1/ppi/agree \
 		-H "Content-Type: application/json" \
 		-d '{"vid":"privacy-test-vid","cflags":1024,"tz":"America/Los_Angeles","lat":37.7749,"lon":-122.4194,"oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890"}' \
 		-w "\nHTTP Status: %{http_code}\n"
@@ -445,13 +447,13 @@ test-functional-privacy:
 	@docker exec $(CONTAINER_NAME) clickhouse-client --query "SELECT vid, cflags FROM sfpla.agreed FINAL WHERE vid='privacy-test-vid' ORDER BY created_at DESC LIMIT 1"
 	@echo ""
 	@echo "Getting agreements for visitor:"
-	@curl -s -X GET "http://localhost:8080/tr/v1/ppi/agree?vid=privacy-test-vid"
+	@curl -sk -X GET "https://localhost:8443/tr/v1/ppi/agree?vid=privacy-test-vid"
 	@echo ""
 	@echo "$(GREEN)✅ Privacy/agreement test complete$(NC)"
 
 test-functional-jurisdictions:
 	@echo "$(YELLOW)🧪 Testing jurisdictions endpoint...$(NC)"
-	@curl -s -X GET http://localhost:8080/tr/v1/ppi/jds | head -20
+	@curl -sk -X GET https://localhost:8443/tr/v1/ppi/jds | head -20
 	@echo ""
 	@echo ""
 	@echo "Database verification:"
@@ -463,19 +465,19 @@ test-functional-health:
 	@echo "$(YELLOW)🧪 Testing health & metrics endpoints...$(NC)"
 	@echo ""
 	@echo "=== /health endpoint ==="
-	@curl -s http://localhost:8080/health
+	@curl -sk https://localhost:8080/health
 	@echo ""
 	@echo ""
 	@echo "=== /ping endpoint ==="
-	@curl -s http://localhost:8080/ping
+	@curl -sk https://localhost:8080/ping
 	@echo ""
 	@echo ""
 	@echo "=== /status endpoint ==="
-	@curl -s http://localhost:8080/status
+	@curl -sk https://localhost:8080/status
 	@echo ""
 	@echo ""
 	@echo "=== /metrics endpoint (first 20 lines) ==="
-	@curl -s http://localhost:8080/metrics | head -20
+	@curl -sk https://localhost:8080/metrics | head -20
 	@echo ""
 	@echo "$(GREEN)✅ Health endpoints test complete$(NC)"
 
@@ -484,7 +486,7 @@ test-functional-batch:
 	@echo ""
 	@echo "Sending 100 events in parallel..."
 	@for i in {1..100}; do \
-		curl -s -X POST http://localhost:8080/tr/v1/tr/ \
+		curl -sk -X POST https://localhost:8080/tr/v1/tr/ \
 		-H "Content-Type: application/json" \
 		-d "{\"vid\":\"batch-test-$$i\",\"ename\":\"batch_event_$$i\",\"etyp\":\"batch_test\",\"batch_num\":\"$$i\"}" & \
 	done
@@ -509,25 +511,25 @@ test-functional-e2e:
 	echo "=== Testing with VID: $$VID ==="; \
 	echo ""; \
 	echo "1. Page view..."; \
-	curl -s -X POST http://localhost:8080/tr/v1/tr/ \
+	curl -sk -X POST https://localhost:8080/tr/v1/tr/ \
 		-H "Content-Type: application/json" \
 		-d "{\"vid\":\"$$VID\",\"ename\":\"page_view\",\"etyp\":\"view\",\"first\":\"true\"}" \
 		-w "Status: %{http_code}\n"; \
 	echo ""; \
 	echo "2. Signup..."; \
-	curl -s -X POST http://localhost:8080/tr/v1/str/ \
+	curl -sk -X POST https://localhost:8080/tr/v1/str/ \
 		-H "Content-Type: application/json" \
 		-d "{\"vid\":\"$$VID\",\"uid\":\"$$UID\",\"oid\":\"$$OID\",\"ename\":\"signup\",\"etyp\":\"conversion\"}" \
 		-w "Status: %{http_code}\n"; \
 	echo ""; \
 	echo "3. Purchase..."; \
-	curl -s -X POST http://localhost:8080/tr/v1/ltv/ \
+	curl -sk -X POST https://localhost:8080/tr/v1/ltv/ \
 		-H "Content-Type: application/json" \
 		-d "{\"vid\":\"$$VID\",\"uid\":\"$$UID\",\"oid\":\"$$OID\",\"amt\":149.99}" \
 		-w "Status: %{http_code}\n"; \
 	echo ""; \
 	echo "4. Agreement..."; \
-	curl -s -X POST http://localhost:8080/tr/v1/ppi/agree \
+	curl -sk -X POST https://localhost:8080/tr/v1/ppi/agree \
 		-H "Content-Type: application/json" \
 		-d "{\"vid\":\"$$VID\",\"cflags\":1024,\"oid\":\"$$OID\"}" \
 		-w "Status: %{http_code}\n"; \

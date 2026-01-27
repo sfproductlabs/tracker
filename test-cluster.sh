@@ -25,7 +25,7 @@ docker run -d --name v4-tracker-1 \
   --network tracker-net \
   -v /tmp/clickhouse-cluster/node1/data:/data/clickhouse \
   -v /tmp/clickhouse-cluster/node1/logs:/logs/clickhouse \
-  -p 8080:8080 -p 9000:9000 -p 8123:8123 -p 2181:2181 -p 9444:9444 \
+  -p 8080:8080 -p 8443:8443 -p 8880:8880 -p 9000:9000 -p 8123:8123 -p 2181:2181 -p 9444:9444 \
   -e SHARD=1 \
   -e SERVER_ID=1 \
   -e NUM_NODES=3 \
@@ -40,7 +40,7 @@ docker run -d --name v4-tracker-2 \
   --network tracker-net \
   -v /tmp/clickhouse-cluster/node2/data:/data/clickhouse \
   -v /tmp/clickhouse-cluster/node2/logs:/logs/clickhouse \
-  -p 8081:8080 -p 9001:9000 -p 8124:8123 -p 2182:2181 -p 9445:9444 \
+  -p 8081:8080 -p 8444:8443 -p 8881:8880 -p 9001:9000 -p 8124:8123 -p 2182:2181 -p 9445:9444 \
   -e SHARD=2 \
   -e SERVER_ID=2 \
   -e NUM_NODES=3 \
@@ -55,7 +55,7 @@ docker run -d --name v4-tracker-3 \
   --network tracker-net \
   -v /tmp/clickhouse-cluster/node3/data:/data/clickhouse \
   -v /tmp/clickhouse-cluster/node3/logs:/logs/clickhouse \
-  -p 8082:8080 -p 9002:9000 -p 8125:8123 -p 2183:2181 -p 9446:9444 \
+  -p 8082:8080 -p 8445:8443 -p 8882:8880 -p 9002:9000 -p 8125:8123 -p 2183:2181 -p 9446:9444 \
   -e SHARD=3 \
   -e SERVER_ID=3 \
   -e NUM_NODES=3 \

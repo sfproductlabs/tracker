@@ -6,9 +6,10 @@
 
 FROM debian:bookworm-slim
 
-# Ports: tracker(8080), clickhouse-native(9000), clickhouse-http(8123),
+# Ports: tracker-http(8080), tracker-https(8443), tracker-except(8880),
+#        clickhouse-native(9000), clickhouse-http(8123),
 #        keeper(2181), interserver(9009), raft(9444)
-EXPOSE 8080 9000 8123 2181 9009 9444
+EXPOSE 8080 8443 8880 9000 8123 2181 9009 9444
 
 ####################################################################################
 # INSTALL PACKAGES
@@ -123,7 +124,7 @@ ENTRYPOINT ["/app/tracker/entrypoint.sh"]
 #
 # 1. Single-node cluster (default):
 #    docker build -t tracker .
-#    docker run -p 8080:8080 -p 9000:9000 -p 8123:8123 -p 2181:2181 tracker
+#    docker run -p 8080:8080 -p 8443:8443 -p 8880:8880 -p 9000:9000 -p 8123:8123 -p 2181:2181 tracker
 #
 # 2. Three-node cluster (auto-discovery):
 #
@@ -133,7 +134,7 @@ ENTRYPOINT ["/app/tracker/entrypoint.sh"]
 #    # Machine 1 (v4-tracker-1):
 #    docker run -d --name v4-tracker-1 \
 #      --network tracker-net \
-#      -p 8080:8080 -p 9000:9000 -p 8123:8123 -p 2181:2181 -p 9444:9444 \
+#      -p 8080:8080 -p 8443:8443 -p 8880:8880 -p 9000:9000 -p 8123:8123 -p 2181:2181 -p 9444:9444 \
 #      -e SHARD=1 \
 #      -e SERVER_ID=1 \
 #      -e NUM_NODES=3 \
@@ -143,7 +144,7 @@ ENTRYPOINT ["/app/tracker/entrypoint.sh"]
 #    # Machine 2 (v4-tracker-2):
 #    docker run -d --name v4-tracker-2 \
 #      --network tracker-net \
-#      -p 8080:8080 -p 9000:9000 -p 8123:8123 -p 2181:2181 -p 9444:9444 \
+#      -p 8080:8080 -p 8443:8443 -p 8880:8880 -p 9000:9000 -p 8123:8123 -p 2181:2181 -p 9444:9444 \
 #      -e SHARD=2 \
 #      -e SERVER_ID=2 \
 #      -e NUM_NODES=3 \
@@ -153,7 +154,7 @@ ENTRYPOINT ["/app/tracker/entrypoint.sh"]
 #    # Machine 3 (v4-tracker-3):
 #    docker run -d --name v4-tracker-3 \
 #      --network tracker-net \
-#      -p 8080:8080 -p 9000:9000 -p 8123:8123 -p 2181:2181 -p 9444:9444 \
+#      -p 8080:8080 -p 8443:8443 -p 8880:8880 -p 9000:9000 -p 8123:8123 -p 2181:2181 -p 9444:9444 \
 #      -e SHARD=3 \
 #      -e SERVER_ID=3 \
 #      -e NUM_NODES=3 \
@@ -169,7 +170,7 @@ ENTRYPOINT ["/app/tracker/entrypoint.sh"]
 #    docker run -d --name tracker \
 #      -v /mnt/clickhouse-data:/data/clickhouse \
 #      -v /mnt/clickhouse-logs:/logs/clickhouse \
-#      -p 8080:8080 -p 9000:9000 -p 8123:8123 -p 2181:2181 \
+#      -p 8080:8080 -p 8443:8443 -p 8880:8880 -p 9000:9000 -p 8123:8123 -p 2181:2181 \
 #      -e CLICKHOUSE_DATA_DIR="/data/clickhouse" \
 #      -e CLICKHOUSE_LOG_DIR="/logs/clickhouse" \
 #      tracker
