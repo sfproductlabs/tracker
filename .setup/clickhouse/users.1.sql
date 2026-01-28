@@ -22,7 +22,7 @@ CREATE TABLE payments_local ON CLUSTER tracker_cluster (
     man String DEFAULT '',                   -- Manufacturer - product manufacturer
     model String DEFAULT '',                 -- Model - product model/variant
     qty Float64 DEFAULT 0.0,                  -- Quantity - number of units purchased
-    duration Int32 DEFAULT 0,               -- Duration - for subscription products (in days/months)
+    duration Int64 DEFAULT 0,               -- Duration - for subscription products (in days/months)
     starts DateTime64(3) DEFAULT now64(3),         -- Start date - when service/subscription begins
     ends DateTime64(3) DEFAULT now64(3),           -- End date - when service/subscription ends
     price Float64 DEFAULT 0.0,                -- Unit price - price per unit
@@ -42,7 +42,7 @@ CREATE TABLE payments_local ON CLUSTER tracker_cluster (
     country String DEFAULT '',               -- Country - where payment was made
     rcode String DEFAULT '',                 -- Region code - region/state code
     region String DEFAULT '',                -- Region name - region/state name
-    campaign_id UUID DEFAULT '00000000-0000-0000-0000-000000000000',             -- Campaign ID - marketing campaign attribution
+    campaign_id String DEFAULT '',             -- Campaign ID - marketing campaign attribution
     paid_at DateTime64(3) DEFAULT now64(3),        -- Payment date - when payment was received
     created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
@@ -112,7 +112,7 @@ SELECT
     avg(revenue) as avg_line_item_value, -- Average revenue per line item
     max(created_at) as latest_purchase
 FROM payments
-WHERE campaign_id IS NOT NULL AND campaign_id != '00000000-0000-0000-0000-000000000000'
+WHERE campaign_id IS NOT NULL AND campaign_id != ''
 GROUP BY oid, campaign_id, month;
 
 -- Materialized view for looking up payments by user - Enables efficient user payment history
@@ -336,7 +336,7 @@ CREATE TABLE users_local ON CLUSTER tracker_cluster (
     fn String DEFAULT '', -- First name
     ln String DEFAULT '', -- Last name
     locked DateTime64(3) DEFAULT toDateTime64(0, 3), -- Account lock timestamp - if account is locked
-    active DateTime64(3) DEFAULT toDateTime64(0, 3), -- Last active timestamp
+    last_active DateTime64(3) DEFAULT toDateTime64(0, 3), -- Last active timestamp
     magic String DEFAULT '', -- Magic link token - for passwordless authentication
     magic_exp DateTime64(3) DEFAULT toDateTime64(0, 3), -- Magic link expiration
     magic_attempts Int32 DEFAULT 0, -- Magic link attempts - for rate limiting
@@ -488,7 +488,7 @@ CREATE TABLE pauth_local ON CLUSTER tracker_cluster (
     psource String DEFAULT '', -- Payment source identifier (e.g., card ID, bank account token)
     meta String DEFAULT '', -- Metadata about the payment method in JSON format
     priority Int32 DEFAULT 0, -- Priority order for multiple payment methods
-    active DateTime64(3) DEFAULT toDateTime64(0, 3), -- Timestamp when this payment method became active
+    active_since DateTime64(3) DEFAULT toDateTime64(0, 3), -- Timestamp when this payment method became active
     created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who owns this payment method
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
@@ -516,7 +516,7 @@ CREATE TABLE pconfirmation_local ON CLUSTER tracker_cluster (
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     ctype String DEFAULT '', -- Confirmation type (e.g., "charge", "refund", "subscription")
-    ref String DEFAULT '', -- Reference ID - typically an external transaction ID
+    external_ref String DEFAULT '', -- External reference ID - typically a transaction ID from payment provider
     rtype String DEFAULT '', -- Reference type - describes what the ref field references
     meta String DEFAULT '', -- Metadata about the payment event in JSON format
     created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp

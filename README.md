@@ -172,6 +172,19 @@ make cluster-test       # Test cluster connectivity and tables
 make cluster-logs       # Show logs from all 3 nodes
 ```
 
+### Test Scripts
+
+All test scripts are located in the `tests/` directory:
+
+```bash
+# Core test scripts (in tests/ directory)
+make test                          # Run Go unit tests
+make test-single                   # Run tests/test-single.sh (single-node verification)
+make test-cluster                  # Run tests/test-cluster.sh (3-node cluster test)
+make test-db-writes                # Run tests/test_db_writes.sh (100% database write verification)
+make test-all                      # Run all tests (Go + single + db-writes)
+```
+
 ### Functional Endpoint Tests
 
 ```bash
@@ -522,22 +535,6 @@ curl http://localhost:8080/metrics | jq '.batching'
   "batch_success_rate": 0.9992,
   "events_per_second": 2840.5
 }
-```
-
-### Real-World Performance Gains
-
-```
-📊 Individual Inserts (Baseline):
-   - Events: 500
-   - Duration: 15.2s
-   - Events/sec: 32.9
-
-🚀 Batch Inserts (Optimized):
-   - Events: 500
-   - Duration: 1.8s
-   - Events/sec: 277.8
-
-📈 Performance Improvement: 844% faster!
 ```
 
 ## ⚙️ Configuration

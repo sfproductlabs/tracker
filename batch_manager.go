@@ -88,10 +88,10 @@ var DefaultBatchConfigs = map[string]BatchConfig{
 	},
 	"mtriage": {
 		TableName:         "mtriage",
-		Strategy:          StrategyImmediateBatch,
-		MaxBatchSize:      1,
-		MaxBatchTime:      0,
-		MaxMemoryMB:       1,
+		Strategy:          StrategyHybridBatch, // Using HybridBatch to support SETTINGS insert_deduplicate
+		MaxBatchSize:      50,                  // Increased from 10 for better batching efficiency
+		MaxBatchTime:      2 * time.Second,     // 2 second window - balance between urgency and batching
+		MaxMemoryMB:       2,
 		Priority:          1, // Highest priority - critical for follow-ups
 		RetryAttempts:     5,
 		RetryBackoffMs:    50,
@@ -738,9 +738,14 @@ func (bm *BatchManager) processPriorityItems() {
 			return
 
 		case item := <-bm.priorityChan:
+			if bm.AppConfig.Debug {
+				fmt.Printf("[DEBUG] Processing priority item for table: %s\n", item.TableName)
+			}
 			if err := bm.processItemImmediately(item); err != nil {
 				globalMetrics.UpdateErrorCount()
 				fmt.Printf("[ERROR] Failed to process priority item: %v\n", err)
+			} else if bm.AppConfig.Debug {
+				fmt.Printf("[DEBUG] Successfully processed priority item for table: %s\n", item.TableName)
 			}
 		}
 	}
@@ -752,8 +757,21 @@ func (bm *BatchManager) processItemImmediately(item BatchItem) error {
 	defer cancel()
 
 	start := time.Now()
+
+	if bm.AppConfig.Debug {
+		sqlPreview := item.SQL
+		if len(sqlPreview) > 100 {
+			sqlPreview = sqlPreview[:100] + "..."
+		}
+		fmt.Printf("[DEBUG] Executing SQL for table %s: %s\n", item.TableName, sqlPreview)
+	}
+
 	err := bm.session.Exec(ctx, item.SQL, item.Args...)
 	latency := time.Since(start)
+
+	if bm.AppConfig.Debug {
+		fmt.Printf("[DEBUG] Exec result for %s: error=%v, latency=%v\n", item.TableName, err, latency)
+	}
 
 	if err != nil {
 		return NewTrackerError(ErrorTypeQuery, "processItemImmediately",
@@ -826,7 +844,9 @@ func (bm *BatchManager) executeBatch(tableName string, items []BatchItem) error 
 		if err := batch.Append(item.Args...); err != nil {
 			atomic.AddInt64(&bm.metrics.FailedBatches, 1)
 			fmt.Printf("[ERROR] Batch append failed for table %s, item %d: %v\n", tableName, i, err)
-			fmt.Printf("[DEBUG] Failed item args: %+v\n", item.Args)
+			if bm.AppConfig.Debug {
+				fmt.Printf("[DEBUG] Failed item args: %+v\n", item.Args)
+			}
 			return NewTrackerError(ErrorTypeQuery, "executeBatch",
 				fmt.Sprintf("failed to append to batch for table %s: %v", tableName, err), true)
 		}
@@ -850,16 +870,19 @@ func (bm *BatchManager) executeBatch(tableName string, items []BatchItem) error 
 
 		// Log detailed error information
 		fmt.Printf("[ERROR] Batch execution failed for table %s: %v\n", tableName, execErr)
-		fmt.Printf("[DEBUG] SQL: %s\n", bm.buildBatchSQL(tableName, items[0]))
-		fmt.Printf("[DEBUG] Number of items: %d\n", len(items))
 
-		// Log first few items for debugging
-		for i, item := range items {
-			if i >= 3 { // Only log first 3 items to avoid spam
-				fmt.Printf("[DEBUG] ... and %d more items\n", len(items)-3)
-				break
+		if bm.AppConfig.Debug {
+			fmt.Printf("[DEBUG] SQL: %s\n", bm.buildBatchSQL(tableName, items[0]))
+			fmt.Printf("[DEBUG] Number of items: %d\n", len(items))
+
+			// Log first few items for debugging
+			for i, item := range items {
+				if i >= 3 { // Only log first 3 items to avoid spam
+					fmt.Printf("[DEBUG] ... and %d more items\n", len(items)-3)
+					break
+				}
+				fmt.Printf("[DEBUG] Item %d args: %+v\n", i, item.Args)
 			}
-			fmt.Printf("[DEBUG] Item %d args: %+v\n", i, item.Args)
 		}
 
 		return NewTrackerError(ErrorTypeQuery, "executeBatch",

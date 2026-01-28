@@ -198,7 +198,7 @@ func (service *TestClickhouseService) writeLTV(writeArgs *WriteArgs) error {
 		getStringValue(values, "country", ""),
 		getStringValue(values, "rcode", ""),
 		getStringValue(values, "region", ""),
-		uuid.Nil, // campaign_id
+		"", // campaign_id (String type with default '')
 		now,
 		now,
 		now,

@@ -28,13 +28,13 @@ CREATE TABLE visitor_interests_local ON CLUSTER tracker_cluster (
     audience_tags Array(String) DEFAULT [],          -- ["ceo", "executive", "founder", "developer"]
     audience_counts JSON DEFAULT '{}',                  -- {"ceo": 5, "executive": 3}
     audience_vector Array(Float32) DEFAULT [] CODEC(NONE),  -- 384-dim (via taxonomy arithmetic)
-    audience_confidence Float32 DEFAULT 0, -- Confidence in audience classification (0-1)
+    audience_confidence Float64 DEFAULT 0.0, -- Confidence in audience classification (0-1)
 
     -- DIMENSION 2: CONTENT Tags (WHAT they're interested in)
     content_tags Array(String) DEFAULT [],           -- ["sports", "technology", "finance", "health"]
     content_counts JSON DEFAULT '{}',                   -- {"sports": 12, "technology": 8}
     content_vector Array(Float32) DEFAULT [] CODEC(NONE),   -- 384-dim (via taxonomy arithmetic)
-    content_confidence Float32 DEFAULT 0,  -- Confidence in content interests (0-1)
+    content_confidence Float64 DEFAULT 0.0,  -- Confidence in content interests (0-1)
 
     -- COMBINED (for backward compatibility)
     interests Array(String) DEFAULT [],               -- All tags combined (audience + content)
@@ -74,7 +74,7 @@ CREATE TABLE visitor_interests_local ON CLUSTER tracker_cluster (
     last_updated DateTime64(3) DEFAULT toDateTime64(0, 3),            -- Last tag update
     total_interactions Int64 DEFAULT 0,              -- Total tracked interactions
     unique_campaigns Int64 DEFAULT 0,                -- Number of unique campaigns
-    confidence_score Float32 DEFAULT 0,              -- Overall confidence (0-1)
+    confidence_score Float64 DEFAULT 0.0,              -- Overall confidence (0-1)
 
     -- Optional Context
     context JSON DEFAULT '{}',                          -- Additional context {"platform": "web", "device": "mobile"}

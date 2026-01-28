@@ -53,6 +53,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -584,6 +585,43 @@ func getStringValue(v interface{}) string {
 	return fmt.Sprintf("%v", v)
 }
 
+// getDateTimeOrZero converts interface{} to time.Time for ClickHouse DateTime64
+func getDateTimeOrZero(v interface{}) time.Time {
+	if v == nil {
+		return time.Unix(0, 0).UTC()
+	}
+
+	switch t := v.(type) {
+	case time.Time:
+		return t
+	case *time.Time:
+		if t != nil {
+			return *t
+		}
+		return time.Unix(0, 0).UTC()
+	case string:
+		if t == "" {
+			return time.Unix(0, 0).UTC()
+		}
+		// Try to parse the string as a time
+		if parsed, err := time.Parse(time.RFC3339, t); err == nil {
+			return parsed
+		}
+		if parsed, err := time.Parse("2006-01-02 15:04:05", t); err == nil {
+			return parsed
+		}
+		return time.Unix(0, 0).UTC()
+	case float64:
+		// Unix timestamp
+		return time.Unix(int64(t), 0).UTC()
+	case int64:
+		// Unix timestamp
+		return time.Unix(t, 0).UTC()
+	default:
+		return time.Unix(0, 0).UTC()
+	}
+}
+
 // getStringPtr converts interface{} to *string with nil safety
 func getStringPtr(v interface{}) *string {
 	if v == nil {
@@ -596,9 +634,10 @@ func getStringPtr(v interface{}) *string {
 	return &str
 }
 
-// parseUUID converts interface{} to *uuid.UUID with error handling
+// parseUUID converts interface{} or *uuid.UUID to *uuid.UUID with error handling
 // By default returns a pointer to the zero UUID instead of nil to prevent ClickHouse binding panics
 // Pass allowNil=true as second argument to allow nil returns (for optional UUID fields)
+// Accepts: interface{} (string conversion), *uuid.UUID (passthrough if not nil), uuid.UUID (returns pointer)
 func parseUUID(v interface{}, allowNil ...bool) *uuid.UUID {
 	// Check if nil is allowed (default: false)
 	canReturnNil := false
@@ -606,6 +645,23 @@ func parseUUID(v interface{}, allowNil ...bool) *uuid.UUID {
 		canReturnNil = allowNil[0]
 	}
 
+	// Handle *uuid.UUID input directly
+	if uuidPtr, ok := v.(*uuid.UUID); ok {
+		if uuidPtr == nil {
+			if canReturnNil {
+				return nil
+			}
+			return &zeroUUID
+		}
+		return uuidPtr
+	}
+
+	// Handle uuid.UUID value (return pointer to it)
+	if uuidVal, ok := v.(uuid.UUID); ok {
+		return &uuidVal
+	}
+
+	// Handle string conversion via getStringValue
 	str := getStringValue(v)
 	if str == "" {
 		if canReturnNil {
@@ -622,6 +678,78 @@ func parseUUID(v interface{}, allowNil ...bool) *uuid.UUID {
 		return nil
 	}
 	return &zeroUUID
+}
+
+// jsonAsMap converts interface to map[string]interface{} for scenarios where
+// json.RawMessage is incompatible with the execution method.
+// This is useful when:
+// - Using immediate batch execution (session.Exec) with JSON columns
+// - ClickHouse driver cannot handle json.RawMessage in certain contexts
+// - You need a plain map instead of encoded JSON bytes
+// Example: mtriage table with ImmediateBatch strategy requires this for JSON fields
+func jsonAsMap(m interface{}) interface{} {
+	if m == nil {
+		return map[string]interface{}{}
+	}
+	switch v := m.(type) {
+	case *map[string]interface{}:
+		if v == nil {
+			return map[string]interface{}{}
+		}
+		return *v
+	case *map[string]float64:
+		if v == nil {
+			return map[string]interface{}{}
+		}
+		// Convert map[string]float64 to map[string]interface{}
+		result := make(map[string]interface{})
+		for k, val := range *v {
+			result[k] = val
+		}
+		return result
+	case map[string]interface{}:
+		return v
+	case map[string]float64:
+		// Convert map[string]float64 to map[string]interface{}
+		result := make(map[string]interface{})
+		for k, val := range v {
+			result[k] = val
+		}
+		return result
+	case string:
+		// If it's already a JSON string, try to unmarshal it
+		if v == "" {
+			return map[string]interface{}{}
+		}
+		var result map[string]interface{}
+		if err := json.Unmarshal([]byte(v), &result); err == nil {
+			return result
+		}
+		// If unmarshal fails, return as a wrapped string
+		return map[string]interface{}{"value": v}
+	case json.RawMessage:
+		// Unmarshal RawMessage to map
+		if len(v) == 0 {
+			return map[string]interface{}{}
+		}
+		var result map[string]interface{}
+		if err := json.Unmarshal(v, &result); err == nil {
+			return result
+		}
+		return map[string]interface{}{}
+	default:
+		if v == nil {
+			return map[string]interface{}{}
+		}
+		// Try to convert to map through JSON marshal/unmarshal
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			var result map[string]interface{}
+			if err := json.Unmarshal(jsonBytes, &result); err == nil {
+				return result
+			}
+		}
+		return map[string]interface{}{}
+	}
 }
 
 // //////////////////////////////////////
@@ -674,4 +802,117 @@ func getMetricValue(metrics map[string]interface{}, key string) float64 {
 		}
 	}
 	return 0
+}
+
+// formatClickHouseDateTime formats a time.Time for ClickHouse DateTime64(3)
+// ClickHouse expects format: "2006-01-02 15:04:05.000" (no timezone suffix)
+// This prevents errors like: "Cannot parse string '2026-01-27 10:07:24.814492 +0000 UTC' as DateTime64(3)"
+func formatClickHouseDateTime(t *time.Time) string {
+	if t == nil {
+		return "1970-01-01 00:00:00.000"
+	}
+	// Format with millisecond precision (3 decimal places)
+	return t.UTC().Format("2006-01-02 15:04:05.000")
+}
+
+// //////////////////////////////////////
+// JSON utility functions
+// //////////////////////////////////////
+
+// jsonOrNull converts a map to JSON string for ClickHouse JSON type
+// TODO: could use []byte("null") or json.RawMessage("null") in the place of json.RawMessage("{}")
+// getJSONString returns a JSON string for direct insertion (used with immediate execution)
+func getJSONString(m interface{}) string {
+	if m == nil {
+		return "{}"
+	}
+	switch v := m.(type) {
+	case string:
+		// If it's already a JSON string, return it
+		if strings.HasPrefix(v, "{") || strings.HasPrefix(v, "[") {
+			return v
+		}
+		// Otherwise wrap it
+		return "{}"
+	case map[string]interface{}:
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			return string(jsonBytes)
+		}
+		return "{}"
+	case *map[string]interface{}:
+		if v == nil {
+			return "{}"
+		}
+		if jsonBytes, err := json.Marshal(*v); err == nil {
+			return string(jsonBytes)
+		}
+		return "{}"
+	case []interface{}:
+		// Convert array to object for JSON columns
+		if jsonBytes, err := json.Marshal(map[string]interface{}{"data": v}); err == nil {
+			return string(jsonBytes)
+		}
+		return "{}"
+	default:
+		// Try to marshal whatever it is
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			return string(jsonBytes)
+		}
+		return "{}"
+	}
+}
+
+func jsonOrNull(m interface{}) interface{} {
+	if m == nil {
+		return json.RawMessage("{}")
+	}
+	switch v := m.(type) {
+	case *map[string]interface{}:
+		if v == nil {
+			return json.RawMessage("{}")
+		}
+		if jsonBytes, err := json.Marshal(*v); err == nil {
+			return json.RawMessage(jsonBytes)
+		}
+		return json.RawMessage("{}")
+	case *map[string]float64:
+		if v == nil {
+			return json.RawMessage("{}")
+		}
+		if jsonBytes, err := json.Marshal(*v); err == nil {
+			return json.RawMessage(jsonBytes)
+		}
+		return json.RawMessage("{}")
+	case map[string]interface{}:
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			return json.RawMessage(jsonBytes)
+		}
+		return json.RawMessage("{}")
+	case map[string]float64:
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			return json.RawMessage(jsonBytes)
+		}
+		return json.RawMessage("{}")
+	case string:
+		// If it's already a JSON string
+		if v == "" {
+			return json.RawMessage("{}")
+		}
+		return json.RawMessage(v)
+	case json.RawMessage:
+		// Return RawMessage as-is
+		if len(v) == 0 {
+			return json.RawMessage("{}")
+		}
+		return v
+	default:
+		if v == nil {
+			return json.RawMessage("{}")
+		}
+		// Try to marshal other types
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			return json.RawMessage(jsonBytes)
+		}
+		return json.RawMessage("{}")
+	}
 }

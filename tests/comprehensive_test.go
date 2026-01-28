@@ -389,7 +389,7 @@ func testMessagingTables(t *testing.T, s *TestService, oid, tid, vid, uid uuid.U
 
 	// Test impression_daily table
 	t.Run("impression_daily", func(t *testing.T) {
-		campaignID := uuid.New()
+		campaignID := "test-campaign-123" // campaign_id is now String type
 		day := time.Now().UTC().Truncate(24 * time.Hour)
 		err := s.Session.Exec(ctx, `INSERT INTO impression_daily (
 			oid, org, tid, campaign_id, day, variant_id, total_impressions, anonymous_impressions,
@@ -399,7 +399,7 @@ func testMessagingTables(t *testing.T, s *TestService, oid, tid, vid, uid uuid.U
 		if err != nil {
 			t.Errorf("impression_daily insert failed: %v", err)
 		} else {
-			t.Logf("✓ impression_daily: %s", campaignID.String()[:8])
+			t.Logf("✓ impression_daily: %s", campaignID[:8])
 		}
 	})
 }
@@ -568,7 +568,7 @@ func testCoreTables(t *testing.T, s *TestService, oid, vid, sid uuid.UUID) {
 			8.0, 0.08, 5.0, 2.0, 1.0,
 			99.99, 107.99, 107.99,
 			"USD", "US", "CA", "California",
-			uuid.Nil, now,
+			"", now, // campaign_id is now String type with default ''
 			now, now)
 		if err != nil {
 			t.Errorf("payments insert failed: %v", err)

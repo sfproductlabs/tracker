@@ -280,7 +280,7 @@ func (i *ClickhouseService) connect() error {
 			"max_block_size":               10000,
 			"max_insert_block_size":        1048576,
 			"async_insert":                 1,
-			"wait_for_async_insert":        0,
+			"wait_for_async_insert":        1, // Wait for async inserts to be flushed
 			"async_insert_max_data_size":   10000000,
 			"async_insert_busy_timeout_ms": 200,
 			"max_threads":                  0, // Auto-detect
@@ -403,7 +403,7 @@ func (i *ClickhouseService) connect() error {
 	if i.AppConfig.ProxyDailyLimit > 0 && i.AppConfig.ProxyDailyLimitCheck == nil && i.AppConfig.ProxyDailyLimitChecker == SERVICE_TYPE_CLICKHOUSE {
 		i.AppConfig.ProxyDailyLimitCheck = func(ip string) uint64 {
 			var total uint64
-			if err := (*i.Session).QueryRow(context.Background(), `SELECT total FROM dailies WHERE ip=? AND day=? final`, ip, time.Now().UTC().Format("2006-01-02")).Scan(&total); err != nil {
+			if err := (*i.Session).QueryRow(context.Background(), `SELECT total FROM sfpla.dailies FINAL WHERE ip=? AND day=?`, ip, time.Now().UTC().Format("2006-01-02")).Scan(&total); err != nil {
 				return 0xFFFFFFFFFFFFFFFF
 			}
 			return total
@@ -516,7 +516,7 @@ func (i *ClickhouseService) auth(s *ServiceArgs) error {
 		return fmt.Errorf("User pass not provided")
 	}
 	var pwd string
-	if err := (*i.Session).QueryRow(context.Background(), `SELECT pwd FROM accounts WHERE uid=? final`, uid).Scan(&pwd); err == nil {
+	if err := (*i.Session).QueryRow(context.Background(), `SELECT pwd FROM sfpla.accounts FINAL WHERE uid=?`, uid).Scan(&pwd); err == nil {
 		if pwd != sha(password) {
 			return fmt.Errorf("Bad pass")
 		}
@@ -672,37 +672,37 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 
 				// Insert into agreements table
 				agreementsData := map[string]interface{}{
-					"vid": vid, "created_at": created, "cflags": cflags, "sid": sid, "uid": uid, "avid": avid, "hhash": hhash,
+					"vid": parseUUID(vid), "created_at": created, "cflags": cflags, "sid": parseUUID(sid), "uid": parseUUID(uid), "avid": parseUUID(avid), "hhash": hhash,
 					"app": b["app"], "rel": b["rel"], "url": b["url"], "ip": ip, "iphash": iphash, "gaid": b["gaid"], "idfa": b["idfa"], "msid": b["msid"], "fbid": b["fbid"],
 					"country": country, "region": region, "culture": b["culture"], "source": b["source"], "medium": b["medium"], "campaign": b["campaign"], "term": b["term"], "ref": b["ref"], "rcode": b["rcode"], "aff": b["aff"],
-					"browser": browser, "bhash": bhash, "device": b["device"], "os": b["os"], "tz": b["tz"], "vp_w": b["w"], "vp_h": b["h"], "lat": lat, "lon": lon, "zip": b["zip"], "owner": owner, "oid": oid,
+					"browser": browser, "bhash": bhash, "device": b["device"], "os": b["os"], "tz": b["tz"], "vp_w": b["w"], "vp_h": b["h"], "lat": lat, "lon": lon, "zip": b["zip"], "owner": parseUUID(owner), "oid": parseUUID(oid),
 				}
-				if err := i.batchInsert("agreements", `INSERT INTO agreements (
+				if err := i.batchInsert("agreements", `INSERT INTO sfpla.agreements (
 					vid, created_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
 					country, region, culture, source, medium, campaign, term, ref, rcode, aff, 
 					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, oid
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					[]interface{}{vid, created, cflags, sid, uid, avid, hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
+					[]interface{}{parseUUID(vid), created, cflags, parseUUID(sid), parseUUID(uid), parseUUID(avid), hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
 						country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
-						browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, oid}, agreementsData); err != nil {
+						browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], parseUUID(owner), parseUUID(oid)}, agreementsData); err != nil {
 					return err
 				}
 
 				// Insert into agreed table (history)
 				agreedData := map[string]interface{}{
-					"vid": vid, "created_at": created, "cflags": cflags, "sid": sid, "uid": uid, "avid": avid, "hhash": hhash,
+					"vid": parseUUID(vid), "created_at": created, "cflags": cflags, "sid": parseUUID(sid), "uid": parseUUID(uid), "avid": parseUUID(avid), "hhash": hhash,
 					"app": b["app"], "rel": b["rel"], "url": b["url"], "ip": ip, "iphash": iphash, "gaid": b["gaid"], "idfa": b["idfa"], "msid": b["msid"], "fbid": b["fbid"],
 					"country": country, "region": region, "culture": b["culture"], "source": b["source"], "medium": b["medium"], "campaign": b["campaign"], "term": b["term"], "ref": b["ref"], "rcode": b["rcode"], "aff": b["aff"],
-					"browser": browser, "bhash": bhash, "device": b["device"], "os": b["os"], "tz": b["tz"], "vp_w": b["w"], "vp_h": b["h"], "lat": lat, "lon": lon, "zip": b["zip"], "owner": owner, "oid": oid,
+					"browser": browser, "bhash": bhash, "device": b["device"], "os": b["os"], "tz": b["tz"], "vp_w": b["w"], "vp_h": b["h"], "lat": lat, "lon": lon, "zip": b["zip"], "owner": parseUUID(owner), "oid": parseUUID(oid),
 				}
-				if err := i.batchInsert("agreed", `INSERT INTO agreed (
+				if err := i.batchInsert("agreed", `INSERT INTO sfpla.agreed (
 					vid, created_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
 					country, region, culture, source, medium, campaign, term, ref, rcode, aff, 
 					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, oid
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					[]interface{}{vid, created, cflags, sid, uid, avid, hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
+					[]interface{}{parseUUID(vid), created, cflags, parseUUID(sid), parseUUID(uid), parseUUID(avid), hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
 						country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
-						browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], owner, oid}, agreedData); err != nil {
+						browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], parseUUID(owner), parseUUID(oid)}, agreedData); err != nil {
 					return err
 				}
 
@@ -718,7 +718,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		var vid string
 		if len(r.URL.Query()["vid"]) > 0 {
 			vid = r.URL.Query()["vid"][0]
-			rows, err := (*i.Session).Query(ctx, `SELECT * FROM agreements WHERE vid=? final`, vid)
+			rows, err := (*i.Session).Query(ctx, `SELECT * FROM sfpla.agreements FINAL WHERE vid=?`, vid)
 			if err != nil {
 				return err
 			}
@@ -745,7 +745,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		}
 		return nil
 	case SVC_GET_JURISDICTIONS:
-		rows, err := (*i.Session).Query(ctx, `SELECT * FROM jurisdictions final`)
+		rows, err := (*i.Session).Query(ctx, `SELECT * FROM sfpla.jurisdictions FINAL`)
 		if err != nil {
 			return err
 		}
@@ -786,7 +786,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		if err := i.auth(s); err != nil {
 			return err
 		}
-		rows, err := (*i.Session).Query(ctx, `SELECT * FROM redirect_history final`)
+		rows, err := (*i.Session).Query(ctx, `SELECT * FROM sfpla.redirect_history FINAL`)
 		if err != nil {
 			return err
 		}
@@ -809,7 +809,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 	case SVC_GET_REDIRECT:
 		//TODO: AG ADD CACHE
 		var redirect string
-		if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM redirects WHERE urlfrom=? final`, getFullURL(r)).Scan(&redirect); err == nil {
+		if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM sfpla.redirects FINAL WHERE urlfrom=?`, getFullURL(r)).Scan(&redirect); err == nil {
 			s.Values = &map[string]string{"Redirect": redirect}
 			http.Redirect(*w, r, redirect, http.StatusFound)
 			return nil
@@ -887,13 +887,13 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 					"urlfrom":    strings.ToLower(urlfromURL.Host) + strings.ToLower(urlfromURL.Path),
 					"urlto":      urlto,
 					"updated_at": updated,
-					"updater":    updater,
-					"oid":        oid,
+					"updater":    parseUUID(updater),
+					"oid":        parseUUID(oid),
 				}
-				if err := i.batchInsert("redirects", `INSERT INTO redirects (
+				if err := i.batchInsert("redirects", `INSERT INTO sfpla.redirects (
 					hhash, urlfrom, urlto, updated_at, updater, oid
 				) VALUES (?, ?, ?, ?, ?, ?)`,
-					[]interface{}{hhash, strings.ToLower(urlfromURL.Host) + strings.ToLower(urlfromURL.Path), urlto, updated, updater, oid}, redirectsData); err != nil {
+					[]interface{}{hhash, strings.ToLower(urlfromURL.Host) + strings.ToLower(urlfromURL.Path), urlto, updated, parseUUID(updater), parseUUID(oid)}, redirectsData); err != nil {
 					return err
 				}
 
@@ -906,14 +906,14 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 					"hostto":   strings.ToLower(urltoURL.Host),
 					"pathto":   strings.ToLower(urlfromURL.Path),
 					"searchto": b["searchto"],
-					"updater":  updater,
-					"oid":      oid,
+					"updater":  parseUUID(updater),
+					"oid":      parseUUID(oid),
 				}
-				if err := i.batchInsert("redirect_history", `INSERT INTO redirect_history (
+				if err := i.batchInsert("redirect_history", `INSERT INTO sfpla.redirect_history (
 					urlfrom, hostfrom, slugfrom, urlto, hostto, pathto, searchto, 
 					updater, oid
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					[]interface{}{urlfrom, strings.ToLower(urlfromURL.Host), strings.ToLower(urlfromURL.Path), urlto, strings.ToLower(urltoURL.Host), strings.ToLower(urlfromURL.Path), b["searchto"], updater, oid}, redirectHistoryData); err != nil {
+					[]interface{}{urlfrom, strings.ToLower(urlfromURL.Host), strings.ToLower(urlfromURL.Path), urlto, strings.ToLower(urltoURL.Host), strings.ToLower(urlfromURL.Path), b["searchto"], parseUUID(updater), parseUUID(oid)}, redirectHistoryData); err != nil {
 					return err
 				}
 				(*w).WriteHeader(http.StatusOK)
@@ -1106,7 +1106,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				"total": 1,
 				"date":  time.Now().UTC().Format("2006-01-02"),
 			}
-			return i.batchInsert("counters", `INSERT INTO counters (id, total, date) VALUES (?, ?, ?)`,
+			return i.batchInsert("counters", `INSERT INTO sfpla.counters (id, total, date) VALUES (?, ?, ?)`,
 				[]interface{}{v["id"], 1, time.Now().UTC().Format("2006-01-02")}, countersData)
 		}
 		return nil
@@ -1128,7 +1128,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				"updated_at": timestamp,
 				"msg":        v["msg"],
 			}
-			return i.batchInsert("updates", `INSERT INTO updates (id, updated_at, msg) VALUES (?, ?, ?)`,
+			return i.batchInsert("updates", `INSERT INTO sfpla.updates (id, updated_at, msg) VALUES (?, ?, ?)`,
 				[]interface{}{v["id"], timestamp, v["msg"]}, updatesData)
 		}
 		return nil
@@ -1214,7 +1214,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 				"params":     jsonOrNull(params),
 				"oid":        parseUUID(v["oid"]),
 			}
-			return i.batchInsert("logs", `INSERT INTO logs
+			return i.batchInsert("logs", `INSERT INTO sfpla.logs
 			  (
 				  id,
 				  ldate,
@@ -1455,63 +1455,6 @@ func convertParamsToTypes(params *map[string]interface{}) {
 	}
 }
 
-// jsonOrNull converts a map to JSON string for ClickHouse JSON type
-// TODO: could use []byte("null") or json.RawMessage("null") in the place of json.RawMessage("{}")
-func jsonOrNull(m interface{}) interface{} {
-	if m == nil {
-		return json.RawMessage("{}")
-	}
-	switch v := m.(type) {
-	case *map[string]interface{}:
-		if v == nil {
-			return json.RawMessage("{}")
-		}
-		if jsonBytes, err := json.Marshal(*v); err == nil {
-			return json.RawMessage(jsonBytes)
-		}
-		return json.RawMessage("{}")
-	case *map[string]float64:
-		if v == nil {
-			return json.RawMessage("{}")
-		}
-		if jsonBytes, err := json.Marshal(*v); err == nil {
-			return json.RawMessage(jsonBytes)
-		}
-		return json.RawMessage("{}")
-	case map[string]interface{}:
-		if jsonBytes, err := json.Marshal(v); err == nil {
-			return json.RawMessage(jsonBytes)
-		}
-		return json.RawMessage("{}")
-	case map[string]float64:
-		if jsonBytes, err := json.Marshal(v); err == nil {
-			return json.RawMessage(jsonBytes)
-		}
-		return json.RawMessage("{}")
-	case string:
-		// If it's already a JSON string
-		if v == "" {
-			return json.RawMessage("{}")
-		}
-		return json.RawMessage(v)
-	case json.RawMessage:
-		// Return RawMessage as-is
-		if len(v) == 0 {
-			return json.RawMessage("{}")
-		}
-		return v
-	default:
-		if v == nil {
-			return json.RawMessage("{}")
-		}
-		// Try to marshal other types
-		if jsonBytes, err := json.Marshal(v); err == nil {
-			return json.RawMessage(jsonBytes)
-		}
-		return json.RawMessage("{}")
-	}
-}
-
 // mustMarshalJSON marshals a value to JSON string, returns "{}" on error
 func mustMarshalJSON(v interface{}) string {
 	if v == nil {
@@ -1578,12 +1521,8 @@ func (i *ClickhouseService) batchInsertWithOptions(tableName, sql string, args [
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		err := (*i.Session).Exec(ctx, sql, args...)
-		if i.AppConfig.Debug {
-			if err != nil {
-				fmt.Printf("[DEBUG] Instant insert failed for table %s: %v\n", tableName, err)
-			} else {
-				fmt.Printf("[DEBUG] Instant insert successful for table: %s\n", tableName)
-			}
+		if err != nil && i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] Instant insert failed for table %s: %v\n", tableName, err)
 		}
 		return err
 	}
@@ -1599,12 +1538,8 @@ func (i *ClickhouseService) batchInsertWithOptions(tableName, sql string, args [
 			Data:      data,
 		}
 		err := i.batchManager.AddItem(item)
-		if i.AppConfig.Debug {
-			if err != nil {
-				fmt.Printf("[DEBUG] Batch add failed for table %s: %v\n", tableName, err)
-			} else {
-				fmt.Printf("[DEBUG] Batch add successful for table: %s\n", tableName)
-			}
+		if err != nil && i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] Batch add failed for table %s: %v\n", tableName, err)
 		}
 		return err
 	}
@@ -1616,12 +1551,8 @@ func (i *ClickhouseService) batchInsertWithOptions(tableName, sql string, args [
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := (*i.Session).Exec(ctx, sql, args...)
-	if i.AppConfig.Debug {
-		if err != nil {
-			fmt.Printf("[DEBUG] Direct insert failed for table %s: %v\n", tableName, err)
-		} else {
-			fmt.Printf("[DEBUG] Direct insert successful for table: %s\n", tableName)
-		}
+	if err != nil && i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] Direct insert failed for table %s: %v\n", tableName, err)
 	}
 	return err
 }
@@ -1692,7 +1623,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	updated := time.Now().UTC()
 
 	// Parse UUID fields
-	var vid, sid, uid, auth, rid, oid, invoiceID *uuid.UUID
+	var vid, sid, uid, authID, rid, oid, invoiceID *uuid.UUID
 	if temp, ok := v["vid"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
 			vid = &parsed
@@ -1708,9 +1639,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			uid = &parsed
 		}
 	}
-	if temp, ok := v["auth"].(string); ok {
+	if temp, ok := v["auth_id"].(string); ok {
 		if parsed, err := uuid.Parse(temp); err == nil {
-			auth = &parsed
+			authID = &parsed
 		}
 	}
 	if temp, ok := v["rid"].(string); ok {
@@ -1854,7 +1785,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			"uri", "hhash", "iphash", "cell", "chash", "email", "ehash", "uname", "acct",
 			"first", "lat", "lon", "w", "h", "params", "eid", "tr", "time", "vid", "did", "sid",
 			"app", "rel", "cflags", "created", "uid", "last", "url", "ip", "latlon", "ptyp",
-			"bhash", "auth", "duration", "xid", "split", "etyp", "ver", "sink", "score",
+			"bhash", "auth_id", "duration", "xid", "split", "etyp", "ver", "sink", "score",
 			"gaid", "idfa", "msid", "fbid", "country", "region", "city", "zip", "culture",
 			"ref", "aff", "browser", "device", "os", "tz", "vp", "targets", "rid", "relation",
 			"rcode", "ename", "source", "content", "medium", "campaign", "term", "v1",
@@ -2007,14 +1938,32 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	// Check if this is a campaign-related event and handle campaign telemetry
 	var tid *uuid.UUID
 	if tidStr, ok := v["tid"].(string); ok {
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] Found tid string in event: %s\n", tidStr)
+		}
 		if parsedTid, err := uuid.Parse(tidStr); err == nil {
 			tid = &parsedTid
+			if i.AppConfig.Debug {
+				fmt.Printf("[DEBUG] Successfully parsed tid: %v\n", *tid)
+			}
 
 			// Integrate campaign tracking functionality from telemetry_campaign.go
+			// Use parseUUID to handle nil safely - it returns a zero UUID when nil
+			parsedVid := parseUUID(vid)
+			if parsedVid == nil {
+				parsedVid = &uuid.UUID{}
+			}
+
+			// Handle nil params by providing empty map
+			campaignProperties := make(map[string]interface{})
+			if params != nil {
+				campaignProperties = *params
+			}
+
 			if err := i.handleCampaignEvent(ctx, &CampaignEventData{
 				TID:         *tid,
 				EventID:     w.EventID,
-				VisitorID:   *vid,
+				VisitorID:   *parsedVid,
 				UserID:      uid,
 				OrgID:       oid,
 				EventType:   getStringValue(v["ename"]),
@@ -2026,7 +1975,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				UTMMedium:   getStringValue(v["medium"]),
 				UTMContent:  getStringValue(v["content"]),
 				UTMTerm:     getStringValue(v["term"]),
-				Properties:  *params,
+				Properties:  campaignProperties,
 				Revenue:     score, // Using score as revenue proxy
 				IPAddress:   &w.IP,
 				UserAgent:   &w.Browser,
@@ -2051,7 +2000,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		"total": 1,
 		"date":  time.Now().UTC().Format("2006-01-02"),
 	}
-	if xerr := i.batchInsert("ips", `INSERT INTO ips (hhash, ip, total, date) VALUES (?, ?, ?, ?)`,
+	if xerr := i.batchInsert("ips", `INSERT INTO sfpla.ips (hhash, ip, total, date) VALUES (?, ?, ?, ?)`,
 		[]interface{}{*hhash, w.IP, 1, time.Now().UTC().Format("2006-01-02")}, ipsData); xerr != nil && i.AppConfig.Debug {
 		fmt.Println("CH[ips]:", xerr)
 	}
@@ -2073,18 +2022,18 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 	//events (batched)
 	if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS)) {
-		if xerr := i.batchInsert("events", `INSERT INTO events (
+		if xerr := i.batchInsert("events", `INSERT INTO sfpla.events (
 			eid, vid, sid, oid, org, hhash, app, rel, cflags,
 			created_at, uid, tid, last, url, ip, iphash, lat, lon, ptyp,
-			bhash, auth, duration, xid, split, ename, source, medium, campaign, content,
+			bhash, auth_id, duration, xid, split, ename, source, medium, campaign, content,
 			country, region, city, zip, term, etyp, ver, sink, score, params,
 			invoice_id, targets, relation, rid, ja4h
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 SETTINGS insert_deduplicate = 1`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), getStringValue(v["org"]), hhash, v["app"], v["rel"], cflags,
-				updated, parseUUID(uid), tid, v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
-				bhash, parseUUID(auth), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"], v["content"],
+				updated, parseUUID(uid), parseUUID(tid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
+				bhash, parseUUID(authID), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"], v["content"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
 				parseUUID(invoiceID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
 			}, v); xerr != nil && i.AppConfig.Debug {
@@ -2147,9 +2096,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			}
 
 			interestData := map[string]interface{}{
-				"vid":                  vid,
-				"uid":                  uid,
-				"oid":                  oid,
+				"vid":                  parseUUID(vid),
+				"uid":                  parseUUID(uid),
+				"oid":                  parseUUID(oid),
 				"audience_tags":        audienceTags,
 				"audience_counts":      mustMarshalJSON(audienceCounts),
 				"content_tags":         contentTags,
@@ -2172,7 +2121,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				"location_updated_at":  updated,
 			}
 
-			if xerr := i.batchInsert("visitor_interests", `INSERT INTO visitor_interests (
+			if xerr := i.batchInsert("visitor_interests", `INSERT INTO sfpla.visitor_interests (
 				vid, uid, oid, org,
 				audience_tags, audience_counts,
 				content_tags, content_counts,
@@ -2205,12 +2154,15 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 	// Handle message thread updates for mthreads, mstore, and mtriage
 	if tid != nil {
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] Found tid: %v, updating messaging tables\n", *tid)
+		}
 		if err := i.updateMThreadsTable(ctx, tid, oid, v, updated); err != nil {
 			fmt.Printf("[WARNING] Failed to update mthreads: %v\n", err)
 		}
 
 		if err := i.updateMStoreTable(ctx, tid, oid, v, updated); err != nil {
-			fmt.Printf("[WARNING] Failed to update mstore: %v\n", err)
+			fmt.Printf("[ERROR] Failed to update mstore: %v\n", err)
 		}
 
 		if err := i.updateMTriageTable(ctx, tid, oid, v, updated); err != nil {
@@ -2229,7 +2181,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				"total": 1,
 				"date":  time.Now().UTC().Format("2006-01-02"),
 			}
-			if xerr := i.batchInsert("hits", `INSERT INTO hits (hhash, url, total, date) VALUES (?, ?, ?, ?)`,
+			if xerr := i.batchInsert("hits", `INSERT INTO sfpla.hits (hhash, url, total, date) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, v["url"], 1, time.Now().UTC().Format("2006-01-02")}, hitsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[hits]:", xerr)
 			}
@@ -2241,7 +2193,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			"day":   time.Now().UTC().Format("2006-01-02"),
 			"total": 1,
 		}
-		if xerr := i.batchInsert("dailies", `INSERT INTO dailies (ip, day, total) VALUES (?, ?, ?)`,
+		if xerr := i.batchInsert("dailies", `INSERT INTO sfpla.dailies (ip, day, total) VALUES (?, ?, ?)`,
 			[]interface{}{w.IP, time.Now().UTC().Format("2006-01-02"), 1}, dailiesData); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[dailies]:", xerr)
 		}
@@ -2253,7 +2205,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				"total": 1,
 				"date":  time.Now().UTC().Format("2006-01-02"),
 			}
-			if xerr := i.batchInsert("counters", `INSERT INTO counters (id, total, date) VALUES (?, ?, ?)`,
+			if xerr := i.batchInsert("counters", `INSERT INTO sfpla.counters (id, total, date) VALUES (?, ?, ?)`,
 				[]interface{}{"vids_created", 1, time.Now().UTC().Format("2006-01-02")}, countersVidsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[counters]vids_created:", xerr)
 			}
@@ -2269,7 +2221,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				"url":     v["url"],
 				"total":   1,
 			}
-			if xerr := i.batchInsert("outcomes", `INSERT INTO outcomes (hhash, outcome, sink, created, url, total) VALUES (?, ?, ?, ?, ?, ?)`,
+			if xerr := i.batchInsert("outcomes", `INSERT INTO sfpla.outcomes (hhash, outcome, sink, created, url, total) VALUES (?, ?, ?, ?, ?, ?)`,
 				[]interface{}{hhash, outcome, v["sink"], updated.Format("2006-01-02"), v["url"], 1}, outcomesData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[outcomes]:", xerr)
 			}
@@ -2283,7 +2235,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				"total": 1,
 				"date":  time.Now().UTC().Format("2006-01-02"),
 			}
-			if xerr := i.batchInsert("referrers", `INSERT INTO referrers (hhash, url, total, date) VALUES (?, ?, ?, ?)`,
+			if xerr := i.batchInsert("referrers", `INSERT INTO sfpla.referrers (hhash, url, total, date) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, v["last"], 1, time.Now().UTC().Format("2006-01-02")}, referrersData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[referrers]:", xerr)
 			}
@@ -2295,7 +2247,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				"hhash":    hhash,
 				"hostname": w.Host,
 			}
-			if xerr := i.batchInsert("hosts", `INSERT INTO hosts (hhash, hostname) VALUES (?, ?)`,
+			if xerr := i.batchInsert("hosts", `INSERT INTO sfpla.hosts (hhash, hostname) VALUES (?, ?)`,
 				[]interface{}{hhash, w.Host}, hostsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[hosts]:", xerr)
 			}
@@ -2309,7 +2261,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			"total":   1,
 			"date":    time.Now().UTC().Format("2006-01-02"),
 		}
-		if xerr := i.batchInsert("browsers", `INSERT INTO browsers (hhash, bhash, browser, total, date) VALUES (?, ?, ?, ?, ?)`,
+		if xerr := i.batchInsert("browsers", `INSERT INTO sfpla.browsers (hhash, bhash, browser, total, date) VALUES (?, ?, ?, ?, ?)`,
 			[]interface{}{hhash, bhash, w.Browser, 1, time.Now().UTC().Format("2006-01-02")}, browsersData); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[browsers]:", xerr)
 		}
@@ -2322,7 +2274,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				"vid":   parseUUID(vid),
 				"sid":   parseUUID(sid),
 			}
-			if xerr := i.batchInsert("userhosts", `INSERT INTO userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
+			if xerr := i.batchInsert("userhosts", `INSERT INTO sfpla.userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, parseUUID(uid), parseUUID(vid), parseUUID(sid)}, userhostsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[userhosts]:", xerr)
 			}
@@ -2336,7 +2288,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				"vid":   parseUUID(vid),
 				"sid":   parseUUID(sid),
 			}
-			if xerr := i.batchInsert("usernames", `INSERT INTO usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
+			if xerr := i.batchInsert("usernames", `INSERT INTO sfpla.usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, uhash, parseUUID(vid), parseUUID(sid)}, usernamesData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[usernames]:", xerr)
 			}
@@ -2350,7 +2302,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				"vid":   parseUUID(vid),
 				"sid":   parseUUID(sid),
 			}
-			if xerr := i.batchInsert("emails", `INSERT INTO emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
+			if xerr := i.batchInsert("emails", `INSERT INTO sfpla.emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, ehash, parseUUID(vid), parseUUID(sid)}, emailsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[emails]:", xerr)
 			}
@@ -2364,7 +2316,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				"vid":   parseUUID(vid),
 				"sid":   parseUUID(sid),
 			}
-			if xerr := i.batchInsert("cells", `INSERT INTO cells (hhash, chash, vid, sid) VALUES (?, ?, ?, ?)`,
+			if xerr := i.batchInsert("cells", `INSERT INTO sfpla.cells (hhash, chash, vid, sid) VALUES (?, ?, ?, ?)`,
 				[]interface{}{hhash, chash, parseUUID(vid), parseUUID(sid)}, cellsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[cells]:", xerr)
 			}
@@ -2377,7 +2329,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			"total": 1,
 			"date":  time.Now().UTC().Format("2006-01-02"),
 		}
-		if xerr := i.batchInsert("reqs", `INSERT INTO reqs (hhash, vid, total, date) VALUES (?, ?, ?, ?)`,
+		if xerr := i.batchInsert("reqs", `INSERT INTO sfpla.reqs (hhash, vid, total, date) VALUES (?, ?, ?, ?)`,
 			[]interface{}{hhash, parseUUID(vid), 1, time.Now().UTC().Format("2006-01-02")}, reqsData); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[reqs]:", xerr)
 		}
@@ -2556,10 +2508,21 @@ func (i *ClickhouseService) writeLTVSingle(ctx context.Context, w *WriteArgs, v 
 	}
 
 	// Update LTV records
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] Checking revenue condition: revenue = %v, revenue > 0.0 = %v\n", revenue, revenue > 0.0)
+	}
 	if revenue > 0.0 {
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] Calling updateLTVRecords with revenue = %v\n", revenue)
+		}
 		if err := i.updateLTVRecords(hhash, uid, vid, invid, oid, &orgValue, revenue, &updated, created, updater, owner); err != nil {
 			return err
 		}
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] updateLTVRecords completed successfully\n")
+		}
+	} else if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] Skipping updateLTVRecords because revenue <= 0.0\n")
 	}
 
 	return nil
@@ -2567,6 +2530,22 @@ func (i *ClickhouseService) writeLTVSingle(ctx context.Context, w *WriteArgs, v 
 
 // processLineItem handles a single payment line item insertion
 func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[string]interface{}, hhash *string, oid *uuid.UUID, org *string, tid, uid, invid, vid, sid *uuid.UUID, created, updated *time.Time) (float64, error) {
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] processLineItem called with lineItem keys: %v\n", func() []string {
+			keys := make([]string, 0, len(lineItem))
+			for k := range lineItem {
+				keys = append(keys, k)
+			}
+			return keys
+		}())
+		if amt, ok := lineItem["amt"]; ok {
+			fmt.Printf("[DEBUG] lineItem['amt'] = %v (type: %T)\n", amt, amt)
+		}
+		if rev, ok := lineItem["revenue"]; ok {
+			fmt.Printf("[DEBUG] lineItem['revenue'] = %v (type: %T)\n", rev, rev)
+		}
+	}
+
 	lineItemID := uuid.New()
 	var productID, orid *uuid.UUID
 	var product, pcat, man, model, duration, currency, country, rcode, region, campaignID *string
@@ -2614,6 +2593,15 @@ func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[st
 	price = parseFloat("price")
 	discount = parseFloat("discount")
 	revenue = parseFloat("revenue")
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] After parseFloat('revenue'): revenue = %v\n", revenue)
+	}
+	if revenue == nil {
+		revenue = parseFloat("amt") // Fallback to "amt" field for backward compatibility
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] After fallback parseFloat('amt'): revenue = %v\n", revenue)
+		}
+	}
 	margin = parseFloat("margin")
 	cost = parseFloat("cost")
 	tax = parseFloat("tax")
@@ -2640,7 +2628,7 @@ func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[st
 	paidAt = parseTime("paid_at")
 
 	// Insert into payments table with full line item schema
-	if err := i.batchInsert("payments", `INSERT INTO payments (
+	if err := i.batchInsert("payments", `INSERT INTO sfpla.payments (
 		id, oid, org, tid, uid, vid, sid, invid, orid, invoiced_at,
 		product, product_id, pcat, man, model,
 		qty, duration, starts, ends,
@@ -2652,70 +2640,85 @@ func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[st
 		created_at, updated_at
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			lineItemID, oid, org, tid, uid, vid, sid, invid, orid, invoicedAt,
-			product, productID, pcat, man, model,
+			lineItemID, parseUUID(oid), org, parseUUID(tid), parseUUID(uid), parseUUID(vid), parseUUID(sid), parseUUID(invid), parseUUID(orid), invoicedAt,
+			product, parseUUID(productID), pcat, man, model,
 			qty, duration, starts, ends,
 			price, discount, revenue, margin, cost,
 			tax, taxRate, commission, referral, fees,
 			subtotal, total, paymentAmount,
 			currency, country, rcode, region,
 			campaignID, paidAt,
-			created, updated,
+			formatClickHouseDateTime(created), formatClickHouseDateTime(updated),
 		}, lineItem); err != nil {
 		return 0.0, err
 	}
 
 	// Return revenue for LTV aggregation
 	if revenue != nil {
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] Returning revenue: %v\n", *revenue)
+		}
 		return *revenue, nil
+	}
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] Returning 0.0 (revenue was nil)\n")
 	}
 	return 0.0, nil
 }
 
 // updateLTVRecords updates LTV records for uid, vid, and orid
 func (i *ClickhouseService) updateLTVRecords(hhash *string, uid, vid, invid, oid *uuid.UUID, org *string, revenue float64, updated, created *time.Time, updater, owner *uuid.UUID) error {
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] updateLTVRecords: uid=%v, vid=%v, invid=%v, revenue=%v\n", uid, vid, invid, revenue)
+	}
 	// Write LTV record for uid (if available)
 	if uid != nil {
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] Adding LTV for uid\n")
+		}
 		ltvDataUID := map[string]interface{}{
 			"hhash":      hhash,
-			"id":         uid,
+			"id":         parseUUID(uid),
 			"id_type":    "uid",
 			"paid":       revenue,
-			"oid":        oid,
+			"oid":        parseUUID(oid),
 			"org":        org,
 			"updated_at": updated,
-			"updater":    updater,
+			"updater":    parseUUID(updater),
 			"created_at": created,
-			"owner":      owner,
+			"owner":      parseUUID(owner),
 		}
-		if err := i.batchInsert("ltv", `INSERT INTO ltv (
+		if err := i.batchInsert("ltv", `INSERT INTO sfpla.ltv (
 			hhash, id, id_type, paid, oid, org,
 			updated_at, updater, created_at, owner
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			[]interface{}{hhash, uid, "uid", revenue, oid, org, updated, updater, created, owner}, ltvDataUID); err != nil {
+			[]interface{}{hhash, uid, "uid", revenue, parseUUID(oid), org, formatClickHouseDateTime(updated), parseUUID(updater), formatClickHouseDateTime(created), parseUUID(owner)}, ltvDataUID); err != nil {
 			return err
 		}
 	}
 
 	// Write LTV record for vid (if available)
 	if vid != nil {
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] Adding LTV for vid\n")
+		}
 		ltvDataVID := map[string]interface{}{
 			"hhash":      hhash,
-			"id":         vid,
+			"id":         parseUUID(vid),
 			"id_type":    "vid",
 			"paid":       revenue,
-			"oid":        oid,
+			"oid":        parseUUID(oid),
 			"org":        org,
 			"updated_at": updated,
-			"updater":    updater,
+			"updater":    parseUUID(updater),
 			"created_at": created,
-			"owner":      owner,
+			"owner":      parseUUID(owner),
 		}
-		if err := i.batchInsert("ltv", `INSERT INTO ltv (
+		if err := i.batchInsert("ltv", `INSERT INTO sfpla.ltv (
 			hhash, id, id_type, paid, oid, org,
 			updated_at, updater, created_at, owner
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			[]interface{}{hhash, vid, "vid", revenue, oid, org, updated, updater, created, owner}, ltvDataVID); err != nil {
+			[]interface{}{hhash, vid, "vid", revenue, parseUUID(oid), org, formatClickHouseDateTime(updated), parseUUID(updater), formatClickHouseDateTime(created), parseUUID(owner)}, ltvDataVID); err != nil {
 			return err
 		}
 	}
@@ -2724,21 +2727,21 @@ func (i *ClickhouseService) updateLTVRecords(hhash *string, uid, vid, invid, oid
 	if invid != nil {
 		ltvDataORID := map[string]interface{}{
 			"hhash":      hhash,
-			"id":         invid,
+			"id":         parseUUID(invid),
 			"id_type":    "orid",
 			"paid":       revenue,
-			"oid":        oid,
+			"oid":        parseUUID(oid),
 			"org":        org,
 			"updated_at": updated,
-			"updater":    updater,
+			"updater":    parseUUID(updater),
 			"created_at": created,
-			"owner":      owner,
+			"owner":      parseUUID(owner),
 		}
-		if err := i.batchInsert("ltv", `INSERT INTO ltv (
+		if err := i.batchInsert("ltv", `INSERT INTO sfpla.ltv (
 			hhash, id, id_type, paid, oid, org,
 			updated_at, updater, created_at, owner
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			[]interface{}{hhash, invid, "orid", revenue, oid, org, updated, updater, created, owner}, ltvDataORID); err != nil {
+			[]interface{}{hhash, invid, "orid", revenue, parseUUID(oid), org, formatClickHouseDateTime(updated), parseUUID(updater), formatClickHouseDateTime(created), parseUUID(owner)}, ltvDataORID); err != nil {
 			return err
 		}
 	}
@@ -2888,8 +2891,13 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 	if s, ok := v["sys"].(bool); ok {
 		sys = s
 	}
-	ephemeral := false
-	if e, ok := v["ephemeral"].(bool); ok {
+	// ephemeral is Int32 - timeout in seconds (0 = keep forever)
+	ephemeral := int32(0)
+	if e, ok := v["ephemeral"].(float64); ok {
+		ephemeral = int32(e)
+	} else if e, ok := v["ephemeral"].(int); ok {
+		ephemeral = int32(e)
+	} else if e, ok := v["ephemeral"].(int32); ok {
 		ephemeral = e
 	}
 	archived := false
@@ -2902,7 +2910,7 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 	}
 
 	// Insert or update mthreads record (batched)
-	return i.batchInsert("mthreads", `INSERT INTO mthreads (
+	err := i.batchInsert("mthreads", `INSERT INTO sfpla.mthreads (
 		tid, alias, xstatus, name, ddata, provider, medium,
 		urgency, sys, ephemeral, archived, broadcast,
 		campaign_id, campaign_status,
@@ -2922,22 +2930,33 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 			ephemeral,                         // Ephemeral message flag
 			archived,                          // Archived flag
 			broadcast,                         // Broadcast flag
-			getStringValue(v["campaign_id"]),  // Campaign ID for tracking
+			getStringValue(v["campaign_id"]),  // Campaign ID for tracking - String type
 			getStringValue(v["campaign_status"]), // Campaign status
-			oid,
+			parseUUID(oid),                    // oid - safe, never nil
 			getStringValue(v["org"]),
-			owner,
-			uid,
-			vid,
+			parseUUID(owner),
+			parseUUID(uid),
+			parseUUID(vid),
 			updated,
 			updated,
-			updater,
+			parseUUID(updater),
 		}, v)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // updateMStoreTable updates the mstore table with individual event data
 func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUID, oid *uuid.UUID, v map[string]interface{}, updated time.Time) error {
 	atomic.AddInt64(&globalMetrics.MStoreOps, 1)
+
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] updateMStoreTable called with tid=%v, oid=%v\n", tid, oid)
+		fmt.Printf("[DEBUG] mstore: subject='%v', msg='%v'\n", v["subject"], v["msg"])
+	}
 
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -3028,20 +3047,77 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 		conversionEvents = c
 	}
 
-	return i.batchInsert("mstore", `INSERT INTO mstore (
+	// Parse array fields
+	mtypes := []string{}
+	if mt, ok := v["mtypes"].([]interface{}); ok {
+		for _, t := range mt {
+			if str, ok := t.(string); ok {
+				mtypes = append(mtypes, str)
+			}
+		}
+	} else if mt, ok := v["mtypes"].([]string); ok {
+		mtypes = mt
+	}
+
+	users := []string{}
+	if u, ok := v["users"].([]interface{}); ok {
+		for _, user := range u {
+			if str, ok := user.(string); ok {
+				users = append(users, str)
+			}
+		}
+	} else if u, ok := v["users"].([]string); ok {
+		users = u
+	}
+
+	deliveries := []string{}
+	if d, ok := v["deliveries"].([]interface{}); ok {
+		for _, delivery := range d {
+			if str, ok := delivery.(string); ok {
+				deliveries = append(deliveries, str)
+			}
+		}
+	} else if d, ok := v["deliveries"].([]string); ok {
+		deliveries = d
+	}
+
+	failures := []string{}
+	if f, ok := v["failures"].([]interface{}); ok {
+		for _, failure := range f {
+			if str, ok := failure.(string); ok {
+				failures = append(failures, str)
+			}
+		}
+	} else if f, ok := v["failures"].([]string); ok {
+		failures = f
+	}
+
+	permsIds := []string{}
+	if p, ok := v["perms_ids"].([]interface{}); ok {
+		for _, perm := range p {
+			if str, ok := perm.(string); ok {
+				permsIds = append(permsIds, str)
+			}
+		}
+	} else if p, ok := v["perms_ids"].([]string); ok {
+		permsIds = p
+	}
+
+	err := i.batchInsert("mstore", `INSERT INTO sfpla.mstore (
 		tid, mid, pmid, subject, msg, data,
 		urgency, sys, broadcast, mtempl, repl, svc,
 		qid, rid, relation, meta,
 		planned, scheduled, started, completed,
-		xid, split, keep, createdms,
+		mtypes, users, deliveries, failures,
+		xid, split, perms_ids, deleted, keep, createdms,
 		oid, org, owner, uid, vid, created_at, updated_at, updater,
-		interest, perf, hidden, funnel_stage, conversion_events
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		interest, perf, hidden, funnel_stage, conversion_event_count
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	SETTINGS insert_deduplicate = 1`,
 		[]interface{}{
 			tid,
 			mid,
-			pmid,
+			parseUUID(pmid),
 			getStringValue(v["subject"]),      // Subject line
 			getStringValue(v["msg"]),          // Message text content
 			getStringValue(v["data"]),         // JSON structured data
@@ -3051,32 +3127,47 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 			getStringValue(v["mtempl"]),       // Message template URL
 			jsonOrNull(v["repl"]),             // Replacement tokens JSON
 			getStringValue(v["svc"]),          // Service (e.g., "SES", "message", "sms")
-			qid,
-			rid,
+			parseUUID(qid),
+			parseUUID(rid),
 			getStringValue(v["relation"]),
 			jsonOrNull(v["meta"]),             // Metadata JSON
-			jsonOrNull(v["planned"]),          // Planned time (mstore-specific, not in mtriage)
-			jsonOrNull(v["scheduled"]),        // Scheduled time
-			jsonOrNull(v["started"]),          // Start time
-			jsonOrNull(v["completed"]),        // Completion time
+			getDateTimeOrZero(v["planned"]),   // Planned time (mstore-specific, not in mtriage) - DateTime64(3)
+			getDateTimeOrZero(v["scheduled"]), // Scheduled time - DateTime64(3)
+			getDateTimeOrZero(v["started"]),   // Start time - DateTime64(3)
+			getDateTimeOrZero(v["completed"]), // Completion time - DateTime64(3)
+			mtypes,                            // mtypes - Array(String)
+			users,                             // users - Array(UUID) - must be []string for clickhouse-go
+			deliveries,                        // deliveries - Array(UUID) - must be []string for clickhouse-go
+			failures,                          // failures - Array(UUID) - must be []string for clickhouse-go
 			getStringValue(v["xid"]),          // Experiment ID
 			getStringValue(v["split"]),        // Split variant
+			permsIds,                          // perms_ids - Array(UUID) - must be []string for clickhouse-go
+			getDateTimeOrZero(v["deleted"]),   // deleted - DateTime64(3)
 			keep,
 			createdms,
-			oid,
+			parseUUID(oid),                    // oid - safe, never nil
 			getStringValue(v["org"]),
-			owner,
-			uid,
-			vid,
+			parseUUID(owner),
+			parseUUID(uid),
+			parseUUID(vid),
 			updated,
 			updated,
-			updater,
+			parseUUID(updater),
 			jsonOrNull(v["interest"]),         // Interest JSON
 			jsonOrNull(v["perf"]),             // Performance JSON
 			hidden,
 			getStringValue(v["funnel_stage"]),
 			conversionEvents,
 		}, v)
+
+	if i.AppConfig.Debug {
+		if err != nil {
+			fmt.Printf("[DEBUG] mstore: INSERT ERROR: %v\n", err)
+		} else {
+			fmt.Printf("[DEBUG] mstore: INSERT SUCCESS - added to batch for table mstore\n")
+		}
+	}
+	return err
 }
 
 // updateMTriageTable updates the mtriage table for outbound message processing
@@ -3087,10 +3178,36 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	// Debug: Log all relevant fields
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] mtriage called with tid=%v, oid=%v\n", tid, oid)
+		fmt.Printf("[DEBUG] mtriage: etyp='%v', event_type='%v', ename='%v'\n", v["etyp"], v["event_type"], v["ename"])
+	}
+
 	// Only create triage entries for specific event types that require follow-up
-	eventType := getStringValue(v["event_type"])
+	// Check etyp first, then event_type, then fall back to ename
+	eventType := getStringValue(v["etyp"])
+	if eventType == "" {
+		eventType = getStringValue(v["event_type"])
+	}
+	if eventType == "" {
+		// Fall back to ename for conversion events
+		eventType = getStringValue(v["ename"])
+	}
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] mtriage: final eventType='%s'\n", eventType)
+	}
 	if eventType != "conversion" && eventType != "high_value_action" {
+		if i.AppConfig.Debug {
+			fmt.Printf("[DEBUG] mtriage: skipping event='%s' (not conversion or high_value_action)\n", eventType)
+		}
 		return nil // Skip non-actionable events
+	}
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] mtriage: PROCEEDING - event type '%s' matches criteria\n", eventType)
+	}
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] mtriage: processing event_type='%s' - will create triage entry\n", eventType)
 	}
 
 	// Generate message ID
@@ -3166,19 +3283,23 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 		createdms = c
 	}
 
-	return i.batchInsert("mtriage", `INSERT INTO mtriage (
+	if i.AppConfig.Debug {
+		fmt.Printf("[DEBUG] mtriage: Inserting record with mid=%v, subject='%s', msg='%s'\n",
+			mid, getStringValue(v["subject"]), getStringValue(v["msg"]))
+	}
+
+	err := i.batchInsert("mtriage", `INSERT INTO sfpla.mtriage (
 		tid, mid, pmid, subject, msg, data,
 		urgency, sys, broadcast, mtempl, repl, svc,
 		qid, rid, relation, meta,
 		scheduled, started, completed,
 		xid, split, keep, createdms,
 		oid, org, owner, uid, vid, created_at, updated_at, updater
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	SETTINGS insert_deduplicate = 1`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
 			tid,
 			mid,
-			pmid,
+			parseUUID(pmid),
 			getStringValue(v["subject"]),      // Subject line
 			getStringValue(v["msg"]),          // Message text content
 			getStringValue(v["data"]),         // JSON structured data
@@ -3186,29 +3307,38 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 			sys,
 			broadcast,
 			getStringValue(v["mtempl"]),       // Message template URL
-			jsonOrNull(v["repl"]),             // Replacement tokens JSON
+			getJSONString(v["repl"]),          // Replacement tokens JSON - use string for immediate exec
 			getStringValue(v["svc"]),          // Service (e.g., "SES", "message", "sms")
-			qid,
-			rid,
+			parseUUID(qid),
+			parseUUID(rid),
 			getStringValue(v["relation"]),
-			jsonOrNull(v["meta"]),             // Metadata JSON
+			getJSONString(v["meta"]),          // Metadata JSON - use string for immediate exec
 			// Note: NO 'planned' field in mtriage (only in mstore)
-			jsonOrNull(v["scheduled"]),        // Scheduled time
-			jsonOrNull(v["started"]),          // Start time
-			jsonOrNull(v["completed"]),        // Completion time
+			getDateTimeOrZero(v["scheduled"]), // Scheduled time - DateTime64(3)
+			getDateTimeOrZero(v["started"]),   // Start time - DateTime64(3)
+			getDateTimeOrZero(v["completed"]), // Completion time - DateTime64(3)
 			getStringValue(v["xid"]),          // Experiment ID
 			getStringValue(v["split"]),        // Split variant
 			keep,
 			createdms,
-			oid,
+			parseUUID(oid),                    // oid - safe, never nil
 			getStringValue(v["org"]),
-			owner,
-			uid,
-			vid,
+			parseUUID(owner),
+			parseUUID(uid),
+			parseUUID(vid),
 			updated,
 			updated,
-			updater,
+			parseUUID(updater),
 		}, v)
+
+	if i.AppConfig.Debug {
+		if err != nil {
+			fmt.Printf("[DEBUG] mtriage: INSERT ERROR: %v\n", err)
+		} else {
+			fmt.Printf("[DEBUG] mtriage: INSERT SUCCESS - added to batch for table mtriage\n")
+		}
+	}
+	return err
 }
 
 // updateCampaignMetrics updates campaign performance metrics
@@ -3234,11 +3364,11 @@ func (i *ClickhouseService) updateCampaignMetrics(ctx context.Context, event *Ca
 		return fmt.Errorf("oid is required for impression_daily")
 	}
 
-	return i.batchInsert("impression_daily", `INSERT INTO impression_daily (
+	return i.batchInsert("impression_daily", `INSERT INTO sfpla.impression_daily (
 		oid, org, tid, day, variant_id, total_impressions, anonymous_impressions, identified_impressions, unique_visitors, conversions, updated_at
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]interface{}{
-			oid, event.Org, event.TID, today, event.VariantID, 1, 1, 0, 1, conversions, event.Timestamp,
+			parseUUID(oid), event.Org, event.TID, today, event.VariantID, 1, 1, 0, 1, conversions, event.Timestamp,
 		}, map[string]interface{}{
 			"event_type": event.EventType,
 			"variant_id": event.VariantID,

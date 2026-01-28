@@ -89,7 +89,7 @@ CREATE TABLE actions_local ON CLUSTER tracker_cluster (
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Source ID - identifier of the source entity (e.g., message ID)
     src String DEFAULT '', -- Source type - what kind of action (e.g., "message", "queues")
-    did UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Differentiator ID - additional identifier (e.g., user ID)
+    device_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Device ID - additional identifier
     dsrc String DEFAULT '', -- Differentiator source - what the differentiator represents (e.g., "uid")
     meta JSON DEFAULT '{}', -- Metadata - additional information about the action (e.g., split info)
     exqid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Executing queue ID - links to the queue handling this action
@@ -100,7 +100,7 @@ CREATE TABLE actions_local ON CLUSTER tracker_cluster (
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)
-ORDER BY (sid, did, created_at);
+ORDER BY (sid, device_id, created_at);
 
 -- Distributed table for actions
 CREATE TABLE IF NOT EXISTS actions ON CLUSTER tracker_cluster
@@ -110,7 +110,7 @@ ENGINE = Distributed(tracker_cluster, sfpla, actions_local, rand());
 -- External actions table - Tracks actions from external systems (e.g., email delivery services)
 CREATE TABLE actions_ext_local ON CLUSTER tracker_cluster (
 
-    sid String DEFAULT '', -- Source ID - external identifier (e.g., SES message ID)
+    external_sid String DEFAULT '', -- External source ID - identifier from external service (e.g., SES message ID)
     svc String DEFAULT '', -- Service - name of the external service (e.g., "SES", "message", "sms")
     iid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Internal ID - corresponding internal record ID
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - optional link to affected user
@@ -122,7 +122,7 @@ CREATE TABLE actions_ext_local ON CLUSTER tracker_cluster (
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)
-ORDER BY (sid, svc)
+ORDER BY (external_sid, svc)
 TTL toDateTime(created_at) + INTERVAL 14 DAY;
 
 -- Distributed table for actions_ext

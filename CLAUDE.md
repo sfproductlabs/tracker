@@ -28,6 +28,11 @@ make docker-test-all         # Run comprehensive tests
 make docker-logs             # View logs
 
 # Testing
+make test                    # Run Go unit tests
+make test-single             # Run tests/test-single.sh
+make test-cluster            # Run tests/test-cluster.sh
+make test-db-writes          # Run tests/test_db_writes.sh (100% verification)
+make test-all                # Run all tests
 make test-functional-all     # Test all endpoints
 make docker-test-events      # Test events table
 make docker-test-messaging   # Test mthreads/mstore/mtriage
@@ -60,6 +65,10 @@ packages/tracker/
 ├── entrypoint.sh       # Container startup
 ├── config.json         # Main configuration
 ├── README.md           # User documentation
+├── tests/              # Test scripts
+│   ├── test-single.sh  # Single-node verification
+│   ├── test-cluster.sh # 3-node cluster test
+│   └── test_db_writes.sh # Database write verification
 └── .setup/
     ├── clickhouse/     # Schema files (7 hard-linked from api)
     ├── geoip/          # IP2Location databases

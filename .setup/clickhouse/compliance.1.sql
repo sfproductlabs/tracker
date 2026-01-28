@@ -64,7 +64,7 @@ CREATE TABLE jurisdictions_local ON CLUSTER tracker_cluster (
 
     regulation String DEFAULT '', -- Regulation type (e.g., GDPR, CCPA)
     compliance String DEFAULT '', -- Compliance requirement (e.g., cookie-time)
-    seq Int32 DEFAULT 0, -- Sequence number for ordering multiple rules
+    seq UInt32 DEFAULT 0, -- Sequence number for ordering multiple rules
     rules JSON DEFAULT '{}', -- Rules configuration (e.g., essential,session:comfort,30:analytics,730)
     locs JSON DEFAULT '{}', -- Geographic locations where this regulation applies
     updated_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
@@ -292,7 +292,7 @@ CREATE TABLE splits_local ON CLUSTER tracker_cluster (
     cohort String DEFAULT '', -- Cohort name - which user group this split applies to (* = all users)
     sfam String DEFAULT '', -- Split family - grouping element for related splits (e.g., "males2020")
     split String DEFAULT '', -- Split identifier - unique name for this variant (e.g., "A", "B")
-    seq Int32 DEFAULT 0, -- Sequence number - ordering for this split variant
+    seq UInt32 DEFAULT 0, -- Sequence number - ordering for this split variant
     uids Array(UUID) DEFAULT [], -- Users list - explicit set of users in this split
     vids Array(UUID) DEFAULT [], -- Visitors list - explicit set of visitors in this split (if uid is not known yet), this can come directly from events table
     pct Float64 DEFAULT 0.0, -- Percentage - traffic allocation for this variant (mutually exclusive with users)
@@ -406,7 +406,7 @@ CREATE TABLE budget_limits_local ON CLUSTER tracker_cluster (
     limit_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Unique limit identifier
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    campaign_id Nullable(UUID) DEFAULT NULL, -- Campaign ID (NULL for oid-wide limits)
+    campaign_id String DEFAULT '', -- Campaign ID (empty for oid-wide limits)
     limit_type LowCardinality(String) DEFAULT '', -- Type of limit: daily, weekly, monthly, campaign_total
     amount Float64 DEFAULT 0.0, -- Budget limit amount
     currency String DEFAULT 'USD', -- Currency code (e.g., EUR, USD)
@@ -433,7 +433,7 @@ CREATE TABLE budget_alerts_local ON CLUSTER tracker_cluster (
     alert_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Unique alert identifier
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    campaign_id Nullable(UUID) DEFAULT NULL, -- Campaign ID (NULL for oid-wide alerts)
+    campaign_id String DEFAULT '', -- Campaign ID (empty for oid-wide alerts)
     limit_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Reference to budget_limits.limit_id
     alert_level LowCardinality(String) DEFAULT '', -- Alert level: info, warning, critical, emergency
     message String DEFAULT '', -- Alert message text
@@ -461,7 +461,7 @@ CREATE TABLE budget_emergency_actions_local ON CLUSTER tracker_cluster (
     action_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Unique action identifier
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    campaign_id Nullable(UUID) DEFAULT NULL, -- Campaign ID (NULL for oid-wide actions)
+    campaign_id String DEFAULT '', -- Campaign ID (empty for oid-wide actions)
     action_type LowCardinality(String) DEFAULT '', -- Action type: campaign_paused, spending_restricted, alert_sent
     reason String DEFAULT '', -- Reason for the emergency action
     triggered_by String DEFAULT '', -- What triggered the action: budget_exceeded, velocity_threshold, manual
@@ -488,7 +488,7 @@ CREATE TABLE spend_velocity_analytics_local ON CLUSTER tracker_cluster (
     analysis_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Unique analysis identifier
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    campaign_id Nullable(UUID) DEFAULT NULL, -- Campaign ID (NULL for oid-wide analysis)
+    campaign_id String DEFAULT '', -- Campaign ID (empty for oid-wide analysis)
     analysis_time DateTime64(3) DEFAULT now64(3), -- When the analysis was performed
     window_hours Int32 DEFAULT 0, -- Analysis window in hours (e.g., 24, 168)
     current_spend Float64 DEFAULT 0.0, -- Current spend amount

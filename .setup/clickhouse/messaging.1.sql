@@ -150,7 +150,7 @@ CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
     ptyp String DEFAULT '', -- Page type - category of message
     etyp String DEFAULT '', -- Event type - category of events
     ename String DEFAULT '', -- Event name - specific event identifier
-    auth String DEFAULT '', -- Author - who created the content
+    auth_name String DEFAULT '', -- Author name - who created the content
     cohorts Array(String) DEFAULT [], -- Target cohorts - groups to send to
     splits JSON DEFAULT '{}', -- Split configuration - for A/B testing variants
     source String DEFAULT '', -- Source - referring domain/service
@@ -216,7 +216,7 @@ CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
     abz_model_type String DEFAULT '', -- Model type - GP, random forest, neural network, etc.
     abz_model_params JSON DEFAULT '{}', -- Model parameters - hyperparameters for model
     abz_acquisition_function String DEFAULT '', -- Acquisition function - EI, UCB, PI, etc.
-    campaign_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Campaign ID - reference to campaign
+    campaign_id String DEFAULT '', -- Campaign ID - reference to campaign
     campaign_phase String DEFAULT '', -- Campaign phase - teaser, launch, follow-up, etc.
     campaign_priority Int32 DEFAULT 0, -- Campaign priority - importance within campaign
     campaign_budget_allocation Float64 DEFAULT 0.0, -- Budget allocation - portion of campaign budget
@@ -379,7 +379,7 @@ CREATE TABLE mstore_local ON CLUSTER tracker_cluster (
     hide DateTime64(3) DEFAULT toDateTime64(0, 3),
     hidden Boolean DEFAULT false,
     funnel_stage String DEFAULT '',
-    conversion_events Int64 DEFAULT 0
+    conversion_event_count Int64 DEFAULT 0  -- Number of conversion events
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(created_at))
@@ -405,7 +405,7 @@ CREATE TABLE mdevices_local ON CLUSTER tracker_cluster (
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     mtype String DEFAULT '', -- Message type - delivery method (e.g., "apn", "fcm", "email")
-    did String DEFAULT '', -- Device identifier - token or address for the device
+    device_token String DEFAULT '', -- Device token or address for push notifications
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     created_at DateTime64(3) DEFAULT now64(3) -- Creation timestamp
 
@@ -476,7 +476,7 @@ CREATE TABLE impression_daily_local ON CLUSTER tracker_cluster (
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this failure record belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Thread ID - reference to message thread
-    campaign_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Campaign ID - for campaign-level aggregation (alternative to tid-based aggregation)
+    campaign_id String DEFAULT '', -- Campaign ID - for campaign-level aggregation (alternative to tid-based aggregation)
     day Date DEFAULT today(), -- Day - date for aggregation
     variant_id String DEFAULT '', -- Variant ID - content variant ('all' for all variants)
     total_impressions Int64 DEFAULT 0, -- Total impressions - all views

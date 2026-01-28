@@ -116,9 +116,10 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Testing:$(NC)"
 	@echo "  make test                      - Run Go unit tests"
-	@echo "  make test-single               - Run test-single.sh (single-node verification)"
-	@echo "  make test-cluster              - Run test-cluster.sh (3-node cluster test)"
-	@echo "  make test-all                  - Run all tests (Go + single + cluster)"
+	@echo "  make test-single               - Run tests/test-single.sh (single-node verification)"
+	@echo "  make test-cluster              - Run tests/test-cluster.sh (3-node cluster test)"
+	@echo "  make test-db-writes            - Run tests/test_db_writes.sh (database write verification)"
+	@echo "  make test-all                  - Run all tests (Go + single + db-writes)"
 	@echo ""
 	@echo "$(YELLOW)Functional Endpoint Tests:$(NC)"
 	@echo "  make test-functional-health    - Test health/ping/status/metrics endpoints"
@@ -291,7 +292,7 @@ docker-rebuild-test: docker-stop docker-build docker-run
 
 cluster-start:
 	@echo "$(YELLOW)🐳 Starting 3-node cluster...$(NC)"
-	@./test-cluster.sh
+	@./tests/test-cluster.sh
 	@echo "$(GREEN)✅ Cluster started$(NC)"
 
 cluster-stop:
@@ -361,15 +362,20 @@ test:
 
 test-single:
 	@echo "$(YELLOW)🧪 Running single-node test...$(NC)"
-	@chmod +x test-single.sh
-	@./test-single.sh
+	@chmod +x tests/test-single.sh
+	@./tests/test-single.sh
 
 test-cluster:
 	@echo "$(YELLOW)🧪 Running 3-node cluster test...$(NC)"
-	@chmod +x test-cluster.sh
-	@./test-cluster.sh
+	@chmod +x tests/test-cluster.sh
+	@./tests/test-cluster.sh
 
-test-all: test test-single
+test-db-writes:
+	@echo "$(YELLOW)🧪 Running database write tests...$(NC)"
+	@chmod +x tests/test_db_writes.sh
+	@./tests/test_db_writes.sh
+
+test-all: test test-single test-db-writes
 	@echo "$(GREEN)✅ All tests complete$(NC)"
 
 # ====================================================================
@@ -380,7 +386,7 @@ test-functional-ltv:
 	@echo "$(YELLOW)🧪 Testing LTV endpoint (single payment)...$(NC)"
 	@curl -sk -X POST https://localhost:8443/tr/v1/ltv/ \
 		-H "Content-Type: application/json" \
-		-d '{"vid":"14fb0860-b4bf-11e9-8971-7b80435315ac","uid":"user-123","oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","amt":99.99,"currency":"USD","orid":"order-123"}' \
+		-d '{"vid":"14fb0860-b4bf-11e9-8971-7b80435315ac","uid":"b1c2d3e4-f5a6-7890-abcd-ef1234567890","oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","amt":99.99,"currency":"USD","orid":"c3d4e5f6-a7b8-9012-abcd-ef1234567890"}' \
 		-w "\nHTTP Status: %{http_code}\n"
 	@echo ""
 	@echo "Waiting 3 seconds for batch flush..."
@@ -394,7 +400,7 @@ test-functional-ltv-batch:
 	@echo "$(YELLOW)🧪 Testing LTV endpoint (batch payments)...$(NC)"
 	@curl -sk -X POST https://localhost:8443/tr/v1/ltv/ \
 		-H "Content-Type: application/json" \
-		-d '{"vid":"batch-ltv-test","uid":"user-batch","oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","payments":[{"amt":50.00,"currency":"USD","orid":"order-124"},{"amt":25.00,"currency":"USD","orid":"order-125"}]}' \
+		-d '{"vid":"d4e5f6a7-b8c9-0123-abcd-ef1234567890","uid":"e5f6a7b8-c9d0-1234-abcd-ef1234567890","oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","payments":[{"amt":50.00,"currency":"USD","orid":"f6a7b8c9-d0e1-2345-abcd-ef1234567890"},{"amt":25.00,"currency":"USD","orid":"a7b8c9d0-e1f2-3456-abcd-ef1234567890"}]}' \
 		-w "\nHTTP Status: %{http_code}\n"
 	@echo ""
 	@echo "Waiting 3 seconds for batch flush..."
@@ -432,20 +438,20 @@ test-functional-privacy:
 	@echo "Posting user agreement (GDPR consent)..."
 	@curl -sk -X POST https://localhost:8443/tr/v1/ppi/agree \
 		-H "Content-Type: application/json" \
-		-d '{"vid":"privacy-test-vid","cflags":1024,"tz":"America/Los_Angeles","lat":37.7749,"lon":-122.4194,"oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890"}' \
+		-d '{"vid":"b8c9d0e1-f2a3-4567-abcd-ef1234567890","cflags":1024,"tz":"America/Los_Angeles","lat":37.7749,"lon":-122.4194,"oid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890"}' \
 		-w "\nHTTP Status: %{http_code}\n"
 	@echo ""
 	@echo "Waiting 2 seconds for batch flush..."
 	@sleep 2
 	@echo ""
 	@echo "Verifying agreements table:"
-	@clickhouse client --query "SELECT vid, cflags, country, lat, lon FROM sfpla.agreements FINAL WHERE vid='privacy-test-vid' LIMIT 1"
+	@clickhouse client --query "SELECT vid, cflags, country, lat, lon FROM sfpla.agreements FINAL WHERE vid='b8c9d0e1-f2a3-4567-abcd-ef1234567890' LIMIT 1"
 	@echo ""
 	@echo "Verifying agreed (history) table:"
-	@clickhouse client --query "SELECT vid, cflags FROM sfpla.agreed FINAL WHERE vid='privacy-test-vid' ORDER BY created_at DESC LIMIT 1"
+	@clickhouse client --query "SELECT vid, cflags FROM sfpla.agreed FINAL WHERE vid='b8c9d0e1-f2a3-4567-abcd-ef1234567890' ORDER BY created_at DESC LIMIT 1"
 	@echo ""
 	@echo "Getting agreements for visitor:"
-	@curl -sk -X GET "https://localhost:8443/tr/v1/ppi/agree?vid=privacy-test-vid"
+	@curl -sk -X GET "https://localhost:8443/tr/v1/ppi/agree?vid=b8c9d0e1-f2a3-4567-abcd-ef1234567890"
 	@echo ""
 	@echo "$(GREEN)✅ Privacy/agreement test complete$(NC)"
 
@@ -504,7 +510,7 @@ test-functional-e2e:
 	@echo "$(YELLOW)🧪 Running complete end-to-end workflow test...$(NC)"
 	@echo ""
 	@VID=$$(uuidgen | tr '[:upper:]' '[:lower:]'); \
-	UID=$$(uuidgen | tr '[:upper:]' '[:lower:]'); \
+	USER_ID=$$(uuidgen | tr '[:upper:]' '[:lower:]'); \
 	OID=$$(uuidgen | tr '[:upper:]' '[:lower:]'); \
 	echo "=== Testing with VID: $$VID ==="; \
 	echo ""; \
@@ -517,13 +523,13 @@ test-functional-e2e:
 	echo "2. Signup..."; \
 	curl -sk -X POST https://localhost:8443/tr/v1/str/ \
 		-H "Content-Type: application/json" \
-		-d "{\"vid\":\"$$VID\",\"uid\":\"$$UID\",\"oid\":\"$$OID\",\"ename\":\"signup\",\"etyp\":\"conversion\"}" \
+		-d "{\"vid\":\"$$VID\",\"uid\":\"$$USER_ID\",\"oid\":\"$$OID\",\"ename\":\"signup\",\"etyp\":\"conversion\"}" \
 		-w "Status: %{http_code}\n"; \
 	echo ""; \
 	echo "3. Purchase..."; \
 	curl -sk -X POST https://localhost:8443/tr/v1/ltv/ \
 		-H "Content-Type: application/json" \
-		-d "{\"vid\":\"$$VID\",\"uid\":\"$$UID\",\"oid\":\"$$OID\",\"amt\":149.99}" \
+		-d "{\"vid\":\"$$VID\",\"uid\":\"$$USER_ID\",\"oid\":\"$$OID\",\"amt\":149.99}" \
 		-w "Status: %{http_code}\n"; \
 	echo ""; \
 	echo "4. Agreement..."; \

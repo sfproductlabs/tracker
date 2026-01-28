@@ -18,7 +18,7 @@ CREATE TABLE events_local ON CLUSTER tracker_cluster (
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to the visitor who triggered this event
-    did UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'), -- Device ID
+    device_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Device ID
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - links to the session this event occurred in
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     app String DEFAULT '', -- Application name
@@ -35,7 +35,7 @@ CREATE TABLE events_local ON CLUSTER tracker_cluster (
     lon Float64 DEFAULT 0.0, -- Location longitude
     ptyp String DEFAULT '', -- Page type where event occurred
     bhash String DEFAULT '', -- Browser hash
-    auth UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Content author ID
+    auth_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Content author ID
     duration Int64 DEFAULT 0, -- Time since last interaction (in milliseconds)
     -- Experiment and Tracking Fields
     xid String DEFAULT '', -- Experiment ID
@@ -78,7 +78,7 @@ CREATE TABLE events_local ON CLUSTER tracker_cluster (
     msid String DEFAULT '', -- Microsoft ID
     fbid String DEFAULT '', -- Facebook ID
     culture String DEFAULT '', -- Culture/locale
-    ref UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'), -- Referrer
+    ref UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Referrer
     rcode String DEFAULT '', -- Referral code
     aff String DEFAULT '', -- Affiliate
     browser String DEFAULT '', -- Browser
@@ -121,7 +121,7 @@ SELECT
     org,
     vid,
     created_at,
-    did,
+    device_id,
     sid,
     hhash,
     app,
@@ -137,7 +137,7 @@ SELECT
     lon,
     ptyp,
     bhash,
-    auth,
+    auth_id,
     xid,
     split,
     ename,
@@ -197,7 +197,7 @@ SELECT
     org,
     vid,
     created_at,
-    did,
+    device_id,
     sid,
     hhash,
     app,
@@ -213,7 +213,7 @@ SELECT
     lon,
     ptyp,
     bhash,
-    auth,
+    auth_id,
     xid,
     split,
     ename,
@@ -275,7 +275,7 @@ SELECT
     vid,
     uid,
     created_at,
-    did,
+    device_id,
     hhash,
     app,
     rel,
@@ -289,7 +289,7 @@ SELECT
     lon,
     ptyp,
     bhash,
-    auth,
+    auth_id,
     duration,
     xid,
     split,
