@@ -71,6 +71,108 @@ import (
 )
 
 ////////////////////////////////////////
+// Helper Functions for Data Conversion
+////////////////////////////////////////
+
+// getStringOrDefault returns a string from interface{} or default value
+func getStringOrDefault(val interface{}, defaultVal string) string {
+	if val == nil {
+		return defaultVal
+	}
+	if str, ok := val.(string); ok {
+		return str
+	}
+	return fmt.Sprintf("%v", val)
+}
+
+// getJSONOrDefault returns JSON string from interface{} or default value
+func getJSONOrDefault(val interface{}, defaultVal string) string {
+	if val == nil {
+		return defaultVal
+	}
+	switch v := val.(type) {
+	case string:
+		if v == "" {
+			return defaultVal
+		}
+		return v
+	case map[string]interface{}:
+		if len(v) == 0 {
+			return defaultVal
+		}
+		if data, err := json.Marshal(v); err == nil {
+			return string(data)
+		}
+	}
+	return defaultVal
+}
+
+// getBoolOrDefault returns bool from interface{} or default value
+func getBoolOrDefault(val interface{}, defaultVal bool) bool {
+	if val == nil {
+		return defaultVal
+	}
+	if b, ok := val.(bool); ok {
+		return b
+	}
+	if str, ok := val.(string); ok {
+		return str == "true" || str == "1"
+	}
+	return defaultVal
+}
+
+// getInt64OrDefault returns int64 from interface{} or default value
+func getInt64OrDefault(val interface{}, defaultVal int64) int64 {
+	if val == nil {
+		return defaultVal
+	}
+	switch v := val.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	case string:
+		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return i
+		}
+	}
+	return defaultVal
+}
+
+// getUUIDArrayOrDefault returns UUID array from interface{} or default value
+func getUUIDArrayOrDefault(val interface{}, defaultVal []uuid.UUID) []uuid.UUID {
+	if val == nil {
+		return defaultVal
+	}
+	switch v := val.(type) {
+	case []uuid.UUID:
+		return v
+	case []interface{}:
+		result := make([]uuid.UUID, 0, len(v))
+		for _, item := range v {
+			if str, ok := item.(string); ok {
+				if uid, err := uuid.Parse(str); err == nil {
+					result = append(result, uid)
+				}
+			}
+		}
+		return result
+	case []string:
+		result := make([]uuid.UUID, 0, len(v))
+		for _, str := range v {
+			if uid, err := uuid.Parse(str); err == nil {
+				result = append(result, uid)
+			}
+		}
+		return result
+	}
+	return defaultVal
+}
+
+
+////////////////////////////////////////
 // Performance Monitoring & Metrics
 ////////////////////////////////////////
 
@@ -2853,93 +2955,93 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	// Parse optional UUIDs
-	var owner, uid, vid, updater *uuid.UUID
-	if temp, ok := v["owner"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			owner = &parsed
-		}
-	}
-	if temp, ok := v["uid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			uid = &parsed
-		}
-	}
-	if temp, ok := v["vid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			vid = &parsed
-		}
-	}
-	if temp, ok := v["updater"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			updater = &parsed
-		}
-	}
+	// Parse all fields using the comprehensive parser
+	fields := ParseMThreadsFields(*tid, oid, v, updated)
 
-	// Parse urgency (Int32 with default 0)
-	urgency := int32(0)
-	if u, ok := v["urgency"].(float64); ok {
-		urgency = int32(u)
-	} else if u, ok := v["urgency"].(int); ok {
-		urgency = int32(u)
-	} else if u, ok := v["urgency"].(int32); ok {
-		urgency = u
-	}
-
-	// Parse boolean flags with defaults
-	sys := false
-	if s, ok := v["sys"].(bool); ok {
-		sys = s
-	}
-	// ephemeral is Int32 - timeout in seconds (0 = keep forever)
-	ephemeral := int32(0)
-	if e, ok := v["ephemeral"].(float64); ok {
-		ephemeral = int32(e)
-	} else if e, ok := v["ephemeral"].(int); ok {
-		ephemeral = int32(e)
-	} else if e, ok := v["ephemeral"].(int32); ok {
-		ephemeral = e
-	}
-	archived := false
-	if a, ok := v["archived"].(bool); ok {
-		archived = a
-	}
-	broadcast := false
-	if b, ok := v["broadcast"].(bool); ok {
-		broadcast = b
-	}
-
-	// Insert or update mthreads record (batched)
+	// Insert all 133 fields into mthreads
 	err := i.batchInsert("mthreads", `INSERT INTO sfpla.mthreads (
-		tid, alias, xstatus, name, ddata, provider, medium,
-		urgency, sys, ephemeral, archived, broadcast,
-		campaign_id, campaign_status,
+		tid, alias, xstatus, name, ddata, provider, medium, xid, post, mtempl, mcert_id,
+		cats, mtypes, fmtypes, cmtypes, admins, perms_ids, cohorts, splits,
+		sent, outs, subs, pubs, vid_targets, audience_segments, content_keywords,
+		consent_types, content_history, content_editors,
+		prefs, interest, perf, variants, variant_weights, audience_params, audience_metrics,
+		content_assumptions, content_metrics, regional_compliance, frequency_caps,
+		provider_metrics, abz_params, abz_param_space, abz_model_params, attribution_params,
+		opens, openp, derive, ftrack, strack, sys, archived, broadcast,
+		abz_enabled, abz_auto_optimize, abz_auto_stop, abz_infinite_armed,
+		requires_consent, creator_compensation,
+		app, rel, ver, ptyp, etyp, ename, auth_name, source, campaign, term, promo, ref, aff,
+		provider_campaign_id, provider_account_id, provider_cost, provider_status,
+		funnel_stage, winner_variant, content_intention, campaign_id, campaign_status, campaign_phase,
+		urgency, ephemeral, planned_impressions, actual_impressions, impression_goal,
+		impression_budget, cost_per_impression, total_conversions, conversion_value,
+		campaign_priority, campaign_budget_allocation, attribution_weight, attribution_window,
+		data_retention, content_version, creator_compensation_rate, creator_compensation_cap,
+		abz_algorithm, abz_reward_metric, abz_reward_value, abz_exploration_rate,
+		abz_learning_rate, abz_start_time, abz_sample_size, abz_min_sample_size,
+		abz_confidence_level, abz_winner_threshold, abz_status, abz_model_type,
+		abz_acquisition_function, deleted, updatedms, content_approval_date,
+		attribution_model, creator_id, content_id, content_approver, content_creator,
+		creator_compensation_model, creator_notes, content_status,
 		oid, org, owner, uid, vid, created_at, updated_at, updater
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	SETTINGS insert_deduplicate = 1`,
+	) VALUES (
+		?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?,
+		?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?,
+		?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?, ?,
+		?, ?, ?,
+		?, ?, ?, ?, ?, ?, ?, ?
+	) SETTINGS insert_deduplicate = 1`,
 		[]interface{}{
-			tid,
-			getStringValue(v["alias"]),        // Thread alias (e.g., URL for web pages, campaign ID for ads)
-			getStringValue(v["xstatus"]),      // Thread status
-			getStringValue(v["name"]),         // Thread name
-			getStringValue(v["ddata"]),        // Thread description/data
-			getStringValue(v["provider"]),     // Provider (e.g., "website", "email", "sms")
-			getStringValue(v["medium"]),       // Medium (e.g., "page", "chat", "campaign")
-			urgency,                           // Urgency level (0-10)
-			sys,                               // System message flag
-			ephemeral,                         // Ephemeral message flag
-			archived,                          // Archived flag
-			broadcast,                         // Broadcast flag
-			getStringValue(v["campaign_id"]),  // Campaign ID for tracking - String type
-			getStringValue(v["campaign_status"]), // Campaign status
-			parseUUID(oid),                    // oid - safe, never nil
-			getStringValue(v["org"]),
-			parseUUID(owner),
-			parseUUID(uid),
-			parseUUID(vid),
-			updated,
-			updated,
-			parseUUID(updater),
+			fields.TID, fields.Alias, fields.XStatus, fields.Name, fields.DData,
+			fields.Provider, fields.Medium, fields.XID, fields.Post, fields.MTempl, fields.MCertID,
+			fields.Cats, fields.MTypes, fields.FMTypes, fields.CMTypes,
+			fields.Admins, fields.PermsIDs, fields.Cohorts, fields.Splits,
+			fields.Sent, fields.Outs, fields.Subs, fields.Pubs, fields.VidTargets,
+			fields.AudienceSegments, fields.ContentKeywords,
+			fields.ConsentTypes, fields.ContentHistory, fields.ContentEditors,
+			fields.Prefs, fields.Interest, fields.Perf, fields.Variants, fields.VariantWeights,
+			fields.AudienceParams, fields.AudienceMetrics,
+			fields.ContentAssumptions, fields.ContentMetrics, fields.RegionalCompliance, fields.FrequencyCaps,
+			fields.ProviderMetrics, fields.ABZParams, fields.ABZParamSpace, fields.ABZModelParams, fields.AttributionParams,
+			fields.Opens, fields.OpenP, fields.Derive, fields.FTrack, fields.STrack,
+			fields.Sys, fields.Archived, fields.Broadcast,
+			fields.ABZEnabled, fields.ABZAutoOptimize, fields.ABZAutoStop, fields.ABZInfiniteArmed,
+			fields.RequiresConsent, fields.CreatorCompensation,
+			fields.App, fields.Rel, fields.Ver, fields.PTyp, fields.ETyp, fields.EName,
+			getStringOrDefault(v["auth_name"], ""), fields.Source, fields.Campaign, fields.Term, fields.Promo, fields.Ref, fields.Aff,
+			fields.ProviderCampaignID, fields.ProviderAccountID, fields.ProviderCost, fields.ProviderStatus,
+			fields.FunnelStage, fields.WinnerVariant, fields.ContentIntention,
+			fields.CampaignID, fields.CampaignStatus, fields.CampaignPhase,
+			fields.Urgency, fields.Ephemeral, fields.PlannedImpressions, fields.ActualImpressions, fields.ImpressionGoal,
+			fields.ImpressionBudget, fields.CostPerImpression, fields.TotalConversions, fields.ConversionValue,
+			fields.CampaignPriority, fields.CampaignBudgetAllocation, fields.AttributionWeight, fields.AttributionWindow,
+			fields.DataRetention, fields.ContentVersion, fields.CreatorCompensationRate, fields.CreatorCompensationCap,
+			fields.ABZAlgorithm, fields.ABZRewardMetric, fields.ABZRewardValue, fields.ABZExplorationRate,
+			fields.ABZLearningRate, fields.ABZStartTime, fields.ABZSampleSize, fields.ABZMinSampleSize,
+			fields.ABZConfidenceLevel, fields.ABZWinnerThreshold, fields.ABZStatus, fields.ABZModelType,
+			fields.ABZAcquisitionFunction, fields.Deleted, fields.UpdatedMS, fields.ContentApprovalDate,
+			fields.AttributionModel, fields.CreatorID, fields.ContentID, fields.ContentApprover, fields.ContentCreator,
+			fields.CreatorCompensationModel, fields.CreatorNotes, fields.ContentStatus,
+			fields.OID, fields.Org, fields.Owner, fields.UID, fields.VID,
+			fields.CreatedAt, fields.UpdatedAt, fields.Updater,
 		}, v)
 
 	if err != nil {
@@ -2965,199 +3067,55 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 	// Generate message ID
 	mid := uuid.Must(uuid.NewUUID())
 
-	// Parse optional UUIDs
-	var pmid, qid, rid, owner, uid, vid, updater *uuid.UUID
-	if temp, ok := v["pmid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			pmid = &parsed
-		}
-	}
-	if temp, ok := v["qid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			qid = &parsed
-		}
-	}
-	if temp, ok := v["rid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			rid = &parsed
-		}
-	}
-	if temp, ok := v["owner"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			owner = &parsed
-		}
-	}
-	if temp, ok := v["uid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			uid = &parsed
-		}
-	}
-	if temp, ok := v["vid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			vid = &parsed
-		}
-	}
-	if temp, ok := v["updater"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			updater = &parsed
-		}
-	}
+	// Parse all fields using the comprehensive parser
+	fields := ParseMStoreFields(mid, *tid, oid, v, updated)
 
-	// Parse urgency
-	urgency := int32(0)
-	if u, ok := v["urgency"].(float64); ok {
-		urgency = int32(u)
-	} else if u, ok := v["urgency"].(int); ok {
-		urgency = int32(u)
-	} else if u, ok := v["urgency"].(int32); ok {
-		urgency = u
-	}
-
-	// Parse boolean flags
-	sys := false
-	if s, ok := v["sys"].(bool); ok {
-		sys = s
-	}
-	broadcast := false
-	if b, ok := v["broadcast"].(bool); ok {
-		broadcast = b
-	}
-	keep := false
-	if k, ok := v["keep"].(bool); ok {
-		keep = k
-	}
-	hidden := false
-	if h, ok := v["hidden"].(bool); ok {
-		hidden = h
-	}
-
-	// Parse createdms
-	createdms := int64(0)
-	if c, ok := v["createdms"].(float64); ok {
-		createdms = int64(c)
-	} else if c, ok := v["createdms"].(int64); ok {
-		createdms = c
-	}
-
-	// Parse conversion_events
-	conversionEvents := int64(0)
-	if c, ok := v["conversion_events"].(float64); ok {
-		conversionEvents = int64(c)
-	} else if c, ok := v["conversion_events"].(int64); ok {
-		conversionEvents = c
-	}
-
-	// Parse array fields
-	mtypes := []string{}
-	if mt, ok := v["mtypes"].([]interface{}); ok {
-		for _, t := range mt {
-			if str, ok := t.(string); ok {
-				mtypes = append(mtypes, str)
-			}
-		}
-	} else if mt, ok := v["mtypes"].([]string); ok {
-		mtypes = mt
-	}
-
-	users := []string{}
-	if u, ok := v["users"].([]interface{}); ok {
-		for _, user := range u {
-			if str, ok := user.(string); ok {
-				users = append(users, str)
-			}
-		}
-	} else if u, ok := v["users"].([]string); ok {
-		users = u
-	}
-
-	deliveries := []string{}
-	if d, ok := v["deliveries"].([]interface{}); ok {
-		for _, delivery := range d {
-			if str, ok := delivery.(string); ok {
-				deliveries = append(deliveries, str)
-			}
-		}
-	} else if d, ok := v["deliveries"].([]string); ok {
-		deliveries = d
-	}
-
-	failures := []string{}
-	if f, ok := v["failures"].([]interface{}); ok {
-		for _, failure := range f {
-			if str, ok := failure.(string); ok {
-				failures = append(failures, str)
-			}
-		}
-	} else if f, ok := v["failures"].([]string); ok {
-		failures = f
-	}
-
-	permsIds := []string{}
-	if p, ok := v["perms_ids"].([]interface{}); ok {
-		for _, perm := range p {
-			if str, ok := perm.(string); ok {
-				permsIds = append(permsIds, str)
-			}
-		}
-	} else if p, ok := v["perms_ids"].([]string); ok {
-		permsIds = p
-	}
-
+	// Insert fields that actually exist in mstore table (46 columns)
 	err := i.batchInsert("mstore", `INSERT INTO sfpla.mstore (
-		tid, mid, pmid, subject, msg, data,
-		urgency, sys, broadcast, mtempl, repl, svc,
-		qid, rid, relation, meta,
+		tid, mid, pmid, subject, msg, data, urgency, sys, broadcast,
+		mtempl, repl, svc, qid, rid, relation, meta,
 		planned, scheduled, started, completed,
 		mtypes, users, deliveries, failures,
 		xid, split, perms_ids, deleted, keep, createdms,
-		oid, org, owner, uid, vid, created_at, updated_at, updater,
-		interest, perf, hidden, funnel_stage, conversion_event_count
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	SETTINGS insert_deduplicate = 1`,
+		created_at, oid, org, owner, uid, vid, updated_at, updater,
+		interest, perf, hide, hidden, funnel_stage, conversion_event_count
+	) VALUES (
+		?, ?, ?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?
+	) SETTINGS insert_deduplicate = 1`,
 		[]interface{}{
-			tid,
-			mid,
-			parseUUID(pmid),
-			getStringValue(v["subject"]),      // Subject line
-			getStringValue(v["msg"]),          // Message text content
-			getStringValue(v["data"]),         // JSON structured data
-			urgency,
-			sys,
-			broadcast,
-			getStringValue(v["mtempl"]),       // Message template URL
-			jsonOrNull(v["repl"]),             // Replacement tokens JSON
-			getStringValue(v["svc"]),          // Service (e.g., "SES", "message", "sms")
-			parseUUID(qid),
-			parseUUID(rid),
-			getStringValue(v["relation"]),
-			jsonOrNull(v["meta"]),             // Metadata JSON
-			getDateTimeOrZero(v["planned"]),   // Planned time (mstore-specific, not in mtriage) - DateTime64(3)
-			getDateTimeOrZero(v["scheduled"]), // Scheduled time - DateTime64(3)
-			getDateTimeOrZero(v["started"]),   // Start time - DateTime64(3)
-			getDateTimeOrZero(v["completed"]), // Completion time - DateTime64(3)
-			mtypes,                            // mtypes - Array(String)
-			users,                             // users - Array(UUID) - must be []string for clickhouse-go
-			deliveries,                        // deliveries - Array(UUID) - must be []string for clickhouse-go
-			failures,                          // failures - Array(UUID) - must be []string for clickhouse-go
-			getStringValue(v["xid"]),          // Experiment ID
-			getStringValue(v["split"]),        // Split variant
-			permsIds,                          // perms_ids - Array(UUID) - must be []string for clickhouse-go
-			getDateTimeOrZero(v["deleted"]),   // deleted - DateTime64(3)
-			keep,
-			createdms,
-			parseUUID(oid),                    // oid - safe, never nil
-			getStringValue(v["org"]),
-			parseUUID(owner),
-			parseUUID(uid),
-			parseUUID(vid),
-			updated,
-			updated,
-			parseUUID(updater),
-			jsonOrNull(v["interest"]),         // Interest JSON
-			jsonOrNull(v["perf"]),             // Performance JSON
-			hidden,
-			getStringValue(v["funnel_stage"]),
-			conversionEvents,
+			fields.TID, fields.MID, fields.PMID, fields.Subject, fields.Msg,
+			getStringOrDefault(v["data"], ""), // data - from event or empty
+			fields.Urgency, fields.Sys, fields.Broadcast,
+			getStringOrDefault(v["mtempl"], ""), // mtempl - from event
+			getJSONOrDefault(v["repl"], "{}"), // repl - JSON
+			getStringOrDefault(v["svc"], ""), // svc - from event
+			fields.QID, fields.RID,
+			getStringOrDefault(v["relation"], ""), // relation
+			getJSONOrDefault(v["meta"], "{}"), // meta - JSON
+			getDateTimeOrZero(v["planned"]), // planned is DateTime64(3) - only in mstore
+			getDateTimeOrZero(v["scheduled"]), getDateTimeOrZero(v["started"]),
+			getDateTimeOrZero(v["completed"]),
+			fields.MTypes,
+			getUUIDArrayOrDefault(v["users"], []uuid.UUID{}), // users
+			getUUIDArrayOrDefault(v["deliveries"], []uuid.UUID{}), // deliveries
+			getUUIDArrayOrDefault(v["failures"], []uuid.UUID{}), // failures
+			getStringOrDefault(v["xid"], ""), getStringOrDefault(v["split"], ""),
+			getUUIDArrayOrDefault(v["perms_ids"], []uuid.UUID{}),
+			formatClickHouseDateTime(&fields.Deleted), fields.Keep, fields.CreatedMS,
+			formatClickHouseDateTime(&fields.CreatedAt), fields.OID, fields.Org, fields.Owner,
+			fields.UID, fields.VID, formatClickHouseDateTime(&fields.UpdatedAt), fields.Updater,
+			getJSONOrDefault(v["interest"], "{}"), // interest
+			getJSONOrDefault(v["perf"], "{}"), // perf
+			getDateTimeOrZero(v["hide"]), // hide
+			getBoolOrDefault(v["hidden"], false), // hidden
+			getStringOrDefault(v["funnel_stage"], ""), // funnel_stage
+			getInt64OrDefault(v["conversion_event_count"], 0), // conversion_event_count
 		}, v)
 
 	if i.AppConfig.Debug {
@@ -3213,122 +3171,62 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 	// Generate message ID
 	mid := uuid.Must(uuid.NewUUID())
 
-	// Parse optional UUIDs
-	var pmid, qid, rid, owner, uid, vid, updater *uuid.UUID
-	if temp, ok := v["pmid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			pmid = &parsed
-		}
-	}
-	if temp, ok := v["qid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			qid = &parsed
-		}
-	}
-	if temp, ok := v["rid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			rid = &parsed
-		}
-	}
-	if temp, ok := v["owner"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			owner = &parsed
-		}
-	}
-	if temp, ok := v["uid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			uid = &parsed
-		}
-	}
-	if temp, ok := v["vid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			vid = &parsed
-		}
-	}
-	if temp, ok := v["updater"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
-			updater = &parsed
-		}
+	// Set default urgency to 8 for triage entries
+	if _, hasUrgency := v["urgency"]; !hasUrgency {
+		v["urgency"] = int32(8)
 	}
 
-	// Parse urgency (high priority for triage = urgency 8)
-	urgency := int32(8)
-	if u, ok := v["urgency"].(float64); ok {
-		urgency = int32(u)
-	} else if u, ok := v["urgency"].(int); ok {
-		urgency = int32(u)
-	} else if u, ok := v["urgency"].(int32); ok {
-		urgency = u
+	// Set default keep to true for triage entries
+	if _, hasKeep := v["keep"]; !hasKeep {
+		v["keep"] = true
 	}
 
-	// Parse boolean flags
-	sys := false
-	if s, ok := v["sys"].(bool); ok {
-		sys = s
-	}
-	broadcast := false
-	if b, ok := v["broadcast"].(bool); ok {
-		broadcast = b
-	}
-	keep := true // Default true for triage (need to retain for processing)
-	if k, ok := v["keep"].(bool); ok {
-		keep = k
-	}
-
-	// Parse createdms
-	createdms := int64(0)
-	if c, ok := v["createdms"].(float64); ok {
-		createdms = int64(c)
-	} else if c, ok := v["createdms"].(int64); ok {
-		createdms = c
-	}
+	// Parse all fields using the comprehensive parser
+	fields := ParseMTriageFields(mid, *tid, oid, v, updated)
 
 	if i.AppConfig.Debug {
 		fmt.Printf("[DEBUG] mtriage: Inserting record with mid=%v, subject='%s', msg='%s'\n",
-			mid, getStringValue(v["subject"]), getStringValue(v["msg"]))
+			mid, fields.Subject, fields.Msg)
 	}
 
+	// Insert fields that actually exist in mtriage table (37 columns)
+	// Note: mtriage uses priority processing so no SETTINGS clause
 	err := i.batchInsert("mtriage", `INSERT INTO sfpla.mtriage (
-		tid, mid, pmid, subject, msg, data,
-		urgency, sys, broadcast, mtempl, repl, svc,
-		qid, rid, relation, meta,
+		tid, mid, pmid, subject, msg, data, urgency, sys, broadcast,
+		mtempl, repl, svc, qid, rid, relation, meta,
 		scheduled, started, completed,
-		xid, split, keep, createdms,
-		oid, org, owner, uid, vid, created_at, updated_at, updater
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		mtypes, users, deliveries, failures,
+		xid, split, perms_ids, deleted, keep, createdms,
+		created_at, oid, org, owner, uid, vid, updated_at, updater
+	) VALUES (
+		?, ?, ?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?,
+		?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?, ?, ?
+	)`,
 		[]interface{}{
-			tid,
-			mid,
-			parseUUID(pmid),
-			getStringValue(v["subject"]),      // Subject line
-			getStringValue(v["msg"]),          // Message text content
-			getStringValue(v["data"]),         // JSON structured data
-			urgency,                           // High urgency for triage
-			sys,
-			broadcast,
-			getStringValue(v["mtempl"]),       // Message template URL
-			getJSONString(v["repl"]),          // Replacement tokens JSON - use string for immediate exec
-			getStringValue(v["svc"]),          // Service (e.g., "SES", "message", "sms")
-			parseUUID(qid),
-			parseUUID(rid),
-			getStringValue(v["relation"]),
-			getJSONString(v["meta"]),          // Metadata JSON - use string for immediate exec
-			// Note: NO 'planned' field in mtriage (only in mstore)
-			getDateTimeOrZero(v["scheduled"]), // Scheduled time - DateTime64(3)
-			getDateTimeOrZero(v["started"]),   // Start time - DateTime64(3)
-			getDateTimeOrZero(v["completed"]), // Completion time - DateTime64(3)
-			getStringValue(v["xid"]),          // Experiment ID
-			getStringValue(v["split"]),        // Split variant
-			keep,
-			createdms,
-			parseUUID(oid),                    // oid - safe, never nil
-			getStringValue(v["org"]),
-			parseUUID(owner),
-			parseUUID(uid),
-			parseUUID(vid),
-			updated,
-			updated,
-			parseUUID(updater),
+			fields.TID, fields.MID, fields.PMID, fields.Subject, fields.Msg,
+			getStringOrDefault(v["data"], ""), // data
+			fields.Urgency, fields.Sys, fields.Broadcast,
+			getStringOrDefault(v["mtempl"], ""), // mtempl
+			getJSONOrDefault(v["repl"], "{}"), // repl
+			getStringOrDefault(v["svc"], ""), // svc
+			fields.QID, fields.RID,
+			getStringOrDefault(v["relation"], ""), // relation
+			getJSONOrDefault(v["meta"], "{}"), // meta
+			getDateTimeOrZero(v["scheduled"]), getDateTimeOrZero(v["started"]),
+			getDateTimeOrZero(v["completed"]),
+			fields.MTypes,
+			getUUIDArrayOrDefault(v["users"], []uuid.UUID{}), // users
+			getUUIDArrayOrDefault(v["deliveries"], []uuid.UUID{}), // deliveries
+			getUUIDArrayOrDefault(v["failures"], []uuid.UUID{}), // failures
+			getStringOrDefault(v["xid"], ""), getStringOrDefault(v["split"], ""),
+			getUUIDArrayOrDefault(v["perms_ids"], []uuid.UUID{}),
+			formatClickHouseDateTime(&fields.Deleted), fields.Keep, fields.CreatedMS,
+			formatClickHouseDateTime(&fields.CreatedAt), fields.OID, fields.Org, fields.Owner,
+			fields.UID, fields.VID, formatClickHouseDateTime(&fields.UpdatedAt), fields.Updater,
 		}, v)
 
 	if i.AppConfig.Debug {
