@@ -1339,12 +1339,20 @@ packages/tracker/
 # Install Go 1.19+
 brew install go  # macOS
 
+# Install ClickHouse 23.4+
+brew install clickhouse  # macOS (currently: 25.6.4.12)
+
 # Build tracker
 go build -o tracker
 
 # Run with config
 ./tracker config.json
 ```
+
+**Minimum Requirements:**
+- Go 1.19+
+- ClickHouse 23.4+ (tested with 25.6.4.12)
+- ClickHouse Keeper (embedded in ClickHouse 23.4+)
 
 ## 🎯 Credits
 
