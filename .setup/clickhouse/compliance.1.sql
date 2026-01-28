@@ -79,7 +79,7 @@ AS jurisdictions_local
 ENGINE = Distributed(tracker_cluster, sfpla, jurisdictions_local, rand());
 
 -- Create a materialized view for locs - Enables efficient querying by location
-CREATE MATERIALIZED VIEW jurisdictions_by_locs
+CREATE MATERIALIZED VIEW jurisdictions_by_locs ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY (country, region, city)
 POPULATE AS
@@ -228,13 +228,13 @@ AS queues_local
 ENGINE = Distributed(tracker_cluster, sfpla, queues_local, rand());
 
 -- Create indices for queues
-CREATE MATERIALIZED VIEW queues_by_qtype
+CREATE MATERIALIZED VIEW queues_by_qtype ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY qtype
 POPULATE AS
 SELECT * FROM queues;
 
-CREATE MATERIALIZED VIEW queues_by_completed
+CREATE MATERIALIZED VIEW queues_by_completed ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY completed
 POPULATE AS

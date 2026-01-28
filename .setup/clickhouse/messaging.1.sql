@@ -21,7 +21,7 @@ AS affiliates_local
 ENGINE = Distributed(tracker_cluster, sfpla, affiliates_local, rand());
 
 -- Create a materialized view for time-based queries - Enables efficient queries by creation time
-CREATE MATERIALIZED VIEW affiliates_by_time 
+CREATE MATERIALIZED VIEW affiliates_by_time ON CLUSTER tracker_cluster 
 ENGINE = ReplicatedReplacingMergeTree
 PARTITION BY toYYYYMM(created_at)
 ORDER BY created_at
@@ -255,7 +255,7 @@ CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this thread
 
-) ENGINE = MergeTree()
+) ENGINE = ReplicatedMergeTree()
 PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, tid, created_at);
 
@@ -265,7 +265,7 @@ AS mthreads_local
 ENGINE = Distributed(tracker_cluster, sfpla, mthreads_local, rand());
 
 DROP VIEW IF EXISTS mthreads_by_website_page;
-CREATE MATERIALIZED VIEW mthreads_by_website_page
+CREATE MATERIALIZED VIEW mthreads_by_website_page ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY (provider, medium, alias)
 POPULATE AS
@@ -275,7 +275,7 @@ WHERE provider = 'website' AND medium = 'page';
 
 
 DROP VIEW IF EXISTS mthreads_by_chat;
-CREATE MATERIALIZED VIEW mthreads_by_chat
+CREATE MATERIALIZED VIEW mthreads_by_chat ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY (provider, medium, alias)
 POPULATE AS
@@ -324,7 +324,7 @@ CREATE TABLE mtriage_local ON CLUSTER tracker_cluster (
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this message
 
-) ENGINE = MergeTree()
+) ENGINE = ReplicatedMergeTree()
 PARTITION BY toYYYYMM(created_at)
 ORDER BY (tid, mid, created_at);
 
@@ -381,7 +381,7 @@ CREATE TABLE mstore_local ON CLUSTER tracker_cluster (
     funnel_stage String DEFAULT '',
     conversion_event_count Int64 DEFAULT 0  -- Number of conversion events
 
-) ENGINE = MergeTree()
+) ENGINE = ReplicatedMergeTree()
 PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, tid, mid, created_at);
 

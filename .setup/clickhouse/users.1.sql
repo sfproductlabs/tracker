@@ -67,7 +67,7 @@ ENGINE = Distributed(tracker_cluster, sfpla, payments_local, rand());
 
 -- Invoice totals view - Aggregates line items to invoice level
 -- Use this view to get complete invoice summaries without manually aggregating
-CREATE VIEW invoice_totals AS
+CREATE VIEW invoice_totals ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     org,
@@ -116,7 +116,7 @@ WHERE campaign_id IS NOT NULL AND campaign_id != ''
 GROUP BY oid, campaign_id, month;
 
 -- Materialized view for looking up payments by user - Enables efficient user payment history
-CREATE MATERIALIZED VIEW payments_by_user
+CREATE MATERIALIZED VIEW payments_by_user ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY (uid, created_at)
 POPULATE AS
@@ -124,7 +124,7 @@ SELECT * FROM payments
 WHERE uid IS NOT NULL;
 
 -- Materialized view for looking up payments by campaign - Enables campaign revenue tracking
-CREATE MATERIALIZED VIEW payments_by_campaign
+CREATE MATERIALIZED VIEW payments_by_campaign ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY (campaign_id, created_at)
 POPULATE AS
@@ -132,7 +132,7 @@ SELECT * FROM payments
 WHERE campaign_id IS NOT NULL;
 
 -- Materialized view for looking up payments by organization - Enables multi-tenant payment queries
-CREATE MATERIALIZED VIEW payments_by_org
+CREATE MATERIALIZED VIEW payments_by_org ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY (oid, org, created_at)
 POPULATE AS
@@ -164,7 +164,7 @@ AS ltv_local
 ENGINE = Distributed(tracker_cluster, sfpla, ltv_local, rand());
 
 -- Materialized view: ltv by user ID - Fast queries for user lifetime value
-CREATE MATERIALIZED VIEW ltv_by_uid
+CREATE MATERIALIZED VIEW ltv_by_uid ON CLUSTER tracker_cluster
 ENGINE = ReplicatedSummingMergeTree(paid)
 ORDER BY (hhash, id)
 POPULATE AS
@@ -172,7 +172,7 @@ SELECT * FROM ltv
 WHERE id_type = 'uid';
 
 -- Materialized view: ltv by visitor ID - Fast queries for visitor lifetime value
-CREATE MATERIALIZED VIEW ltv_by_vid
+CREATE MATERIALIZED VIEW ltv_by_vid ON CLUSTER tracker_cluster
 ENGINE = ReplicatedSummingMergeTree(paid)
 ORDER BY (hhash, id)
 POPULATE AS
@@ -180,7 +180,7 @@ SELECT * FROM ltv
 WHERE id_type = 'vid';
 
 -- Materialized view: ltv by order ID - Fast queries for order lifetime value
-CREATE MATERIALIZED VIEW ltv_by_orid
+CREATE MATERIALIZED VIEW ltv_by_orid ON CLUSTER tracker_cluster
 ENGINE = ReplicatedSummingMergeTree(paid)
 ORDER BY (hhash, id)
 POPULATE AS
@@ -368,7 +368,7 @@ ENGINE = Distributed(tracker_cluster, sfpla, users_local, rand());
 -- (user_by_email, user_by_username, user_by_cell superseded by user_by_all_emails, user_by_username, user_by_all_cells)
 
 -- Materialized view for finding users in specific cohorts
-CREATE MATERIALIZED VIEW user_by_cohorts
+CREATE MATERIALIZED VIEW user_by_cohorts ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY cohorts
 POPULATE AS
@@ -533,14 +533,14 @@ AS pconfirmation_local
 ENGINE = Distributed(tracker_cluster, sfpla, pconfirmation_local, rand());
 
 -- Permissions table - Stores access control permissions for resources
-CREATE MATERIALIZED VIEW user_by_username
+CREATE MATERIALIZED VIEW user_by_username ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY username
 POPULATE AS
 SELECT uid, username FROM users WHERE username IS NOT NULL AND username != '';
 
 -- Materialized view for all emails (primary + additional) lookups
-CREATE MATERIALIZED VIEW user_by_all_emails
+CREATE MATERIALIZED VIEW user_by_all_emails ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY email_address
 POPULATE AS
@@ -564,7 +564,7 @@ ARRAY JOIN JSONExtractKeys(toString(additional_emails)) AS email_key
 WHERE additional_emails IS NOT NULL;
 
 -- Materialized view for all cell numbers (primary + additional) lookups
-CREATE MATERIALIZED VIEW user_by_all_cells
+CREATE MATERIALIZED VIEW user_by_all_cells ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY cell_number
 POPULATE AS

@@ -101,7 +101,7 @@ CREATE TABLE events_local ON CLUSTER tracker_cluster (
     )
 
 
-) ENGINE = MergeTree()
+) ENGINE = ReplicatedMergeTree()
 PARTITION BY (oid, hhash, toYYYYMM(created_at))
 ORDER BY (created_at, eid)
 SETTINGS index_granularity = 8192,
@@ -115,7 +115,7 @@ ENGINE = Distributed(tracker_cluster, sfpla, events_local, rand());
 
 
 -- Visitors view - Gets first visit information for each visitor (earliest event by created_at)
-CREATE VIEW visitors AS
+CREATE VIEW visitors ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     org,
@@ -175,7 +175,7 @@ ORDER BY created_at ASC
 LIMIT 1 BY oid, vid;
 
 -- Create a materialized view for time-based queries - Enables efficient queries by creation time
-CREATE MATERIALIZED VIEW visitors_by_time
+CREATE MATERIALIZED VIEW visitors_by_time ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 PARTITION BY toYYYYMM(created_at)
 ORDER BY created_at
@@ -183,7 +183,7 @@ POPULATE AS
 SELECT * FROM visitors;
 
 -- Create a materialized view for uid lookup - Enables efficient queries by user ID
-CREATE MATERIALIZED VIEW visitors_by_uid
+CREATE MATERIALIZED VIEW visitors_by_uid ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(created_at)
 ORDER BY uid
@@ -191,7 +191,7 @@ POPULATE AS
 SELECT * FROM visitors;
 
 -- Visitors latest (most recent visitors) - Gets most recent event for each visitor
-CREATE VIEW visitors_latest AS
+CREATE VIEW visitors_latest ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     org,
@@ -251,7 +251,7 @@ ORDER BY created_at DESC
 LIMIT 1 BY oid, vid;
 
 -- Create a materialized view for uid lookup in visitors_latest
-CREATE MATERIALIZED VIEW visitors_latest_by_uid
+CREATE MATERIALIZED VIEW visitors_latest_by_uid ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(created_at)
 ORDER BY uid
@@ -259,7 +259,7 @@ POPULATE AS
 SELECT * FROM visitors_latest;
 
 -- Create a materialized view for time-based queries - Enables efficient queries by creation time
-CREATE MATERIALIZED VIEW visitors_latest_by_time
+CREATE MATERIALIZED VIEW visitors_latest_by_time ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 PARTITION BY toYYYYMM(created_at)
 ORDER BY created_at
@@ -267,7 +267,7 @@ POPULATE AS
 SELECT * FROM visitors_latest;
 
 -- Sessions view - Gets first event per session with session stats
-CREATE VIEW sessions AS
+CREATE VIEW sessions ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     org,
@@ -328,7 +328,7 @@ ORDER BY created_at ASC
 LIMIT 1 BY oid, sid;
 
 -- Create a materialized view for time-based queries - Enables efficient queries by creation time
-CREATE MATERIALIZED VIEW sessions_by_time
+CREATE MATERIALIZED VIEW sessions_by_time ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 PARTITION BY toYYYYMM(created_at)
 ORDER BY created_at
@@ -336,13 +336,13 @@ POPULATE AS
 SELECT * FROM sessions;
 
 -- Events recent view - Shows events from the last 7 days for recent data analysis
-CREATE VIEW events_recent AS
+CREATE VIEW events_recent ON CLUSTER tracker_cluster AS
 SELECT *
 FROM events
 WHERE created_at >= now() - INTERVAL 7 DAY;
 
 -- Nodes view - Maps visitors to IP addresses with host context (first occurrence)
-CREATE VIEW nodes AS
+CREATE VIEW nodes ON CLUSTER tracker_cluster AS
 SELECT
     hhash,
     vid,
@@ -357,7 +357,7 @@ ORDER BY created_at ASC
 LIMIT 1 BY hhash, vid, iphash;
 
 -- Locations view - Geographic location data for visitors (first occurrence)
-CREATE VIEW locations AS
+CREATE VIEW locations ON CLUSTER tracker_cluster AS
 SELECT
     hhash,
     vid,
@@ -372,7 +372,7 @@ ORDER BY created_at ASC
 LIMIT 1 BY hhash, vid, lat, lon;
 
 -- Aliases view - Maps visitors to authenticated users (first occurrence)
-CREATE VIEW aliases AS
+CREATE VIEW aliases ON CLUSTER tracker_cluster AS
 SELECT
     hhash,
     vid,
@@ -385,7 +385,7 @@ ORDER BY created_at ASC
 LIMIT 1 BY hhash, vid, uid;
 
 -- User sessions view - Cross-reference between users and their visitor IDs (first occurrence)
-CREATE VIEW user_sessions AS
+CREATE VIEW user_sessions ON CLUSTER tracker_cluster AS
 SELECT
     hhash,
     uid,
@@ -442,7 +442,7 @@ CREATE TABLE emails_local ON CLUSTER tracker_cluster (
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when email was recorded
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 
-) ENGINE = ReplacingMergeTree(created_at)
+) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY hhash
 ORDER BY (hhash, ehash);
 
@@ -469,7 +469,7 @@ AS hits_local
 ENGINE = Distributed(tracker_cluster, sfpla, hits_local, rand());
 
 -- Materialized view to auto-populate hits from events
-CREATE MATERIALIZED VIEW hits_mv TO hits AS
+CREATE MATERIALIZED VIEW hits_mv ON CLUSTER tracker_cluster TO hits AS
 SELECT
     hhash,
     url,
@@ -496,7 +496,7 @@ AS ips_local
 ENGINE = Distributed(tracker_cluster, sfpla, ips_local, rand());
 
 -- Materialized view to auto-populate ips from events
-CREATE MATERIALIZED VIEW ips_mv TO ips AS
+CREATE MATERIALIZED VIEW ips_mv ON CLUSTER tracker_cluster TO ips AS
 SELECT
     hhash,
     ip,
@@ -535,7 +535,7 @@ AS reqs_local
 ENGINE = Distributed(tracker_cluster, sfpla, reqs_local, rand());
 
 -- Materialized view to auto-populate reqs from events
-CREATE MATERIALIZED VIEW reqs_mv TO reqs AS
+CREATE MATERIALIZED VIEW reqs_mv ON CLUSTER tracker_cluster TO reqs AS
 SELECT
     hhash,
     vid,
@@ -563,7 +563,7 @@ AS browsers_local
 ENGINE = Distributed(tracker_cluster, sfpla, browsers_local, rand());
 
 -- Materialized view to auto-populate browsers from events
-CREATE MATERIALIZED VIEW browsers_mv TO browsers AS
+CREATE MATERIALIZED VIEW browsers_mv ON CLUSTER tracker_cluster TO browsers AS
 SELECT
     hhash,
     bhash,
@@ -591,7 +591,7 @@ AS referrers_local
 ENGINE = Distributed(tracker_cluster, sfpla, referrers_local, rand());
 
 -- Materialized view to auto-populate referrers from events
-CREATE MATERIALIZED VIEW referrers_mv TO referrers AS
+CREATE MATERIALIZED VIEW referrers_mv ON CLUSTER tracker_cluster TO referrers AS
 SELECT
     hhash,
     last as url,
@@ -601,7 +601,7 @@ FROM events
 WHERE last != '';
 
 -- Referrals view - Tracks user-to-user referrals (first occurrence)
-CREATE VIEW referrals AS
+CREATE VIEW referrals ON CLUSTER tracker_cluster AS
 SELECT
     hhash,
     ref,
@@ -615,7 +615,7 @@ ORDER BY created_at ASC
 LIMIT 1 BY hhash, vid;
 
 -- Referred view - Tracks referrals by referral code (first occurrence)
-CREATE VIEW referred AS
+CREATE VIEW referred ON CLUSTER tracker_cluster AS
 SELECT
     hhash,
     rcode,
@@ -631,7 +631,7 @@ LIMIT 1 BY hhash, vid;
 -- Affiliates table - Tracks affiliate referrals
 
 -- Last event occurrence by visitor/user/event name (most recent)
-CREATE VIEW last_event_by_vid_uid_ename AS
+CREATE VIEW last_event_by_vid_uid_ename ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     org,

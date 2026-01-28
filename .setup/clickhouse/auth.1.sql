@@ -190,7 +190,7 @@ CREATE TABLE logs_local ON CLUSTER tracker_cluster (
         SELECT _part_offset ORDER BY topic
     )
 
-) ENGINE = MergeTree()
+) ENGINE = ReplicatedMergeTree()
 PARTITION BY toYYYYMM(ldate)
 ORDER BY (created_at, id)
 SETTINGS index_granularity = 8192,
@@ -248,7 +248,7 @@ ENGINE = Distributed(tracker_cluster, sfpla, permissions_local, rand());
 
 -- Create indices for permissions
 -- Index for looking up permissions by ID
-CREATE MATERIALIZED VIEW permissions_by_id
+CREATE MATERIALIZED VIEW permissions_by_id ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY id
 POPULATE AS
@@ -256,21 +256,21 @@ SELECT * FROM permissions;
 
 
 -- Index for looking up permissions by organization
-CREATE MATERIALIZED VIEW permissions_by_org
+CREATE MATERIALIZED VIEW permissions_by_org ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY oid
 POPULATE AS
 SELECT * FROM permissions;
 
 -- Index for looking up permissions by resource path
-CREATE MATERIALIZED VIEW permissions_by_rpath
+CREATE MATERIALIZED VIEW permissions_by_rpath ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY rpath
 POPULATE AS
 SELECT * FROM permissions;
 
 -- Index for looking up permissions by reference ID (typically user)
-CREATE MATERIALIZED VIEW permissions_by_ref
+CREATE MATERIALIZED VIEW permissions_by_ref ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY ref
 POPULATE AS

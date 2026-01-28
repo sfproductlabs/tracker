@@ -4,7 +4,7 @@ High-performance user telemetry and event tracking system built in Go. Currently
 
 ## 🎯 Overview
 
-Track every visitor click, setup growth experiments, and measure user outcomes and growth loops - all under one roof for all your sites/assets. Built on the same infrastructure used by CERN, Netflix, Apple, and Github (ClickHouse), this system provides:
+Track every visitor click, setup growth experiments, and measure user outcomes and growth loops - all under one roof for all your sites/assets. Built on the same infrastructure used by Yandex, CERN, Netflix, Apple, and Github (see Cassandra, ClickHouse), this system provides:
 
 - **Data Sovereignty**: Keep your data under your control, solve GDPR compliance
 - **Privacy-First**: Built-in GDPR compliance with configurable retention policies
@@ -757,9 +757,311 @@ docker exec tracker clickhouse-client --query \
 curl http://localhost:8080/metrics
 ```
 
+### Replication Architectures
+
+Understanding your replication strategy is critical for fault tolerance and backup planning.
+
+#### Option 1: Non-Replicated MergeTree (Fastest)
+
+**Architecture**:
+```
+Node 1: 100% of data (MergeTree)
+Node 2: 100% of data (MergeTree)
+Node 3: 100% of data (MergeTree)
+```
+
+**Characteristics**:
+- ✅ **Highest throughput** - no replication overhead (up to 100x faster writes)
+- ✅ **Simplest setup** - no ZooKeeper coordination needed
+- ❌ **No automatic failover** - node failure = data unavailable
+- ❌ **Requires backups** - critical for disaster recovery
+
+**Best for**: Development, testing, high-throughput scenarios where you manage backups
+
+#### Option 2: Single Shard with Multiple Replicas (Default, Full Replication)
+
+**Architecture**:
+```
+Shard 1:
+  ├─ Node 1: Replica 1 (100% of data)
+  ├─ Node 2: Replica 2 (100% of data)
+  └─ Node 3: Replica 3 (100% of data)
+```
+
+**Configuration**:
+
+```sql
+-- On Node 1
+CREATE TABLE my_table (
+    id UUID,
+    timestamp DateTime,
+    data String
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/my_table', 'replica1')
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (id, timestamp);
+
+-- On Node 2 (same ZooKeeper path, different replica name)
+CREATE TABLE my_table (...)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/my_table', 'replica2')
+...
+
+-- On Node 3
+CREATE TABLE my_table (...)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/my_table', 'replica3')
+...
+
+-- Distributed table (on all nodes)
+CREATE TABLE my_table_dist AS my_table
+ENGINE = Distributed(my_cluster, my_database, my_table, rand());
+```
+
+**Cluster Configuration** (`/etc/clickhouse-server/config.xml`):
+```xml
+<remote_servers>
+    <my_cluster>
+        <shard>
+            <replica>
+                <host>node1</host>
+                <port>9000</port>
+            </replica>
+            <replica>
+                <host>node2</host>
+                <port>9000</port>
+            </replica>
+            <replica>
+                <host>node3</host>
+                <port>9000</port>
+            </replica>
+        </shard>
+    </my_cluster>
+</remote_servers>
+```
+
+**Characteristics**:
+- ✅ **Automatic failover** - queries succeed if any replica is available
+- ✅ **Read load balancing** - distributes reads across replicas
+- ✅ **Automatic catch-up** - failed nodes sync when they return
+- ⚠️ **Slower writes** - replication overhead (can be 10-100x slower)
+- ⚠️ **No horizontal scaling** - each node stores all data
+- ⚠️ **Higher storage costs** - 3x storage for 3 replicas
+
+**Failover behavior**:
+- **Reads**: Distributed table automatically queries healthy replicas ✅
+- **Writes to distributed table**: Routes to healthy replica ✅
+- **Writes to failed node directly**: Write fails (but other replicas stay available) ⚠️
+- **Recovery**: Failed node automatically replicates missing data when restored ✅
+
+**Best for**: Production systems requiring high availability with moderate write volume
+
+#### Option 3: Multiple Shards with Replication (Horizontal Scaling + Fault Tolerance)
+
+**Architecture**:
+```
+Shard 1 (50% of data):
+  ├─ Node 1: Replica 1
+  └─ Node 2: Replica 2
+
+Shard 2 (50% of data):
+  ├─ Node 3: Replica 1
+  └─ Node 4: Replica 2
+```
+
+**Configuration**:
+
+```sql
+-- Node 1 (Shard 1, Replica 1)
+CREATE TABLE my_table (...)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/shard1/my_table', 'replica1')
+...
+
+-- Node 2 (Shard 1, Replica 2 - same shard path)
+CREATE TABLE my_table (...)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/shard1/my_table', 'replica2')
+...
+
+-- Node 3 (Shard 2, Replica 1 - different shard path)
+CREATE TABLE my_table (...)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/shard2/my_table', 'replica1')
+...
+
+-- Node 4 (Shard 2, Replica 2)
+CREATE TABLE my_table (...)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/shard2/my_table', 'replica2')
+...
+
+-- Distributed table
+CREATE TABLE my_table_dist AS my_table
+ENGINE = Distributed(my_cluster, my_database, my_table, rand());
+```
+
+**Cluster Configuration**:
+```xml
+<remote_servers>
+    <my_cluster>
+        <shard>
+            <replica>
+                <host>node1</host>
+                <port>9000</port>
+            </replica>
+            <replica>
+                <host>node2</host>
+                <port>9000</port>
+            </replica>
+        </shard>
+        <shard>
+            <replica>
+                <host>node3</host>
+                <port>9000</port>
+            </replica>
+            <replica>
+                <host>node4</host>
+                <port>9000</port>
+            </replica>
+        </shard>
+    </my_cluster>
+</remote_servers>
+```
+
+**Characteristics**:
+- ✅ **Horizontal scaling** - storage and query performance scales with shards
+- ✅ **Fault tolerance** - each shard has replicas
+- ✅ **Efficient storage** - only 2x storage for 2 replicas per shard
+- ⚠️ **Replication overhead** - still pays replication cost
+- ⚠️ **Complex setup** - requires careful shard key selection
+
+**Best for**: Large-scale production with high data volume and availability requirements
+
+#### Architecture Comparison
+
+| Feature | Non-Replicated | Single Shard Replicated | Multi-Shard Replicated |
+|---------|----------------|------------------------|------------------------|
+| **Write Speed** | ⚡⚡⚡ Fastest | 🐢 Slowest | 🐢 Slow |
+| **Read Speed** | ⚡ Single node | ⚡⚡ Load balanced | ⚡⚡⚡ Parallel + balanced |
+| **Fault Tolerance** | ❌ None | ✅ Full | ✅ Full |
+| **Horizontal Scaling** | ❌ No | ❌ No | ✅ Yes |
+| **Storage Efficiency** | ✅ 1x | ❌ 3x (for 3 replicas) | ⚠️ 2x (for 2 replicas/shard) |
+| **Setup Complexity** | ✅ Simple | ⚠️ Moderate | ❌ Complex |
+| **Backup Importance** | 🔴 Critical | 🟡 Important | 🟡 Important |
+
+#### Choosing Your Architecture
+
+**Use Non-Replicated MergeTree when**:
+- Write performance is critical (analytics, high-frequency telemetry)
+- You can tolerate brief downtime for restores
+- You have reliable backup infrastructure
+- Development/testing environments
+
+**Use Single Shard Replication when**:
+- High availability is required
+- Data volume fits on a single server
+- Write volume is moderate
+- You want simple setup with automatic failover
+
+**Use Multi-Shard Replication when**:
+- You need to scale beyond single-server capacity
+- High availability AND high performance required
+- You have budget for 4+ servers
+- Enterprise production deployments
+
+#### Migration Path
+
+```bash
+# Start with non-replicated for development
+make docker-run
+
+# Test with single-shard replication for staging
+make cluster-start  # 3-node cluster
+
+# Scale to multi-shard for production
+# (requires custom cluster configuration)
+```
+
 ### Backups
 
-#### EBS Snapshots (AWS)
+#### ClickHouse MergeTree Backup & Restore Summary
+
+##### The Problem with Non-Replicated MergeTree
+
+When using regular MergeTree tables (not ReplicatedMergeTree) with a distributed table:
+- **No automatic replication** - each node holds unique data
+- **Node failure = data unavailable** - no automatic failover
+- **Higher throughput** - avoids replication overhead (100x better in some cases)
+- **Trade-off**: Speed vs. fault tolerance
+
+###### Handling Failed Nodes in Queries
+
+When a node fails, distributed queries will timeout or fail by default. You can configure tolerance:
+
+**skip_unavailable_shards**
+```sql
+SET skip_unavailable_shards = 1;
+SELECT * FROM distributed_table;
+```
+Allows queries to succeed with partial results from available shards only. **Warning**: You get incomplete data without necessarily knowing which shards were skipped.
+
+**distributed_replica_error_cap & distributed_replica_error_half_life**
+```sql
+SET distributed_replica_error_cap = 1000;
+SET distributed_replica_error_half_life = 60;
+```
+These settings track error counts per replica and exclude problematic ones from queries. However, they're less useful with MergeTree since there are no replicas to fall back to - just different shards with unique data.
+
+**Best Practice**: With non-replicated MergeTree, avoid `skip_unavailable_shards` in production unless you can tolerate incomplete results. Better to fail fast and restore from backup.
+
+##### Backup Methods
+
+###### 1. Built-in BACKUP Command (Recommended)
+Available in ClickHouse 22.8+
+```sql
+-- Backup
+BACKUP DATABASE my_database TO Disk('backups', 'backup_name/');
+BACKUP DATABASE my_database TO S3('https://bucket.s3.amazonaws.com/backups/', 'key', 'secret');
+
+-- Restore
+RESTORE DATABASE my_database FROM Disk('backups', 'backup_name/');
+```
+**Best for**: Automated backups, S3 storage, incremental backups
+
+###### 2. FREEZE Command (Fast, No Downtime)
+```sql
+-- Freeze entire table (all partitions)
+ALTER TABLE my_table FREEZE;
+
+-- Or freeze specific partition
+ALTER TABLE my_table FREEZE PARTITION '2024-01-28';
+```
+
+**How it works**:
+- Creates hardlinks (not copies) in `/var/lib/clickhouse/shadow/N/` where N is an incremental number
+- Original data directory: `/var/lib/clickhouse/data/my_database/my_table/`
+- Shadow directory: `/var/lib/clickhouse/shadow/N/data/my_database/my_table/`
+- Hardlinks mean instant "snapshot" with no disk space used initially
+- Frozen data is protected from ClickHouse merges and mutations
+
+**Complete process**:
+```bash
+# 1. Freeze the table
+clickhouse-client --query "ALTER TABLE my_database.my_table FREEZE"
+
+# 2. Copy shadow directory to backup location
+cp -r /var/lib/clickhouse/shadow/1/ /backup/location/freeze_backup_$(date +%Y%m%d)/
+
+# 3. Clean up shadow directory
+clickhouse-client --query "ALTER TABLE my_database.my_table UNFREEZE"
+# Or manually: rm -rf /var/lib/clickhouse/shadow/1/
+```
+
+**Best for**: Quick snapshots during operation, no query disruption
+
+###### 3. clickhouse-backup Tool
+```bash
+clickhouse-backup create my_backup
+clickhouse-backup upload my_backup
+clickhouse-backup restore my_backup
+```
+**Best for**: Advanced features, scheduling, compression
+
+###### 4. EBS Snapshots (AWS)
 ```bash
 # Create snapshot
 aws ec2 create-snapshot \
@@ -776,11 +1078,104 @@ EOF
 chmod +x /usr/local/bin/backup-clickhouse.sh
 echo "0 2 * * * /usr/local/bin/backup-clickhouse.sh" | crontab -
 ```
+**Best for**: Full system backups with point-in-time recovery
 
-#### ClickHouse BACKUP Command
+##### Restore Methods
+
+###### From BACKUP Command
+```sql
+RESTORE TABLE my_database.my_table FROM Disk('backups', 'backup_name/');
+RESTORE TABLE my_database.my_table AS my_database.my_table_test FROM S3(...);
+```
+
+###### From FREEZE or File Backup
+
+**Method A: Using ATTACH PARTITION FROM** (No downtime for other partitions)
+```sql
+-- 1. Create temporary table from backup
+CREATE TABLE my_database.my_table_backup AS my_database.my_table;
+
+-- 2. Copy frozen data to the temp table directory
+-- On filesystem (outside ClickHouse):
+```
 ```bash
+cp -r /backup/location/freeze_backup_20240128/shadow/1/data/my_database/my_table/* \
+   /var/lib/clickhouse/data/my_database/my_table_backup/
+
+chown -R clickhouse:clickhouse /var/lib/clickhouse/data/my_database/my_table_backup/
+```
+```sql
+-- 3. Attach partitions from temp table to main table
+ALTER TABLE my_database.my_table ATTACH PARTITION '2024-01-28' FROM my_database.my_table_backup;
+
+-- Repeat for each partition you need to restore
+
+-- 4. Drop temp table
+DROP TABLE my_database.my_table_backup;
+```
+
+**Method B: Direct file replacement** (Requires downtime)
+```bash
+# 1. Stop ClickHouse
+sudo systemctl stop clickhouse-server
+
+# 2. Backup current table data (safety measure)
+mv /var/lib/clickhouse/data/my_database/my_table \
+   /var/lib/clickhouse/data/my_database/my_table.old
+
+# 3. Copy frozen backup data
+cp -r /backup/location/freeze_backup_20240128/shadow/1/data/my_database/my_table \
+   /var/lib/clickhouse/data/my_database/
+
+# 4. Fix permissions
+chown -R clickhouse:clickhouse /var/lib/clickhouse/data/my_database/my_table
+
+# 5. Start ClickHouse
+sudo systemctl start clickhouse-server
+
+# 6. Verify
+clickhouse-client --query "SELECT count() FROM my_database.my_table"
+```
+
+###### From clickhouse-backup
+```bash
+clickhouse-backup restore my_backup
+clickhouse-backup restore --table my_database.my_table my_backup
+```
+
+##### Best Practices
+
+1. **Automate backups** - Schedule during low-traffic periods
+2. **Store off-node** - Use S3 or separate storage for disaster recovery
+3. **Test restores regularly** - Backups are worthless if restoration fails
+4. **Monitor backup operations** - Track size, duration, and success
+5. **Retention policy** - Keep recent backups locally, older ones in S3
+6. **Validate after restore** - Check row counts and sample data
+
+##### Recommended Setup for High-Throughput MergeTree
+
+- Use BACKUP command with S3 storage
+- Schedule automated backups during off-peak hours
+- Keep latest backup locally for fast recovery
+- Test restoration monthly
+- Document recovery procedures and RTO/RPO requirements
+
+##### Recovery Validation
+```sql
+-- After restore, verify data
+SELECT count() FROM my_table;
+SELECT * FROM my_table ORDER BY timestamp DESC LIMIT 100;
+```
+
+##### Docker Container Example
+```bash
+# Backup from Docker container
 docker exec tracker clickhouse-client --query \
   "BACKUP DATABASE sfpla TO Disk('default', 'backup_$(date +%Y%m%d).zip')"
+
+# Or using FREEZE within container
+docker exec tracker clickhouse-client --query "ALTER TABLE sfpla.events FREEZE"
+docker exec tracker bash -c "cp -r /var/lib/clickhouse/shadow/1/ /data/clickhouse/backups/freeze_$(date +%Y%m%d)/"
 ```
 
 ## 🔒 Privacy & Compliance
