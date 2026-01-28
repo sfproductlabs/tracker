@@ -6,7 +6,7 @@ USE sfpla;
 -- Payments table - Stores individual payment/transaction line items
 CREATE TABLE payments_local ON CLUSTER tracker_cluster (
 
-    id UUID,                      -- Payment/line item ID - unique identifier
+    id UUID DEFAULT generateUUIDv4(),                      -- Payment/line item ID - unique identifier
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                     -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                     -- Thread ID - reference to message thread

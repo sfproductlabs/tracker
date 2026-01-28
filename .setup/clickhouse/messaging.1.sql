@@ -366,7 +366,7 @@ CREATE TABLE mstore_local ON CLUSTER tracker_cluster (
     deleted DateTime64(3) DEFAULT toDateTime64(0, 3),
     keep Boolean DEFAULT false,
     createdms Int64 DEFAULT 0,
-    created_at DateTime64(3) DEFAULT toDateTime64(0, 3),
+    created_at DateTime64(3) DEFAULT now64(3),
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000',
