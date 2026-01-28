@@ -32,7 +32,7 @@ make docker-test-all
 make docker-logs
 ```
 
-### Manual Setup
+### Manual Setup (Tracker Self-Contained)
 
 ```bash
 # Clone and build
@@ -40,9 +40,21 @@ git clone https://github.com/sfproductlabs/tracker.git
 cd tracker
 go build -o tracker
 
-# Run with config
+# Start ClickHouse (tracker-local instance)
+make clickhouse-start
+
+# Load schema
+make schema-load
+
+# Run tracker with local ClickHouse
 ./tracker config.json
 ```
+
+**Note**: The tracker is fully self-contained with its own ClickHouse instance:
+- Config files: `clickhouse-config.xml`, `clickhouse-users.xml` (local copies)
+- Data directory: `./tmp/clickhouse/` (all local, no external dependencies)
+- Schema files: `.setup/clickhouse/` (6 core open-source schemas)
+- See [QUICK_START_SELF_CONTAINED.md](./QUICK_START_SELF_CONTAINED.md) for details
 
 ## 📚 Table of Contents
 
@@ -204,6 +216,22 @@ make test-functional-all           # Run ALL functional tests
 ```bash
 make schema-update      # Update hard links from api schema files
 make schema-verify      # Verify hard links are correct
+make schema-load        # Load all 6 core schema files (177 tables)
+```
+
+### Database Management (Self-Contained ClickHouse)
+
+```bash
+# Start/stop ClickHouse (tracker-local instance)
+make clickhouse-start   # Start ClickHouse with embedded Keeper
+make clickhouse-stop    # Stop ClickHouse
+make clickhouse-status  # Check ClickHouse status
+
+# Database operations
+make db-console         # Open ClickHouse CLI
+make db-reset           # Drop database + reload schema
+make db-clean           # Clean database without schema reload
+make db-admin           # Set up admin account
 ```
 
 ### Development Helpers

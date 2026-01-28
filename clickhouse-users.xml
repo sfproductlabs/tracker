@@ -1,34 +1,47 @@
-<?xml version="1.0"?>
 <clickhouse>
-    <users>
-        <default>
-            <password></password>
-            <networks>
-                <ip>::/0</ip>
-            </networks>
-            <profile>default</profile>
-            <quota>default</quota>
-        </default>
-    </users>
+  <users>
+    <default>
+      <password></password>
+      <networks>
+        <ip>::/0</ip>
+      </networks>
+      <profile>default</profile> <!-- REQUIRED -->
+      <access_management>1</access_management>
+    </default>
+  </users>
 
-    <quotas>
-        <default>
-            <interval>
-                <duration>3600</duration>
-                <queries>0</queries>
-                <errors>0</errors>
-                <result_rows>0</result_rows>
-                <read_rows>0</read_rows>
-                <execution_time>0</execution_time>
-            </interval>
-        </default>
-    </quotas>
+  <profiles>
+    <default>
+      <max_memory_usage>10000000000</max_memory_usage>
+      <use_uncompressed_cache>1</use_uncompressed_cache>
+      <load_balancing>random</load_balancing>
 
-    <profiles>
-        <default>
-            <max_memory_usage>10000000000</max_memory_usage>
-            <use_uncompressed_cache>0</use_uncompressed_cache>
-            <load_balancing>random</load_balancing>
-        </default>
-    </profiles>
+      <!-- Async Insert Settings for High Performance -->
+      <async_insert>0</async_insert>                           <!-- Enable async inserts -->
+      <async_insert_threads>16</async_insert_threads>          <!-- Number of async insert threads -->
+      <async_insert_max_data_size>10485760</async_insert_max_data_size>  <!-- 10MB max batch size -->
+      <async_insert_busy_timeout_ms>200</async_insert_busy_timeout_ms>    <!-- Wait 200ms for more data -->
+      <async_insert_stale_timeout_ms>1000</async_insert_stale_timeout_ms> <!-- Force flush after 1s -->
+      <wait_for_async_insert>1</wait_for_async_insert>        <!-- Wait for confirmation (safer, may be slower) -->
+      <async_insert_deduplicate>0</async_insert_deduplicate>   <!-- Disable dedup for speed -->
+
+      <!-- Memory settings for high throughput -->
+      <max_insert_block_size>1048576</max_insert_block_size>   <!-- 1M rows per block -->
+      <min_insert_block_size_rows>1048576</min_insert_block_size_rows>
+      <min_insert_block_size_bytes>268435456</min_insert_block_size_bytes> <!-- 256MB -->
+    </default>
+  </profiles>
+
+  <quotas>
+    <default>
+      <interval>
+        <duration>3600</duration>
+        <queries>0</queries>
+        <errors>0</errors>
+        <result_rows>0</result_rows>
+        <read_rows>0</read_rows>
+        <execution_time>0</execution_time>
+      </interval>
+    </default>
+  </quotas>
 </clickhouse>

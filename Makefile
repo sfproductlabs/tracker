@@ -35,11 +35,13 @@
 .PHONY: help build run clean test
 .PHONY: docker-build docker-run docker-stop docker-clean docker-logs docker-shell
 .PHONY: cluster-start cluster-stop cluster-test cluster-logs
-.PHONY: schema-update schema-verify
+.PHONY: schema-update schema-verify schema-load
 .PHONY: test-single test-cluster test-all
 .PHONY: test-functional-ltv test-functional-ltv-batch test-functional-redirects
 .PHONY: test-functional-privacy test-functional-jurisdictions test-functional-health
 .PHONY: test-functional-batch test-functional-e2e test-functional-all
+.PHONY: clickhouse-start clickhouse-stop clickhouse-status
+.PHONY: db-reset db-clean db-console db-admin
 
 # Default target
 .DEFAULT_GOAL := help
@@ -60,7 +62,8 @@ endif
 
 # Directories
 PROJECT_ROOT := $(shell cd ../.. && pwd)
-API_SCHEMA_DIR := $(PROJECT_ROOT)/packages/api/scripts/clickhouse/schema
+API_DIR := $(PROJECT_ROOT)/packages/api
+API_SCHEMA_DIR := $(API_DIR)/scripts/clickhouse/schema
 TRACKER_SCHEMA_DIR := .setup/clickhouse
 TRACKER_BINARY := tracker
 DOCKER_IMAGE := tracker:latest
@@ -114,6 +117,16 @@ help:
 	@echo "$(YELLOW)Schema Management:$(NC)"
 	@echo "  make schema-update  - Update hard links from api schema files"
 	@echo "  make schema-verify  - Verify hard links are correct"
+	@echo "  make schema-load    - Load all 6 open source schema files"
+	@echo ""
+	@echo "$(YELLOW)Database Management:$(NC)"
+	@echo "  make clickhouse-start - Start ClickHouse with embedded Keeper"
+	@echo "  make clickhouse-stop  - Stop ClickHouse and Keeper"
+	@echo "  make clickhouse-status - Check ClickHouse status"
+	@echo "  make db-console       - Open ClickHouse CLI"
+	@echo "  make db-reset         - Drop database + keeper, then reload schema"
+	@echo "  make db-clean         - Full clean (database + keeper only)"
+	@echo "  make db-admin         - Set up admin account"
 	@echo ""
 	@echo "$(YELLOW)Testing:$(NC)"
 	@echo "  make test                      - Run Go unit tests"
@@ -352,6 +365,104 @@ schema-verify:
 	@echo ""
 	@echo "$(YELLOW)Note: Files with the same inode number (second column) are hard links$(NC)"
 	@echo "$(YELLOW)Expected hard links: core.1.sql, analytics.1.sql, auth.1.sql, compliance.1.sql, messaging.1.sql, users.1.sql$(NC)"
+
+schema-load:
+	@echo "$(YELLOW)🗄️  Loading open source schema (6 core files)...$(NC)"
+	@cd $(TRACKER_SCHEMA_DIR) && for f in $(SCHEMA_FILES); do \
+		clickhouse client --multiquery < $$f || exit 1; \
+	done
+	@echo "$(GREEN)✅ Open source schema loaded (177 tables)$(NC)"
+
+# ====================================================================
+# DATABASE MANAGEMENT
+# ====================================================================
+
+clickhouse-start:
+	@if clickhouse client --query "SELECT 1" >/dev/null 2>&1; then \
+		echo "$(GREEN)✅ ClickHouse already running$(NC)"; \
+	else \
+		echo "$(YELLOW)Starting ClickHouse server with embedded Keeper...$(NC)"; \
+		mkdir -p ./tmp/clickhouse/{data,logs,tmp,user_files,format_schemas,coordination/log,coordination/snapshots}; \
+		nohup clickhouse server --config-file=clickhouse-config.xml > ./tmp/clickhouse/logs/server.log 2>&1 & \
+		echo $$! > ./tmp/clickhouse/clickhouse.pid; \
+		echo "$(YELLOW)Waiting for ClickHouse + Keeper to start...$(NC)"; \
+		for i in 1 2 3 4 5 6 7 8 9 10; do \
+			if clickhouse client --query "SELECT 1" >/dev/null 2>&1; then \
+				echo "$(GREEN)✅ ClickHouse started successfully (Keeper on port 2181)$(NC)"; \
+				exit 0; \
+			fi; \
+			sleep 1; \
+		done; \
+		echo "$(RED)❌ ClickHouse failed to start after 10 seconds$(NC)"; \
+		exit 1; \
+	fi
+
+clickhouse-stop:
+	@echo "$(YELLOW)Stopping ClickHouse (and embedded Keeper)...$(NC)"
+	@if [ -f ./tmp/clickhouse/clickhouse.pid ]; then \
+		kill $$(cat ./tmp/clickhouse/clickhouse.pid) 2>/dev/null || true; \
+		rm -f ./tmp/clickhouse/clickhouse.pid; \
+	fi
+	@pkill -f "clickhouse server" || true
+	@pkill -f "clickhouse keeper" || true
+	@sleep 2
+	@echo "$(GREEN)✅ ClickHouse stopped$(NC)"
+
+clickhouse-status:
+	@clickhouse client --query "SELECT 'ClickHouse is running' as status" 2>/dev/null || echo "$(RED)ClickHouse is not running$(NC)"
+
+db-console:
+	@echo "$(YELLOW)Opening ClickHouse console...$(NC)"
+	@clickhouse client
+
+db-reset:
+	@echo "$(RED)⚠️  WARNING: This will drop all data!$(NC)"
+	@echo "Press Ctrl+C to cancel, or Enter to continue..."
+	@read confirmation
+	@echo "$(YELLOW)Dropping database...$(NC)"
+	@clickhouse client --query "DROP DATABASE IF EXISTS sfpla"
+	@echo "$(YELLOW)Clearing ClickHouse keeper metadata...$(NC)"
+	@clickhouse keeper-client --host 0.0.0.0 --port 2181 --query "rmr '/clickhouse'" 2>/dev/null || echo "  (Keeper not available, skipping)"
+	@echo "$(YELLOW)Waiting for metadata cleanup...$(NC)"
+	@sleep 2
+	@echo "$(YELLOW)Recreating schema (6 core files)...$(NC)"
+	@$(MAKE) schema-load
+	@echo "$(YELLOW)Verifying replica health...$(NC)"
+	@BROKEN_COUNT=$$(clickhouse client --query "SELECT count() FROM system.replicas WHERE database = 'sfpla' AND total_replicas = 0" 2>/dev/null || echo "0"); \
+	if [ "$$BROKEN_COUNT" -gt 0 ]; then \
+		echo "$(RED)❌ ERROR: $$BROKEN_COUNT replicas failed to register in ZooKeeper$(NC)"; \
+		echo "$(YELLOW)Broken tables:$(NC)"; \
+		clickhouse client --query "SELECT table FROM system.replicas WHERE database = 'sfpla' AND total_replicas = 0"; \
+		exit 1; \
+	else \
+		TOTAL=$$(clickhouse client --query "SELECT count() FROM system.replicas WHERE database = 'sfpla'" 2>/dev/null || echo "0"); \
+		if [ "$$TOTAL" -gt 0 ]; then \
+			echo "$(GREEN)✅ All $$TOTAL replicas properly registered$(NC)"; \
+		else \
+			echo "$(GREEN)✅ Database ready (no replicated tables)$(NC)"; \
+		fi; \
+	fi
+	@echo "$(YELLOW)Setting up admin account...$(NC)"
+	@$(MAKE) db-admin
+	@echo "$(GREEN)✅ Database reset complete$(NC)"
+
+db-clean:
+	@echo "$(RED)⚠️  WARNING: This will drop the database and clear keeper!$(NC)"
+	@echo "This is a FULL clean (database + keeper + recreate)"
+	@echo "Press Ctrl+C to cancel, or Enter to continue..."
+	@read confirmation
+	@echo "$(YELLOW)Dropping database sfpla...$(NC)"
+	@clickhouse client --query "DROP DATABASE IF EXISTS sfpla SYNC"
+	@echo "$(YELLOW)Clearing keeper metadata...$(NC)"
+	@clickhouse keeper-client --host 0.0.0.0 --port 2181 --query "rmr '/clickhouse'" 2>/dev/null || echo "  (Keeper not available, skipping)"
+	@echo "$(GREEN)✅ Database and keeper cleared$(NC)"
+	@echo ""
+	@echo "To reload schema, run: make schema-load"
+
+db-admin:
+	@echo "$(YELLOW)Setting up admin account...$(NC)"
+	@clickhouse client --query "INSERT INTO accounts VALUES (toUUID('14fb0860-b4bf-11e9-8971-7b80435315ac'), 'W6ph5Mm5Pz8GgiULbPgzG37mj9g=', '127.0.0.1', 'demo admin user', toDateTime64('2024-01-01 00:00:00', 3), '{\"*\":{\"*\":\"*\"}}', toDateTime64('2019-08-07 00:00:00', 3), now64(3), toUUID('14fb0860-b4bf-11e9-8971-7b80435315ac'))" 2>/dev/null || true
+	@echo "$(GREEN)✅ Admin account ready (uid: 14fb0860-b4bf-11e9-8971-7b80435315ac, password hash: W6ph5Mm5Pz8GgiULbPgzG37mj9g=)$(NC)"
 
 # ====================================================================
 # TESTING

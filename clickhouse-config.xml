@@ -1,0 +1,97 @@
+<clickhouse>
+    <http_port>8123</http_port>
+    <tcp_port>9000</tcp_port>
+    <interserver_http_port>9009</interserver_http_port>
+    <listen_host>0.0.0.0</listen_host>
+    <layer>0</layer>
+
+    <path>./tmp/clickhouse/data/</path>
+    <tmp_path>./tmp/clickhouse/tmp/</tmp_path>
+    <user_files_path>./tmp/clickhouse/user_files/</user_files_path>
+    <format_schema_path>./tmp/clickhouse/format_schemas/</format_schema_path>
+    <logger>
+        <log>./tmp/clickhouse/logs/clickhouse.log</log>
+        <errorlog>./tmp/clickhouse/logs/clickhouse.err.log</errorlog>
+    </logger>
+
+    <users_config>./clickhouse-users.xml</users_config>
+    <!-- Embedded Keeper (ChKeeper) Setup -->
+  <keeper_server>
+    <tcp_port>2181</tcp_port>         <!-- ZooKeeper-compatible port -->
+    <server_id>1</server_id>          <!-- Must match ID in raft_configuration -->
+
+    <!-- <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
+    <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path> -->
+
+    <raft_configuration>
+      <server>
+        <id>1</id>
+        <hostname>0.0.0.0</hostname>  <!-- Matches listen_host -->
+        <port>9444</port>            <!-- Internal Raft port -->
+      </server>
+    </raft_configuration>
+  </keeper_server>
+
+  <remote_servers>
+    <tracker_cluster>
+      <shard>
+        <replica>
+          <host>localhost</host>
+          <port>9000</port>
+          <layer>1</layer>
+        </replica>
+      </shard>
+    </tracker_cluster>
+  </remote_servers>
+
+  <macros>
+    <shard>1</shard>
+    <replica>1</replica>
+    <layer>1</layer>
+  </macros>
+
+  <!-- Enable experimental features -->
+  <merge_tree>
+    <allow_experimental_reverse_key>1</allow_experimental_reverse_key>
+  </merge_tree>
+
+  <!-- Default replica paths (so we don't repeat in every ENGINE) -->
+  <default_replica_path>/clickhouse/tables/{layer}-{shard}/{database}/{table}</default_replica_path>
+  <default_replica_name>{replica}</default_replica_name>
+
+  <!-- Distributed DDL (required for ON CLUSTER) -->
+  <distributed_ddl>
+    <path>/clickhouse/task_queue/ddl</path>
+    <task_max_lifetime>300</task_max_lifetime>  <!-- 5 minutes timeout for DDL tasks -->
+  </distributed_ddl>
+
+  <!-- Profiles for default settings -->
+  <profiles>
+    <default>
+      <distributed_ddl_task_timeout>300</distributed_ddl_task_timeout>  <!-- 5 minutes -->
+
+      <!-- Async Insert Settings for High Performance -->
+      <async_insert>0</async_insert>                           <!-- Enable async inserts -->
+      <async_insert_threads>16</async_insert_threads>          <!-- Number of async insert threads -->
+      <async_insert_max_data_size>10485760</async_insert_max_data_size>  <!-- 10MB max batch size -->
+      <async_insert_busy_timeout_ms>200</async_insert_busy_timeout_ms>    <!-- Wait 200ms for more data -->
+      <async_insert_stale_timeout_ms>1000</async_insert_stale_timeout_ms> <!-- Force flush after 1s -->
+      <wait_for_async_insert>0</wait_for_async_insert>        <!-- Don't wait for confirmation (fastest) -->
+      <async_insert_deduplicate>0</async_insert_deduplicate>   <!-- Disable dedup for speed -->
+
+      <!-- Memory settings for high throughput -->
+      <max_insert_block_size>1048576</max_insert_block_size>   <!-- 1M rows per block -->
+      <min_insert_block_size_rows>1048576</min_insert_block_size_rows>
+      <min_insert_block_size_bytes>268435456</min_insert_block_size_bytes> <!-- 256MB -->
+    </default>
+  </profiles>
+
+  <!-- Single-node replication support (allows replicated tables to work on single node) -->
+  <replication>
+    <!-- Allow replicated tables to become leader without waiting for quorum in single-node setups -->
+    <replicated_can_become_leader>1</replicated_can_become_leader>
+    <!-- Enable automatic Keeper startup even with single server -->
+    <min_replicated_logs_to_keep>10</min_replicated_logs_to_keep>
+    <max_replicated_logs_to_keep>1000</max_replicated_logs_to_keep>
+  </replication>
+</clickhouse>
