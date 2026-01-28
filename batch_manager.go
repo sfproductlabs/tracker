@@ -54,9 +54,9 @@ var DefaultBatchConfigs = map[string]BatchConfig{
 	"events": {
 		TableName:         "events",
 		Strategy:          StrategyHybridBatch,
-		MaxBatchSize:      1000,
-		MaxBatchTime:      2 * time.Second,
-		MaxMemoryMB:       10,
+		MaxBatchSize:      100000,
+		MaxBatchTime:      10 * time.Second,
+		MaxMemoryMB:       100,
 		Priority:          2, // Higher priority for events
 		RetryAttempts:     3,
 		RetryBackoffMs:    100,
@@ -67,7 +67,7 @@ var DefaultBatchConfigs = map[string]BatchConfig{
 	"mthreads": {
 		TableName:         "mthreads",
 		Strategy:          StrategyTimeBasedBatch,
-		MaxBatchSize:      100,
+		MaxBatchSize:      10000,
 		MaxBatchTime:      5 * time.Second,
 		MaxMemoryMB:       5,
 		Priority:          2,
@@ -452,7 +452,7 @@ var DefaultBatchConfigs = map[string]BatchConfig{
 	"visitor_interests": {
 		TableName:         "visitor_interests",
 		Strategy:          StrategyHybridBatch,
-		MaxBatchSize:      500,           // Batch interests for performance
+		MaxBatchSize:      500,             // Batch interests for performance
 		MaxBatchTime:      3 * time.Second, // Flush every 3 seconds
 		MaxMemoryMB:       5,
 		Priority:          3, // Medium priority (not critical like payments)
