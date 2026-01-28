@@ -774,37 +774,37 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 
 				// Insert into agreements table
 				agreementsData := map[string]interface{}{
-					"vid": parseUUID(vid), "created_at": created, "cflags": cflags, "sid": parseUUID(sid), "uid": parseUUID(uid), "avid": parseUUID(avid), "hhash": hhash,
+					"vid": parseUUID(vid), "created_at": created, "updated_at": created, "cflags": cflags, "sid": parseUUID(sid), "uid": parseUUID(uid), "avid": parseUUID(avid), "hhash": hhash,
 					"app": b["app"], "rel": b["rel"], "url": b["url"], "ip": ip, "iphash": iphash, "gaid": b["gaid"], "idfa": b["idfa"], "msid": b["msid"], "fbid": b["fbid"],
 					"country": country, "region": region, "culture": b["culture"], "source": b["source"], "medium": b["medium"], "campaign": b["campaign"], "term": b["term"], "ref": b["ref"], "rcode": b["rcode"], "aff": b["aff"],
-					"browser": browser, "bhash": bhash, "device": b["device"], "os": b["os"], "tz": b["tz"], "vp_w": b["w"], "vp_h": b["h"], "lat": lat, "lon": lon, "zip": b["zip"], "owner": parseUUID(owner), "oid": parseUUID(oid),
+					"browser": browser, "bhash": bhash, "device": b["device"], "os": b["os"], "tz": b["tz"], "vp_w": b["w"], "vp_h": b["h"], "lat": lat, "lon": lon, "zip": b["zip"], "owner": parseUUID(owner), "oid": parseUUID(oid), "org": getStringValue(b["org"]),
 				}
 				if err := i.batchInsert("agreements", `INSERT INTO sfpla.agreements (
-					vid, created_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
-					country, region, culture, source, medium, campaign, term, ref, rcode, aff, 
-					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, oid
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					[]interface{}{parseUUID(vid), created, cflags, parseUUID(sid), parseUUID(uid), parseUUID(avid), hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
+					vid, created_at, updated_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid,
+					country, region, culture, source, medium, campaign, term, ref, rcode, aff,
+					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, oid, org
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					[]interface{}{parseUUID(vid), created, created, cflags, parseUUID(sid), parseUUID(uid), parseUUID(avid), hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
 						country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
-						browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], parseUUID(owner), parseUUID(oid)}, agreementsData); err != nil {
+						browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], parseUUID(owner), parseUUID(oid), getStringValue(b["org"])}, agreementsData); err != nil {
 					return err
 				}
 
 				// Insert into agreed table (history)
 				agreedData := map[string]interface{}{
-					"vid": parseUUID(vid), "created_at": created, "cflags": cflags, "sid": parseUUID(sid), "uid": parseUUID(uid), "avid": parseUUID(avid), "hhash": hhash,
+					"vid": parseUUID(vid), "created_at": created, "updated_at": created, "cflags": cflags, "sid": parseUUID(sid), "uid": parseUUID(uid), "avid": parseUUID(avid), "hhash": hhash,
 					"app": b["app"], "rel": b["rel"], "url": b["url"], "ip": ip, "iphash": iphash, "gaid": b["gaid"], "idfa": b["idfa"], "msid": b["msid"], "fbid": b["fbid"],
 					"country": country, "region": region, "culture": b["culture"], "source": b["source"], "medium": b["medium"], "campaign": b["campaign"], "term": b["term"], "ref": b["ref"], "rcode": b["rcode"], "aff": b["aff"],
-					"browser": browser, "bhash": bhash, "device": b["device"], "os": b["os"], "tz": b["tz"], "vp_w": b["w"], "vp_h": b["h"], "lat": lat, "lon": lon, "zip": b["zip"], "owner": parseUUID(owner), "oid": parseUUID(oid),
+					"browser": browser, "bhash": bhash, "device": b["device"], "os": b["os"], "tz": b["tz"], "vp_w": b["w"], "vp_h": b["h"], "lat": lat, "lon": lon, "zip": b["zip"], "owner": parseUUID(owner), "oid": parseUUID(oid), "org": getStringValue(b["org"]),
 				}
 				if err := i.batchInsert("agreed", `INSERT INTO sfpla.agreed (
-					vid, created_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid, 
-					country, region, culture, source, medium, campaign, term, ref, rcode, aff, 
-					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, oid
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					[]interface{}{parseUUID(vid), created, cflags, parseUUID(sid), parseUUID(uid), parseUUID(avid), hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
+					vid, created_at, updated_at, cflags, sid, uid, avid, hhash, app, rel, url, ip, iphash, gaid, idfa, msid, fbid,
+					country, region, culture, source, medium, campaign, term, ref, rcode, aff,
+					browser, bhash, device, os, tz, vp_w, vp_h, lat, lon, zip, owner, oid, org
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					[]interface{}{parseUUID(vid), created, created, cflags, parseUUID(sid), parseUUID(uid), parseUUID(avid), hhash, b["app"], b["rel"], b["url"], ip, iphash, b["gaid"], b["idfa"], b["msid"], b["fbid"],
 						country, region, b["culture"], b["source"], b["medium"], b["campaign"], b["term"], b["ref"], b["rcode"], b["aff"],
-						browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], parseUUID(owner), parseUUID(oid)}, agreedData); err != nil {
+						browser, bhash, b["device"], b["os"], b["tz"], b["w"], b["h"], lat, lon, b["zip"], parseUUID(owner), parseUUID(oid), getStringValue(b["org"])}, agreedData); err != nil {
 					return err
 				}
 
@@ -991,31 +991,35 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 					"updated_at": updated,
 					"updater":    parseUUID(updater),
 					"oid":        parseUUID(oid),
+					"org":        getStringValue(b["org"]),
+					"created_at": updated,
 				}
 				if err := i.batchInsert("redirects", `INSERT INTO sfpla.redirects (
-					hhash, urlfrom, urlto, updated_at, updater, oid
-				) VALUES (?, ?, ?, ?, ?, ?)`,
-					[]interface{}{hhash, strings.ToLower(urlfromURL.Host) + strings.ToLower(urlfromURL.Path), urlto, updated, parseUUID(updater), parseUUID(oid)}, redirectsData); err != nil {
+					hhash, urlfrom, urlto, updated_at, updater, oid, org, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+					[]interface{}{hhash, strings.ToLower(urlfromURL.Host) + strings.ToLower(urlfromURL.Path), urlto, updated, parseUUID(updater), parseUUID(oid), getStringValue(b["org"]), updated}, redirectsData); err != nil {
 					return err
 				}
 
 				// Insert into redirect_history table
 				redirectHistoryData := map[string]interface{}{
-					"urlfrom":  urlfrom,
-					"hostfrom": strings.ToLower(urlfromURL.Host),
-					"slugfrom": strings.ToLower(urlfromURL.Path),
-					"urlto":    urlto,
-					"hostto":   strings.ToLower(urltoURL.Host),
-					"pathto":   strings.ToLower(urlfromURL.Path),
-					"searchto": b["searchto"],
-					"updater":  parseUUID(updater),
-					"oid":      parseUUID(oid),
+					"urlfrom":    urlfrom,
+					"hostfrom":   strings.ToLower(urlfromURL.Host),
+					"slugfrom":   strings.ToLower(urlfromURL.Path),
+					"urlto":      urlto,
+					"hostto":     strings.ToLower(urltoURL.Host),
+					"pathto":     strings.ToLower(urlfromURL.Path),
+					"searchto":   b["searchto"],
+					"updater":    parseUUID(updater),
+					"oid":        parseUUID(oid),
+					"org":        getStringValue(b["org"]),
+					"updated_at": updated,
 				}
 				if err := i.batchInsert("redirect_history", `INSERT INTO sfpla.redirect_history (
-					urlfrom, hostfrom, slugfrom, urlto, hostto, pathto, searchto, 
-					updater, oid
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					[]interface{}{urlfrom, strings.ToLower(urlfromURL.Host), strings.ToLower(urlfromURL.Path), urlto, strings.ToLower(urltoURL.Host), strings.ToLower(urlfromURL.Path), b["searchto"], parseUUID(updater), parseUUID(oid)}, redirectHistoryData); err != nil {
+					urlfrom, hostfrom, slugfrom, urlto, hostto, pathto, searchto,
+					updater, oid, org, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					[]interface{}{urlfrom, strings.ToLower(urlfromURL.Host), strings.ToLower(urlfromURL.Path), urlto, strings.ToLower(urltoURL.Host), strings.ToLower(urlfromURL.Path), b["searchto"], parseUUID(updater), parseUUID(oid), getStringValue(b["org"]), updated}, redirectHistoryData); err != nil {
 					return err
 				}
 				(*w).WriteHeader(http.StatusOK)
@@ -2346,11 +2350,12 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//hosts
 		if w.Host != "" {
 			hostsData := map[string]interface{}{
-				"hhash":    hhash,
-				"hostname": w.Host,
+				"hhash":      hhash,
+				"hostname":   w.Host,
+				"created_at": updated,
 			}
-			if xerr := i.batchInsert("hosts", `INSERT INTO sfpla.hosts (hhash, hostname) VALUES (?, ?)`,
-				[]interface{}{hhash, w.Host}, hostsData); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.batchInsert("hosts", `INSERT INTO sfpla.hosts (hhash, hostname, created_at) VALUES (?, ?, ?)`,
+				[]interface{}{hhash, w.Host, updated}, hostsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[hosts]:", xerr)
 			}
 		}
@@ -2371,13 +2376,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//userhosts
 		if uid != nil {
 			userhostsData := map[string]interface{}{
-				"hhash": hhash,
-				"uid":   parseUUID(uid),
-				"vid":   parseUUID(vid),
-				"sid":   parseUUID(sid),
+				"hhash":      hhash,
+				"uid":        parseUUID(uid),
+				"vid":        parseUUID(vid),
+				"sid":        parseUUID(sid),
+				"created_at": updated,
 			}
-			if xerr := i.batchInsert("userhosts", `INSERT INTO sfpla.userhosts (hhash, uid, vid, sid) VALUES (?, ?, ?, ?)`,
-				[]interface{}{hhash, parseUUID(uid), parseUUID(vid), parseUUID(sid)}, userhostsData); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.batchInsert("userhosts", `INSERT INTO sfpla.userhosts (hhash, uid, vid, sid, created_at) VALUES (?, ?, ?, ?, ?)`,
+				[]interface{}{hhash, parseUUID(uid), parseUUID(vid), parseUUID(sid), updated}, userhostsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[userhosts]:", xerr)
 			}
 		}
@@ -2385,13 +2391,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//uhash
 		if uhash != nil {
 			usernamesData := map[string]interface{}{
-				"hhash": hhash,
-				"uhash": uhash,
-				"vid":   parseUUID(vid),
-				"sid":   parseUUID(sid),
+				"hhash":      hhash,
+				"uhash":      uhash,
+				"vid":        parseUUID(vid),
+				"sid":        parseUUID(sid),
+				"created_at": updated,
 			}
-			if xerr := i.batchInsert("usernames", `INSERT INTO sfpla.usernames (hhash, uhash, vid, sid) VALUES (?, ?, ?, ?)`,
-				[]interface{}{hhash, uhash, parseUUID(vid), parseUUID(sid)}, usernamesData); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.batchInsert("usernames", `INSERT INTO sfpla.usernames (hhash, uhash, vid, sid, created_at) VALUES (?, ?, ?, ?, ?)`,
+				[]interface{}{hhash, uhash, parseUUID(vid), parseUUID(sid), updated}, usernamesData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[usernames]:", xerr)
 			}
 		}
@@ -2399,13 +2406,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		//ehash
 		if ehash != nil {
 			emailsData := map[string]interface{}{
-				"hhash": hhash,
-				"ehash": ehash,
-				"vid":   parseUUID(vid),
-				"sid":   parseUUID(sid),
+				"hhash":      hhash,
+				"ehash":      ehash,
+				"vid":        parseUUID(vid),
+				"sid":        parseUUID(sid),
+				"created_at": updated,
 			}
-			if xerr := i.batchInsert("emails", `INSERT INTO sfpla.emails (hhash, ehash, vid, sid) VALUES (?, ?, ?, ?)`,
-				[]interface{}{hhash, ehash, parseUUID(vid), parseUUID(sid)}, emailsData); xerr != nil && i.AppConfig.Debug {
+			if xerr := i.batchInsert("emails", `INSERT INTO sfpla.emails (hhash, ehash, vid, sid, created_at) VALUES (?, ?, ?, ?, ?)`,
+				[]interface{}{hhash, ehash, parseUUID(vid), parseUUID(sid), updated}, emailsData); xerr != nil && i.AppConfig.Debug {
 				fmt.Println("CH[emails]:", xerr)
 			}
 		}
