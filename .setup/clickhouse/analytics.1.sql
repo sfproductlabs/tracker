@@ -101,10 +101,10 @@ CREATE TABLE events_local ON CLUSTER tracker_cluster (
     )
 
 
-) ENGINE = ReplicatedReplacingMergeTree(created_at)
+) ENGINE = MergeTree()
 PARTITION BY (oid, hhash, toYYYYMM(created_at))
 ORDER BY (created_at, eid)
-SETTINGS index_granularity = 8192, 
+SETTINGS index_granularity = 8192,
          min_bytes_for_wide_part = 0,
          deduplicate_merge_projection_mode = 'rebuild';
 
@@ -442,7 +442,7 @@ CREATE TABLE emails_local ON CLUSTER tracker_cluster (
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when email was recorded
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 
-) ENGINE = ReplicatedReplacingMergeTree(created_at)
+) ENGINE = ReplacingMergeTree(created_at)
 PARTITION BY hhash
 ORDER BY (hhash, ehash);
 

@@ -69,7 +69,8 @@ NETWORK_NAME := tracker-net
 TMP_DATA_DIR := /tmp/clickhouse-test
 
 # Schema files to link (hard links from api schema)
-SCHEMA_FILES := compliance.1.sql core.1.sql analytics.1.sql messaging.1.sql users.1.sql visitor_interests.1.sql auth.1.sql
+# OPEN SOURCE TRACKER: Only core tables (enterprise ML schemas excluded)
+SCHEMA_FILES := core.1.sql analytics.1.sql auth.1.sql compliance.1.sql messaging.1.sql users.1.sql
 
 # Colors for output
 GREEN := \033[0;32m
@@ -343,13 +344,14 @@ schema-update:
 		ln $(API_SCHEMA_DIR)/$$f $$f; \
 		echo "  ✓ Linked $$f"; \
 	done
-	@echo "$(GREEN)✅ Schema files linked (7 files)$(NC)"
+	@echo "$(GREEN)✅ Schema files linked (6 core files)$(NC)"
 
 schema-verify:
 	@echo "$(YELLOW)🔍 Verifying schema hard links...$(NC)"
-	@cd $(TRACKER_SCHEMA_DIR) && ls -li $(SCHEMA_FILES) | grep -E "(compliance|core|analytics|messaging|users|visitor_interests|auth)\.1\.sql"
+	@cd $(TRACKER_SCHEMA_DIR) && ls -li $(SCHEMA_FILES)
 	@echo ""
-	@echo "$(YELLOW)Note: Files with the same inode number are hard links$(NC)"
+	@echo "$(YELLOW)Note: Files with the same inode number (second column) are hard links$(NC)"
+	@echo "$(YELLOW)Expected hard links: core.1.sql, analytics.1.sql, auth.1.sql, compliance.1.sql, messaging.1.sql, users.1.sql$(NC)"
 
 # ====================================================================
 # TESTING
@@ -612,8 +614,13 @@ info:
 	@echo "  Container: $(CONTAINER_NAME)"
 	@echo "  Network: $(NETWORK_NAME)"
 	@echo ""
-	@echo "Schema files (hard links):"
+	@echo "Schema files (hard links - 6 core files):"
 	@for f in $(SCHEMA_FILES); do echo "  - $$f"; done
+	@echo ""
+	@echo "Note: Enterprise ML schemas NOT included in open source:"
+	@echo "  - datasketches.1.sql, vae.1.sql, bitgraph.1.sql, theta_optimization.1.sql"
+	@echo "  - attribution.1.sql, content.1.sql, marketing.1.sql, vectors.1.sql"
+	@echo "  - visitor_interests.1.sql, h3_political_preferences.sql"
 	@echo ""
 	@echo "Ports (single node):"
 	@echo "  8080: Tracker HTTP API"

@@ -210,30 +210,55 @@ payments: {
 
 **Schema files are HARD-LINKED from `../../api/scripts/clickhouse/schema/`**:
 
-```bash
-# Location of source schemas
-packages/api/scripts/clickhouse/schema/
-├── compliance.1.sql
-├── core.1.sql
-├── analytics.1.sql
-├── messaging.1.sql          # Universal message system
-├── users.1.sql
-├── visitor_interests.1.sql
-└── auth.1.sql
+**OPEN SOURCE TRACKER ONLY includes core schema files** (enterprise ML schemas excluded):
 
-# Hard-linked to tracker
+```bash
+# Master location (packages/api/scripts/clickhouse/schema/)
+Core Tables (Open Source - Hard-linked to tracker):
+├── core.1.sql                 # Redirects, sessions, visitors
+├── analytics.1.sql            # Events, dailies, outcomes, referrers, emails, hits, ips
+├── auth.1.sql                 # Logs, authentication
+├── compliance.1.sql           # GDPR, agreements, compliance
+├── messaging.1.sql            # mthreads, mstore, mtriage (universal message system)
+└── users.1.sql                # payments, ltv, userhosts (LTV tracking)
+
+Enterprise ML Schemas (NOT in open source tracker):
+├── datasketches.1.sql         # DataSketches bandit (ML only)
+├── vae.1.sql                  # VAE embeddings (ML only)
+├── bitgraph.1.sql             # Knowledge graphs (ML only)
+├── theta_optimization.1.sql   # Theta optimization (ML only)
+├── attribution.1.sql          # Advanced attribution (Enterprise)
+├── content.1.sql              # Content generation (Enterprise)
+├── marketing.1.sql            # Marketing automation (Enterprise)
+├── users.1.sql                # User management (Enterprise)
+├── vectors.1.sql              # Vector storage (Enterprise ML)
+├── visitor_interests.1.sql    # Advanced visitor tracking (Enterprise)
+└── h3_political_preferences.sql # Political data (Enterprise)
+
+# Hard-linked to tracker (6 core files only)
 packages/tracker/.setup/clickhouse/
-├── compliance.1.sql         # Same inode
-├── core.1.sql              # Same inode
-├── analytics.1.sql         # Same inode
-└── ... (7 files total)
+├── core.1.sql                # Same inode as master
+├── analytics.1.sql           # Same inode as master
+├── auth.1.sql                # Same inode as master
+├── compliance.1.sql          # Same inode as master
+├── messaging.1.sql           # Same inode as master
+└── users.1.sql               # Same inode as master (LTV, payments)
 ```
 
 **IMPORTANT**: When schema changes:
-1. Edit master files in `packages/api/scripts/clickhouse/schema/`
-2. Run `make schema-update` to recreate hard links
+1. Edit master files in `packages/api/scripts/clickhouse/schema/` (only core files if open source)
+2. Run `make schema-update` to recreate hard links (only for core files)
 3. Run `make schema-verify` to confirm
 4. Test with `make docker-rebuild-test`
+
+**Hard Link Recreation** (when Edit tool breaks links):
+```bash
+cd packages/tracker/.setup/clickhouse
+rm -f core.1.sql analytics.1.sql auth.1.sql compliance.1.sql messaging.1.sql users.1.sql
+for f in core.1.sql analytics.1.sql auth.1.sql compliance.1.sql messaging.1.sql users.1.sql; do
+  ln ../../api/scripts/clickhouse/schema/$f $f
+done
+```
 
 ### Key Tables
 

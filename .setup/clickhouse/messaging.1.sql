@@ -255,7 +255,7 @@ CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this thread
 
-) ENGINE = ReplicatedReplacingMergeTree(updated_at)
+) ENGINE = MergeTree()
 PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, tid, created_at);
 
@@ -324,7 +324,7 @@ CREATE TABLE mtriage_local ON CLUSTER tracker_cluster (
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this message
 
-) ENGINE = ReplicatedReplacingMergeTree(updated_at)
+) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(created_at)
 ORDER BY (tid, mid, created_at);
 
@@ -381,7 +381,7 @@ CREATE TABLE mstore_local ON CLUSTER tracker_cluster (
     funnel_stage String DEFAULT '',
     conversion_event_count Int64 DEFAULT 0  -- Number of conversion events
 
-) ENGINE = ReplicatedReplacingMergeTree(updated_at)
+) ENGINE = MergeTree()
 PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, tid, mid, created_at);
 

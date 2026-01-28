@@ -190,10 +190,10 @@ CREATE TABLE logs_local ON CLUSTER tracker_cluster (
         SELECT _part_offset ORDER BY topic
     )
 
-) ENGINE = ReplicatedReplacingMergeTree(created_at)
+) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(ldate)
 ORDER BY (created_at, id)
-SETTINGS index_granularity = 8192, 
+SETTINGS index_granularity = 8192,
          min_bytes_for_wide_part = 0,
          deduplicate_merge_projection_mode = 'rebuild';
 
