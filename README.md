@@ -68,6 +68,7 @@ make schema-load
 - [Testing](#-testing)
 - [Production Deployment](#-production-deployment)
 - [Privacy & Compliance](#-privacy--compliance)
+- [Cluster Topology Guide](./CLUSTER_TOPOLOGY.md) - Sharded, Replicated, and Hybrid configurations
 
 ## ✨ Features
 
@@ -309,6 +310,13 @@ make cluster-logs
 # Stop cluster
 make cluster-stop
 ```
+
+**See [CLUSTER_TOPOLOGY.md](./CLUSTER_TOPOLOGY.md) for:**
+- ✅ Detailed topology comparison (Sharded vs Replicated vs Hybrid)
+- ✅ Example configurations for 2-node, 3-node, and 6-node clusters
+- ✅ Decision tree for choosing the right topology
+- ✅ Environment variable reference and troubleshooting
+- ✅ Production deployment examples
 
 ### Environment Variables
 

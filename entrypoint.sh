@@ -50,19 +50,39 @@ echo "✓ Keeper raft config generated with ${#SERVERS[@]} nodes"
 # Generate CLUSTER_TOPOLOGY dynamically if not provided
 if [ -z "$CLUSTER_TOPOLOGY" ]; then
     echo "Auto-generating CLUSTER_TOPOLOGY..."
-    CLUSTER_TOPOLOGY=""
-    for i in $(seq 1 $NUM_NODES); do
-        CLUSTER_TOPOLOGY+="<shard><internal_replication>true</internal_replication>"
+
+    # Check if REPLICA is set - if yes, use single-shard-multiple-replicas (recommended)
+    # If REPLICA is not set, fall back to sharded topology
+    if [ -z "$REPLICA" ]; then
+        echo "REPLICA not set - using sharded topology ($NUM_NODES shards)"
+        CLUSTER_TOPOLOGY=""
+        for i in $(seq 1 $NUM_NODES); do
+            CLUSTER_TOPOLOGY+="<shard><internal_replication>true</internal_replication>"
+            # Use localhost for single-node deployments
+            if [ "$NUM_NODES" -eq 1 ]; then
+                CLUSTER_TOPOLOGY+="<replica><host>localhost</host><port>9000</port></replica>"
+            else
+                CLUSTER_TOPOLOGY+="<replica><host>${CONTAINER_NAME_PATTERN}-${i}</host><port>9000</port></replica>"
+            fi
+            CLUSTER_TOPOLOGY+="</shard>"
+        done
+        echo "✓ Cluster topology generated with $NUM_NODES shards"
+    else
+        echo "REPLICA=$REPLICA set - using single-shard-multiple-replicas topology ($NUM_NODES replicas)"
+        CLUSTER_TOPOLOGY="<shard><internal_replication>true</internal_replication>"
         # Use localhost for single-node deployments
         if [ "$NUM_NODES" -eq 1 ]; then
             CLUSTER_TOPOLOGY+="<replica><host>localhost</host><port>9000</port></replica>"
         else
-            CLUSTER_TOPOLOGY+="<replica><host>${CONTAINER_NAME_PATTERN}-${i}</host><port>9000</port></replica>"
+            # Generate all replicas in a single shard
+            for i in $(seq 1 $NUM_NODES); do
+                CLUSTER_TOPOLOGY+="<replica><host>${CONTAINER_NAME_PATTERN}-${i}</host><port>9000</port></replica>"
+            done
         fi
         CLUSTER_TOPOLOGY+="</shard>"
-    done
+        echo "✓ Cluster topology generated with 1 shard and $NUM_NODES replicas"
+    fi
     export CLUSTER_TOPOLOGY
-    echo "✓ Cluster topology generated with $NUM_NODES shards"
 fi
 
 # Replace variables in config template
