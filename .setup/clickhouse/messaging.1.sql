@@ -128,7 +128,7 @@ CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
     xid String DEFAULT '', -- Experiment ID - for A/B testing
     xstatus String DEFAULT '', -- Experiment status - running, paused, completed
     name String DEFAULT '', -- Name - human-readable name for the thread
-    ddata String DEFAULT '', -- Default data - default content to send
+    ddata JSON DEFAULT '{}', -- Default data - default content to send
     post String DEFAULT '', -- Post/description - note or description of thread purpose
     mtempl JSON DEFAULT '{}', -- Message template - formatting templates for messages
     mcert_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Marketing certification ID - reference to security certificate
@@ -244,6 +244,7 @@ CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
     creator_compensation_model String DEFAULT '', -- Compensation model - likes, impressions, etc.
     creator_compensation_cap Float64 DEFAULT 0.0, -- Compensation cap - maximum payout
     creator_notes String DEFAULT '', -- Creator notes - additional information
+    parent_tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Parent thread ID - for variant hierarchies (article->variations)
     deleted DateTime64(3) DEFAULT toDateTime64(0, 3), -- Deletion timestamp - when thread was deleted
     created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this thread belongs to

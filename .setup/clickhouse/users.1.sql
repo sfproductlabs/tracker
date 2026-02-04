@@ -262,6 +262,7 @@ CREATE TABLE orgs_local ON CLUSTER tracker_cluster (
     hhash String DEFAULT '', -- Host hash - for efficient lookups
     taxid String DEFAULT '', -- Tax identification number
     terms_accepted DateTime64(3) DEFAULT toDateTime64(0, 3), -- When terms of service were accepted
+    ddata JSON DEFAULT '{}', -- all settings data for org
     mcerts JSON DEFAULT '{}', -- Marketing certifications/compliance records
     expiry Date DEFAULT today(), -- Expiration date for organization account
     email String DEFAULT '', -- Primary contact email
@@ -435,7 +436,7 @@ CREATE TABLE files_local ON CLUSTER tracker_cluster (
     orgs Array(UUID) DEFAULT [], -- Organization IDs - associated organizations
     g_r Boolean DEFAULT false, -- Group/oid read permission
     g_w Boolean DEFAULT false, -- Group/oid write permission
-    roles Array(String) DEFAULT [], -- Role permissions - which roles can access
+    roles Array(String) DEFAULT [], -- Role permissions - which roles can access - these are platform roles
     r_r Boolean DEFAULT false, -- Role read permission
     r_w Boolean DEFAULT false, -- Role write permission
     created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
