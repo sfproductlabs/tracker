@@ -256,7 +256,7 @@ CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this thread
 
-) ENGINE = ReplicatedMergeTree()
+) ENGINE = ReplicatedReplacingMergeTree()
 PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, tid, created_at);
 
