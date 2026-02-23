@@ -276,8 +276,8 @@ done
 
 **Messaging** (messaging.1.sql) - Universal Message System:
 - `mthreads` - Thread metadata (140+ columns: tid, alias, campaign_id, abz_*, etc.)
-- `mstore` - Permanent message archive (47 columns: mid, subject, msg, planned, etc.)
-- `mtriage` - Messages in triage (43 columns: same as mstore minus planned)
+- `mstore` - Permanent message archive (50 columns: mid, subject, msg, planned, timezone fields, etc.)
+- `mtriage` - Messages in triage (41 columns: same as mstore minus planned, plus timezone fields)
 
 **URL Management** (core.1.sql):
 - `redirects` - Short URL mappings
@@ -431,22 +431,36 @@ make cluster-stop
 The tracker integrates with the platform's universal message system via three tables:
 
 ```go
-// When recording campaign events
+// When recording campaign events with timezone awareness
 event := map[string]interface{}{
-    "tid":         threadID,        // Links to mthreads
-    "mid":         messageID,       // Message identifier
-    "campaign_id": campaignID,      // Campaign tracking
-    "subject":     "Email Subject", // Message content
-    "msg":         "Body content",  // Full message
-    "urgency":     5,               // Priority level
-    "status":      "sent",          // Delivery status
+    "tid":                    threadID,          // Links to mthreads
+    "mid":                    messageID,         // Message identifier
+    "campaign_id":            campaignID,        // Campaign tracking
+    "subject":                "Email Subject",   // Message content
+    "msg":                    "Body content",    // Full message
+    "urgency":                5,                 // Priority level
+    "status":                 "sent",            // Delivery status
+    "scheduled_local_hour":   9,                 // 9am local time
+    "scheduled_local_dow":    1,                 // Tuesday (0=Sunday)
+    "recipient_timezone":     "America/Los_Angeles", // IANA timezone
+    "utc_offset_minutes":     -480,              // UTC-8 (PST)
 }
 ```
 
 **Data flows**:
 - `mthreads` - Thread metadata with campaign context
-- `mstore` - Permanent message archive
-- `mtriage` - Messages being processed (urgency=8 default)
+- `mstore` - Permanent message archive (50 columns with timezone)
+- `mtriage` - Messages being processed (41 columns with timezone)
+
+**Timezone Fields** (added 2026-02-23):
+- `scheduled_local_hour` (Int8): Local hour 0-23, -1 if unknown
+- `scheduled_local_dow` (Int8): Local day 0-6 (0=Sunday), -1 if unknown
+- `recipient_timezone` (String): IANA timezone (e.g., "America/Los_Angeles")
+- `utc_offset_minutes` (Int16): UTC offset in minutes (e.g., -480 for PST)
+
+**Helper Functions**:
+- `getInt8OrDefault(val, -1)` - Extract local hour/dow with default -1
+- `getInt16OrDefault(val, 0)` - Extract UTC offset with default 0
 
 Test with: `make docker-test-messaging`
 

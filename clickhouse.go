@@ -141,6 +141,50 @@ func getInt64OrDefault(val interface{}, defaultVal int64) int64 {
 	return defaultVal
 }
 
+// getInt8OrDefault returns int8 from interface{} or default value
+func getInt8OrDefault(val interface{}, defaultVal int8) int8 {
+	if val == nil {
+		return defaultVal
+	}
+	switch v := val.(type) {
+	case int8:
+		return v
+	case int:
+		return int8(v)
+	case int64:
+		return int8(v)
+	case float64:
+		return int8(v)
+	case string:
+		if i, err := strconv.ParseInt(v, 10, 8); err == nil {
+			return int8(i)
+		}
+	}
+	return defaultVal
+}
+
+// getInt16OrDefault returns int16 from interface{} or default value
+func getInt16OrDefault(val interface{}, defaultVal int16) int16 {
+	if val == nil {
+		return defaultVal
+	}
+	switch v := val.(type) {
+	case int16:
+		return v
+	case int:
+		return int16(v)
+	case int64:
+		return int16(v)
+	case float64:
+		return int16(v)
+	case string:
+		if i, err := strconv.ParseInt(v, 10, 16); err == nil {
+			return int16(i)
+		}
+	}
+	return defaultVal
+}
+
 // getUUIDArrayOrDefault returns UUID array from interface{} or default value
 func getUUIDArrayOrDefault(val interface{}, defaultVal []uuid.UUID) []uuid.UUID {
 	if val == nil {
@@ -3078,7 +3122,7 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 	// Parse all fields using the comprehensive parser
 	fields := ParseMStoreFields(mid, *tid, oid, v, updated)
 
-	// Insert fields that actually exist in mstore table (46 columns)
+	// Insert fields that actually exist in mstore table (50 columns - added timezone fields)
 	err := i.batchInsert("mstore", `INSERT INTO sfpla.mstore (
 		tid, mid, pmid, subject, msg, data, urgency, sys, broadcast,
 		mtempl, repl, svc, qid, rid, relation, meta,
@@ -3086,7 +3130,8 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 		mtypes, users, deliveries, failures,
 		xid, split, perms_ids, deleted, keep, createdms,
 		created_at, oid, org, owner, uid, vid, updated_at, updater,
-		interest, perf, hide, hidden, funnel_stage, conversion_event_count
+		interest, perf, hide, hidden, funnel_stage, conversion_event_count,
+		scheduled_local_hour, scheduled_local_dow, recipient_timezone, utc_offset_minutes
 	) VALUES (
 		?, ?, ?, ?, ?, ?, ?, ?, ?,
 		?, ?, ?, ?, ?, ?, ?,
@@ -3094,7 +3139,8 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 		?, ?, ?, ?,
 		?, ?, ?, ?, ?, ?,
 		?, ?, ?, ?, ?, ?, ?, ?,
-		?, ?, ?, ?, ?, ?
+		?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?
 	) SETTINGS insert_deduplicate = 1`,
 		[]interface{}{
 			fields.TID, fields.MID, fields.PMID, fields.Subject, fields.Msg,
@@ -3124,6 +3170,10 @@ func (i *ClickhouseService) updateMStoreTable(ctx context.Context, tid *uuid.UUI
 			getBoolOrDefault(v["hidden"], false), // hidden
 			getStringOrDefault(v["funnel_stage"], ""), // funnel_stage
 			getInt64OrDefault(v["conversion_event_count"], 0), // conversion_event_count
+			getInt8OrDefault(v["scheduled_local_hour"], -1), // scheduled_local_hour
+			getInt8OrDefault(v["scheduled_local_dow"], -1), // scheduled_local_dow
+			getStringOrDefault(v["recipient_timezone"], ""), // recipient_timezone
+			getInt16OrDefault(v["utc_offset_minutes"], 0), // utc_offset_minutes
 		}, v)
 
 	if i.AppConfig.Debug {
@@ -3197,7 +3247,7 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 			mid, fields.Subject, fields.Msg)
 	}
 
-	// Insert fields that actually exist in mtriage table (37 columns)
+	// Insert fields that actually exist in mtriage table (41 columns - added timezone fields)
 	// Note: mtriage uses priority processing so no SETTINGS clause
 	err := i.batchInsert("mtriage", `INSERT INTO sfpla.mtriage (
 		tid, mid, pmid, subject, msg, data, urgency, sys, broadcast,
@@ -3205,14 +3255,16 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 		scheduled, started, completed,
 		mtypes, users, deliveries, failures,
 		xid, split, perms_ids, deleted, keep, createdms,
-		created_at, oid, org, owner, uid, vid, updated_at, updater
+		created_at, oid, org, owner, uid, vid, updated_at, updater,
+		scheduled_local_hour, scheduled_local_dow, recipient_timezone, utc_offset_minutes
 	) VALUES (
 		?, ?, ?, ?, ?, ?, ?, ?, ?,
 		?, ?, ?, ?, ?, ?, ?,
 		?, ?, ?,
 		?, ?, ?, ?,
 		?, ?, ?, ?, ?, ?,
-		?, ?, ?, ?, ?, ?, ?, ?
+		?, ?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?
 	)`,
 		[]interface{}{
 			fields.TID, fields.MID, fields.PMID, fields.Subject, fields.Msg,
@@ -3235,6 +3287,10 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 			formatClickHouseDateTime(&fields.Deleted), fields.Keep, fields.CreatedMS,
 			formatClickHouseDateTime(&fields.CreatedAt), fields.OID, fields.Org, fields.Owner,
 			fields.UID, fields.VID, formatClickHouseDateTime(&fields.UpdatedAt), fields.Updater,
+			getInt8OrDefault(v["scheduled_local_hour"], -1), // scheduled_local_hour
+			getInt8OrDefault(v["scheduled_local_dow"], -1), // scheduled_local_dow
+			getStringOrDefault(v["recipient_timezone"], ""), // recipient_timezone
+			getInt16OrDefault(v["utc_offset_minutes"], 0), // utc_offset_minutes
 		}, v)
 
 	if i.AppConfig.Debug {
