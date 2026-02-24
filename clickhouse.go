@@ -956,6 +956,30 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		//TODO: AG ADD CACHE
 		var redirect string
 		if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM sfpla.redirects FINAL WHERE urlfrom=?`, getFullURL(r)).Scan(&redirect); err == nil {
+			// Check if urlto is a tracked redirect (contains /tr/v1/rdr/)
+			// If so, resolve it in one hop: parse params, record event inline, redirect to final destination
+			if strings.Contains(redirect, "/tr/v1/rdr/") {
+				if parsedURL, parseErr := url.Parse(redirect); parseErr == nil {
+					q := parsedURL.Query()
+					finalDest := q.Get("url")
+					if finalDest == "" {
+						finalDest = redirect // fallback: redirect to the tracked URL as before
+					}
+					// Pass all tracked params back via s.Values so the "/" handler
+					// can record a full event (xid, score, etyp, source, etc.)
+					tracked := make(map[string]string)
+					tracked["Redirect"] = finalDest
+					tracked["_tracked"] = "true"
+					for key, vals := range q {
+						if len(vals) > 0 && key != "url" {
+							tracked[strings.ToLower(key)] = vals[0]
+						}
+					}
+					s.Values = &tracked
+					http.Redirect(*w, r, finalDest, http.StatusFound)
+					return nil
+				}
+			}
 			s.Values = &map[string]string{"Redirect": redirect}
 			http.Redirect(*w, r, redirect, http.StatusFound)
 			return nil

@@ -943,9 +943,28 @@ func main() {
 				w.Write([]byte(err.Error()))
 			} else {
 				values := make(map[string]interface{})
-				values["etyp"] = "redirect"
-				values["ename"] = "short_rdr"
 				values["last"] = r.RequestURI
+
+				// Check if SVC_GET_REDIRECT resolved a tracked URL inline.
+				// If so, the tracked params (xid, score, etyp, source, etc.)
+				// are in sargs.Values — use them instead of generic short_rdr.
+				isTracked := false
+				if sargs.Values != nil {
+					tracked := *sargs.Values
+					if tracked["_tracked"] == "true" {
+						isTracked = true
+						for k, v := range tracked {
+							if k != "_tracked" && k != "Redirect" {
+								values[k] = v
+							}
+						}
+					}
+				}
+				if !isTracked {
+					values["etyp"] = "redirect"
+					values["ename"] = "short_rdr"
+				}
+
 				wargs := WriteArgs{
 					WriteType: WRITE_EVENT,
 					IP:        getIP(r),
@@ -955,7 +974,7 @@ func main() {
 					URI:       r.RequestURI,
 					Host:      getHost(r),
 					JA4H:      getJA4H(r),
-					IsServer:  false,
+					IsServer:  isTracked, // tracked URLs are server-side events
 					Values:    &values,
 				}
 				trackWithArgs(&configuration, &w, r, &wargs)
