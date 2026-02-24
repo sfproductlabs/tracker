@@ -71,6 +71,80 @@ import (
 )
 
 ////////////////////////////////////////
+// Redirect Cache (5-min TTL)
+////////////////////////////////////////
+
+type redirectEntry struct {
+	urlto    string
+	cachedAt time.Time
+}
+
+type redirectCache struct {
+	entries map[string]redirectEntry
+	mu      sync.RWMutex
+}
+
+const redirectCacheTTL = 5 * time.Minute
+
+var globalRedirectCache = redirectCache{
+	entries: make(map[string]redirectEntry),
+}
+
+func (rc *redirectCache) get(urlfrom string) (string, bool) {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	entry, ok := rc.entries[urlfrom]
+	if !ok || time.Since(entry.cachedAt) > redirectCacheTTL {
+		return "", false
+	}
+	return entry.urlto, true
+}
+
+func (rc *redirectCache) set(urlfrom, urlto string) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.entries[urlfrom] = redirectEntry{urlto: urlto, cachedAt: time.Now()}
+}
+
+////////////////////////////////////////
+// Org Settings Cache (5-min TTL)
+////////////////////////////////////////
+
+type orgSettingsEntry struct {
+	trackerHost     string
+	defaultDestHost string
+	cachedAt        time.Time
+}
+
+type orgSettingsCache struct {
+	entries map[string]orgSettingsEntry
+	mu      sync.RWMutex
+}
+
+const orgSettingsCacheTTL = 5 * time.Minute
+
+var globalOrgSettingsCache = orgSettingsCache{
+	entries: make(map[string]orgSettingsEntry),
+}
+
+func (oc *orgSettingsCache) get(oid string) (orgSettingsEntry, bool) {
+	oc.mu.RLock()
+	defer oc.mu.RUnlock()
+	entry, ok := oc.entries[oid]
+	if !ok || time.Since(entry.cachedAt) > orgSettingsCacheTTL {
+		return orgSettingsEntry{}, false
+	}
+	return entry, true
+}
+
+func (oc *orgSettingsCache) set(oid string, entry orgSettingsEntry) {
+	oc.mu.Lock()
+	defer oc.mu.Unlock()
+	entry.cachedAt = time.Now()
+	oc.entries[oid] = entry
+}
+
+////////////////////////////////////////
 // Helper Functions for Data Conversion
 ////////////////////////////////////////
 
@@ -589,6 +663,26 @@ func (i *ClickhouseService) close() error {
 	return nil
 }
 
+// lookupOrgDefaultDestHost queries ClickHouse for the org's default_destination_host
+// and caches the result. Returns empty string if not found.
+func (i *ClickhouseService) lookupOrgDefaultDestHost(ctx context.Context, oid string) string {
+	var ddataStr string
+	if err := (*i.Session).QueryRow(ctx, `SELECT toString(ddata) FROM sfpla.orgs FINAL WHERE oid=?`, oid).Scan(&ddataStr); err != nil {
+		return ""
+	}
+	var ddata map[string]interface{}
+	if err := json.Unmarshal([]byte(ddataStr), &ddata); err != nil {
+		return ""
+	}
+	trackerHost, _ := ddata["tracker_host"].(string)
+	defaultDestHost, _ := ddata["default_destination_host"].(string)
+	globalOrgSettingsCache.set(oid, orgSettingsEntry{
+		trackerHost:     trackerHost,
+		defaultDestHost: defaultDestHost,
+	})
+	return defaultDestHost
+}
+
 // startHealthMonitoring begins periodic health checks
 func (i *ClickhouseService) startHealthMonitoring() {
 	if i.healthTicker != nil {
@@ -953,39 +1047,63 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		(*w).Write(json)
 		return nil
 	case SVC_GET_REDIRECT:
-		//TODO: AG ADD CACHE
-		var redirect string
-		if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM sfpla.redirects FINAL WHERE urlfrom=?`, getFullURL(r)).Scan(&redirect); err == nil {
-			// Check if urlto is a tracked redirect (contains /tr/v1/rdr/)
-			// If so, resolve it in one hop: parse params, record event inline, redirect to final destination
-			if strings.Contains(redirect, "/tr/v1/rdr/") {
-				if parsedURL, parseErr := url.Parse(redirect); parseErr == nil {
-					q := parsedURL.Query()
-					finalDest := q.Get("url")
-					if finalDest == "" {
-						finalDest = redirect // fallback: redirect to the tracked URL as before
-					}
-					// Pass all tracked params back via s.Values so the "/" handler
-					// can record a full event (xid, score, etyp, source, etc.)
-					tracked := make(map[string]string)
-					tracked["Redirect"] = finalDest
-					tracked["_tracked"] = "true"
-					for key, vals := range q {
-						if len(vals) > 0 && key != "url" {
-							tracked[strings.ToLower(key)] = vals[0]
+		lookupKey := getFullURL(r)
+
+		// Check redirect cache first
+		redirect, cached := globalRedirectCache.get(lookupKey)
+		if !cached {
+			var dbRedirect string
+			if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM sfpla.redirects FINAL WHERE urlfrom=?`, lookupKey).Scan(&dbRedirect); err != nil {
+				return err
+			}
+			redirect = dbRedirect
+			globalRedirectCache.set(lookupKey, redirect)
+		}
+
+		// Check if urlto is a tracked redirect (contains /tr/v1/rdr/)
+		// If so, resolve it in one hop: parse params, record event inline, redirect to final destination
+		if strings.Contains(redirect, "/tr/v1/rdr/") {
+			if parsedURL, parseErr := url.Parse(redirect); parseErr == nil {
+				q := parsedURL.Query()
+				finalDest := q.Get("url")
+				if finalDest == "" {
+					finalDest = redirect // fallback: redirect to the tracked URL as before
+				}
+
+				// Resolve relative destination URLs using org's default_destination_host
+				if strings.HasPrefix(finalDest, "/") {
+					oid := q.Get("oid")
+					if oid != "" {
+						if settings, ok := globalOrgSettingsCache.get(oid); ok && settings.defaultDestHost != "" {
+							finalDest = settings.defaultDestHost + finalDest
+						} else if oid != "" {
+							// Cache miss — query org ddata from ClickHouse
+							defaultDestHost := i.lookupOrgDefaultDestHost(ctx, oid)
+							if defaultDestHost != "" {
+								finalDest = defaultDestHost + finalDest
+							}
 						}
 					}
-					s.Values = &tracked
-					http.Redirect(*w, r, finalDest, http.StatusFound)
-					return nil
 				}
+
+				// Pass all tracked params back via s.Values so the "/" handler
+				// can record a full event (xid, score, etyp, source, etc.)
+				tracked := make(map[string]string)
+				tracked["Redirect"] = finalDest
+				tracked["_tracked"] = "true"
+				for key, vals := range q {
+					if len(vals) > 0 && key != "url" {
+						tracked[strings.ToLower(key)] = vals[0]
+					}
+				}
+				s.Values = &tracked
+				http.Redirect(*w, r, finalDest, http.StatusFound)
+				return nil
 			}
-			s.Values = &map[string]string{"Redirect": redirect}
-			http.Redirect(*w, r, redirect, http.StatusFound)
-			return nil
-		} else {
-			return err
 		}
+		s.Values = &map[string]string{"Redirect": redirect}
+		http.Redirect(*w, r, redirect, http.StatusFound)
+		return nil
 	case SVC_POST_REDIRECT:
 		if err := i.auth(s); err != nil {
 			return err
