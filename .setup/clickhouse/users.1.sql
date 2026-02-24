@@ -354,7 +354,13 @@ CREATE TABLE users_local ON CLUSTER tracker_cluster (
     -- Embedding metadata
     embedding_model String DEFAULT 'gte-small', -- Embedding model used
     embedding_dimensions UInt16 DEFAULT 384, -- Dimensions of embedding vectors
-    embedding_generated_at DateTime64(3) DEFAULT toDateTime64(0, 3) -- When embeddings were generated
+    embedding_generated_at DateTime64(3) DEFAULT toDateTime64(0, 3), -- When embeddings were generated
+
+    -- Timezone information (for message scheduling and bandit optimization)
+    timezone String DEFAULT '', -- IANA timezone (e.g., "America/Los_Angeles", "Europe/London")
+    utc_offset_minutes Int16 DEFAULT 0, -- UTC offset in minutes (e.g., -480 for PST, 60 for CET)
+    timezone_source String DEFAULT '', -- How timezone was determined: 'user_set', 'ip_geo', 'browser', 'inferred'
+    timezone_updated_at DateTime64(3) DEFAULT toDateTime64(0, 3) -- When timezone was last updated
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)

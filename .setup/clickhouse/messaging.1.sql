@@ -303,7 +303,11 @@ CREATE TABLE mtriage_local ON CLUSTER tracker_cluster (
     rid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Relation ID - related entity ID
     relation String DEFAULT '', -- Relation source - source of related entity
     meta JSON DEFAULT '{}', -- Metadata - additional information about the message
-    scheduled DateTime64(3) DEFAULT toDateTime64(0, 3), -- Schedule time - when message is scheduled to send
+    scheduled DateTime64(3) DEFAULT toDateTime64(0, 3), -- Schedule time - when message is scheduled to send (UTC)
+    scheduled_local_hour Int8 DEFAULT -1, -- Hour in recipient's local timezone (0-23, -1 if unknown)
+    scheduled_local_dow Int8 DEFAULT -1, -- Day of week in recipient's local timezone (0-6, -1 if unknown)
+    recipient_timezone String DEFAULT '', -- Recipient's timezone (e.g., "America/Los_Angeles", "Europe/London")
+    utc_offset_minutes Int16 DEFAULT 0, -- UTC offset in minutes at scheduled time (e.g., -480 for PST, 60 for CET)
     started DateTime64(3) DEFAULT toDateTime64(0, 3), -- Start time - when message processing began
     completed DateTime64(3) DEFAULT toDateTime64(0, 3), -- Completion time - when processing finished
     mtypes Array(String) DEFAULT [], -- Message types - attempted delivery methods
@@ -354,7 +358,11 @@ CREATE TABLE mstore_local ON CLUSTER tracker_cluster (
     relation String DEFAULT '',
     meta JSON DEFAULT '{}',
     planned DateTime64(3) DEFAULT toDateTime64(0, 3),
-    scheduled DateTime64(3) DEFAULT toDateTime64(0, 3),
+    scheduled DateTime64(3) DEFAULT toDateTime64(0, 3), -- Scheduled send time (UTC)
+    scheduled_local_hour Int8 DEFAULT -1, -- Hour in recipient's local timezone (0-23, -1 if unknown)
+    scheduled_local_dow Int8 DEFAULT -1, -- Day of week in recipient's local timezone (0-6, -1 if unknown)
+    recipient_timezone String DEFAULT '', -- Recipient's timezone (e.g., "America/Los_Angeles", "Europe/London")
+    utc_offset_minutes Int16 DEFAULT 0, -- UTC offset in minutes at scheduled time (e.g., -480 for PST, 60 for CET)
     started DateTime64(3) DEFAULT toDateTime64(0, 3),
     completed DateTime64(3) DEFAULT toDateTime64(0, 3),
     mtypes Array(String) DEFAULT [],
