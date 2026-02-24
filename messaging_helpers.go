@@ -184,6 +184,7 @@ type MThreadsFields struct {
 	Name               string
 	DData              string
 	Provider           string
+	Svc                string
 	Medium             string
 
 	// Thread metadata
@@ -349,8 +350,9 @@ func ParseMThreadsFields(tid uuid.UUID, oid *uuid.UUID, data map[string]interfac
 		Alias:    p.ParseString("alias", ""),
 		XStatus:  p.ParseString("xstatus", ""),
 		Name:     p.ParseString("name", ""),
-		DData:    p.ParseString("ddata", ""),
+		DData:    p.ParseJSON("ddata"),
 		Provider: p.ParseString("provider", ""),
+		Svc:      p.ParseString("svc", ""),
 		Medium:   p.ParseString("medium", ""),
 
 		// Thread metadata

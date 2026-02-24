@@ -2031,12 +2031,12 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	}
 	//[ver]
 	var version *int32
-	if ver, ok := v["version"].(string); ok {
+	if ver, ok := v["ver"].(string); ok {
 		temp, _ := strconv.ParseInt(ver, 10, 32)
 		temp32 := int32(temp)
 		version = &temp32
 	}
-	if ver, ok := v["version"].(float64); ok {
+	if ver, ok := v["ver"].(float64); ok {
 		temp := int32(ver)
 		version = &temp
 	}
@@ -3154,7 +3154,7 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 
 	// Insert all 133 fields into mthreads
 	err := i.batchInsert("mthreads", `INSERT INTO sfpla.mthreads (
-		tid, alias, xstatus, name, ddata, provider, medium, xid, post, mtempl, mcert_id,
+		tid, alias, xstatus, name, ddata, provider, svc, medium, xid, post, mtempl, mcert_id,
 		cats, mtypes, fmtypes, cmtypes, admins, perms_ids, cohorts, splits,
 		sent, outs, subs, pubs, vid_targets, audience_segments, content_keywords,
 		consent_types, content_history, content_editors,
@@ -3179,7 +3179,7 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 		creator_compensation_model, creator_notes, content_status,
 		oid, org, owner, uid, vid, created_at, updated_at, updater
 	) VALUES (
-		?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+		?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
 		?, ?, ?, ?, ?, ?, ?, ?,
 		?, ?, ?, ?, ?, ?, ?,
 		?, ?, ?,
@@ -3205,7 +3205,7 @@ func (i *ClickhouseService) updateMThreadsTable(ctx context.Context, tid *uuid.U
 	) SETTINGS insert_deduplicate = 1`,
 		[]interface{}{
 			fields.TID, fields.Alias, fields.XStatus, fields.Name, fields.DData,
-			fields.Provider, fields.Medium, fields.XID, fields.Post, fields.MTempl, fields.MCertID,
+			fields.Provider, fields.Svc, fields.Medium, fields.XID, fields.Post, fields.MTempl, fields.MCertID,
 			fields.Cats, fields.MTypes, fields.FMTypes, fields.CMTypes,
 			fields.Admins, fields.PermsIDs, fields.Cohorts, fields.Splits,
 			fields.Sent, fields.Outs, fields.Subs, fields.Pubs, fields.VidTargets,
@@ -3342,31 +3342,8 @@ func (i *ClickhouseService) updateMTriageTable(ctx context.Context, tid *uuid.UU
 		fmt.Printf("[DEBUG] mtriage: etyp='%v', event_type='%v', ename='%v'\n", v["etyp"], v["event_type"], v["ename"])
 	}
 
-	// Only create triage entries for specific event types that require follow-up
-	// Check etyp first, then event_type, then fall back to ename
-	eventType := getStringValue(v["etyp"])
-	if eventType == "" {
-		eventType = getStringValue(v["event_type"])
-	}
-	if eventType == "" {
-		// Fall back to ename for conversion events
-		eventType = getStringValue(v["ename"])
-	}
-	if i.AppConfig.Debug {
-		fmt.Printf("[DEBUG] mtriage: final eventType='%s'\n", eventType)
-	}
-	if eventType != "conversion" && eventType != "high_value_action" {
-		if i.AppConfig.Debug {
-			fmt.Printf("[DEBUG] mtriage: skipping event='%s' (not conversion or high_value_action)\n", eventType)
-		}
-		return nil // Skip non-actionable events
-	}
-	if i.AppConfig.Debug {
-		fmt.Printf("[DEBUG] mtriage: PROCEEDING - event type '%s' matches criteria\n", eventType)
-	}
-	if i.AppConfig.Debug {
-		fmt.Printf("[DEBUG] mtriage: processing event_type='%s' - will create triage entry\n", eventType)
-	}
+	// mtriage accepts all events with a tid - no event type filtering
+	// The Python layer controls what goes into mtriage (pending messages before finalization)
 
 	// Generate message ID
 	mid := uuid.Must(uuid.NewUUID())
