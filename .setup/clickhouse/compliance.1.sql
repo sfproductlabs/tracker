@@ -443,6 +443,7 @@ CREATE TABLE budget_alerts_local ON CLUSTER tracker_cluster (
     actions_taken Array(String) DEFAULT [], -- Actions taken (e.g., "campaign_paused", "notification_sent")
     resolved Boolean DEFAULT false, -- Whether the alert has been resolved
     resolved_at Nullable(DateTime64(3)) DEFAULT NULL, -- When the alert was resolved
+    metadata JSON DEFAULT '{}', -- Additional alert metadata in JSON format
     created_at DateTime64(3) DEFAULT now64(3), -- Alert creation timestamp
     updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
 

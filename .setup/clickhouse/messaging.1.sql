@@ -154,6 +154,7 @@ CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
     cohorts Array(String) DEFAULT [], -- Target cohorts - groups to send to
     splits JSON DEFAULT '{}', -- Split configuration - for A/B testing variants
     source String DEFAULT '', -- Source - referring domain/service
+    svc String DEFAULT '', -- Service - delivery service (e.g., "moltbook", "SES", "sms", "message")
     medium String DEFAULT '', -- Medium - referring channel & provider method - method of delivery (web page, ad, chat, sms, push, etc.)
     campaign String DEFAULT '', -- Campaign name - for tracking
     term String DEFAULT '', -- Search term - for SEO tracking
