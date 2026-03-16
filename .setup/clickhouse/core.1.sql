@@ -9,8 +9,8 @@ SET enable_json_type = 1;
 -- OPTIMIZE TABLE ips FINAL;
 -- select * from ips final;
 
--- Create database if it doesn't exist (Atomic engine supports config defaults)
-CREATE DATABASE IF NOT EXISTS sfpla ENGINE = Atomic;
+-- Create database on all cluster nodes (ON CLUSTER required for distributed setup)
+CREATE DATABASE IF NOT EXISTS sfpla ON CLUSTER tracker_cluster ENGINE = Atomic;
 
 -- Use the database
 USE sfpla;

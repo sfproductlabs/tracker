@@ -8,4 +8,4 @@ Base it on the .env.sample
 ```
 python -m SimpleHTTPServer
 ```
-* Go to localhost:8000/test.html
+* Go to localhost:8013/test.html
