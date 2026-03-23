@@ -52,6 +52,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -519,11 +520,25 @@ func (i *ClickhouseService) connect() error {
 		MaxCompressionBuffer: 10240,
 	}
 
-	// Add SSL configuration if provided
-	if i.Configuration.CACert != "" {
-		opts.TLS = &tls.Config{
+	// Add TLS configuration if secure mode or CA cert provided
+	if i.Configuration.Secure || i.Configuration.CACert != "" {
+		tlsConfig := &tls.Config{
 			InsecureSkipVerify: !i.Configuration.Secure,
 		}
+		if i.Configuration.CACert != "" {
+			caCert, err := ioutil.ReadFile(i.Configuration.CACert)
+			if err != nil {
+				fmt.Printf("[ERROR] Failed to read CA cert %s: %v\n", i.Configuration.CACert, err)
+			} else {
+				caCertPool, poolErr := x509.SystemCertPool()
+				if poolErr != nil || caCertPool == nil {
+					caCertPool = x509.NewCertPool()
+				}
+				caCertPool.AppendCertsFromPEM(caCert)
+				tlsConfig.RootCAs = caCertPool
+			}
+		}
+		opts.TLS = tlsConfig
 	}
 
 	// Establish connection with circuit breaker protection
