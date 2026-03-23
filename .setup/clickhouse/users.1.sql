@@ -101,7 +101,7 @@ GROUP BY oid, org, invid, tid;
 -- Revenue by campaign by month
 -- NOTE: payments table contains LINE ITEMS (multiple rows per invoice)
 -- This view aggregates at line item level - use invoice_totals view for invoice-level aggregation
-CREATE OR REPLACE VIEW campaign_revenue_monthly AS
+CREATE OR REPLACE VIEW campaign_revenue_monthly ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     campaign_id,
@@ -281,7 +281,7 @@ AS orgs_local
 ENGINE = Distributed(tracker_cluster, sfpla, orgs_local, rand());
 
 -- Create a materialized view for conglomerate (orgs by root) - Enables efficient querying of organization hierarchies
-CREATE MATERIALIZED VIEW orgs_conglomerate
+CREATE MATERIALIZED VIEW orgs_conglomerate ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY (root, oid)
 POPULATE AS
@@ -478,7 +478,7 @@ AS pprovider_local
 ENGINE = Distributed(tracker_cluster, sfpla, pprovider_local, rand());
 
 -- Materialized view for looking up payment providers by owner - Enables efficient provider management
-CREATE MATERIALIZED VIEW pprovider_by_owner
+CREATE MATERIALIZED VIEW pprovider_by_owner ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY owner
 POPULATE AS
@@ -510,7 +510,7 @@ AS pauth_local
 ENGINE = Distributed(tracker_cluster, sfpla, pauth_local, rand());
 
 -- Materialized view for looking up payment methods by owner - Enables efficient user payment management
-CREATE MATERIALIZED VIEW pauth_by_owner
+CREATE MATERIALIZED VIEW pauth_by_owner ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY owner
 POPULATE AS

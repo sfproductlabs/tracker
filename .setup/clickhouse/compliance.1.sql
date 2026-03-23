@@ -241,7 +241,7 @@ POPULATE AS
 SELECT * FROM queues
 WHERE completed IS NOT NULL;
 
-CREATE MATERIALIZED VIEW queues_by_started
+CREATE MATERIALIZED VIEW queues_by_started ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY started
 POPULATE AS

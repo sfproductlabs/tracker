@@ -29,7 +29,7 @@ POPULATE AS
 SELECT * FROM affiliates;
 
 -- Create a materialized view for affiliate ID lookups - Enables efficient queries by affiliate code
-CREATE MATERIALIZED VIEW affiliates_by_aff 
+CREATE MATERIALIZED VIEW affiliates_by_aff ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 PARTITION BY hhash
 ORDER BY aff
@@ -81,7 +81,7 @@ AS redirect_history_local
 ENGINE = Distributed(tracker_cluster, sfpla, redirect_history_local, rand());
 
 -- Create a materialized view for hostto lookup - Enables querying redirects by destination host
-CREATE MATERIALIZED VIEW redirect_history_by_hostto
+CREATE MATERIALIZED VIEW redirect_history_by_hostto ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY hostto
 POPULATE AS
@@ -114,7 +114,7 @@ AS msec_local
 ENGINE = Distributed(tracker_cluster, sfpla, msec_local, rand());
 
 -- Materialized view for finding pending security requests - Enables efficient approval workflows
-CREATE MATERIALIZED VIEW msec_by_pending
+CREATE MATERIALIZED VIEW msec_by_pending ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY pending
 POPULATE AS
@@ -401,7 +401,7 @@ AS mstore_local
 ENGINE = Distributed(tracker_cluster, sfpla, mstore_local, rand());
 
 -- Materialized view for finding scheduled messages - Enables efficient message scheduling
-CREATE MATERIALIZED VIEW mstore_by_scheduled
+CREATE MATERIALIZED VIEW mstore_by_scheduled ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY scheduled
 POPULATE AS

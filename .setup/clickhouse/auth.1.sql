@@ -277,7 +277,7 @@ POPULATE AS
 SELECT * FROM permissions;
 
 -- Index for looking up permissions by action
-CREATE MATERIALIZED VIEW permissions_by_action
+CREATE MATERIALIZED VIEW permissions_by_action ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
 ORDER BY action
 POPULATE AS
@@ -315,7 +315,7 @@ AS platform_credentials_local
 ENGINE = Distributed(tracker_cluster, sfpla, platform_credentials_local, rand());
 
 -- View: Active Platform Credentials (valid and not expired)
-CREATE OR REPLACE VIEW active_platform_credentials AS
+CREATE OR REPLACE VIEW active_platform_credentials ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     org,
@@ -336,7 +336,7 @@ WHERE is_valid = true
 ORDER BY oid, org, platform, connected_at DESC;
 
 -- View: Platform Credentials Summary per Organization
-CREATE OR REPLACE VIEW platform_credentials_summary AS
+CREATE OR REPLACE VIEW platform_credentials_summary ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     org,

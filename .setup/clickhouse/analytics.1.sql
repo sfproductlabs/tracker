@@ -506,7 +506,7 @@ FROM events
 WHERE ip != '';
 
 -- Routed view - Last route for each IP address (most recent)
-CREATE VIEW routed AS
+CREATE VIEW routed ON CLUSTER tracker_cluster AS
 SELECT
     hhash,
     ip,
@@ -649,7 +649,7 @@ LIMIT 1 BY oid, vid, uid, ename;
 
 
 -- Last event by user (for recency targeting - most recent)
-CREATE OR REPLACE VIEW last_event_by_user AS
+CREATE OR REPLACE VIEW last_event_by_user ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     org,
@@ -664,7 +664,7 @@ LIMIT 1 BY oid, uid, ename;
 
 -- Conversion funnel with lag times
 -- NOTE: Uses events.invoice_id to link to invoice-level payment data
-CREATE OR REPLACE VIEW conversion_funnel AS
+CREATE OR REPLACE VIEW conversion_funnel ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     org,
@@ -680,7 +680,7 @@ GROUP BY oid, org, vid
 HAVING conversion_time IS NOT NULL;
 
 -- Event frequency by type (for pattern detection)
-CREATE OR REPLACE VIEW event_frequency AS
+CREATE OR REPLACE VIEW event_frequency ON CLUSTER tracker_cluster AS
 SELECT
     oid,
     org,
