@@ -109,7 +109,7 @@
             "Username": "default",
             "Password": "",
             "Hosts": [
-                "127.0.0.1:9000"
+                "127.0.0.1:9440"
             ],
             "BatchingEnabled": true,
             "MaxBatchSize": 1000,

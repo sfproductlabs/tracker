@@ -12,7 +12,7 @@ CREATE TABLE affiliates_local ON CLUSTER tracker_cluster (
     version_ts Int64 DEFAULT 0 -- Version timestamp (negative created_at for keeping oldest record)
 
 ) ENGINE = ReplicatedReplacingMergeTree(version_ts)
-PARTITION BY hhash
+PARTITION BY toYYYYMM(created_at)
 ORDER BY (hhash, vid);
 
 -- Distributed table for affiliates
@@ -31,7 +31,7 @@ SELECT * FROM affiliates;
 -- Create a materialized view for affiliate ID lookups - Enables efficient queries by affiliate code
 CREATE MATERIALIZED VIEW affiliates_by_aff ON CLUSTER tracker_cluster
 ENGINE = ReplicatedReplacingMergeTree
-PARTITION BY hhash
+PARTITION BY toYYYYMM(created_at)
 ORDER BY aff
 POPULATE AS
 SELECT * FROM affiliates;
@@ -72,7 +72,7 @@ CREATE TABLE redirect_history_local ON CLUSTER tracker_cluster (
     updated_at DateTime64(3) DEFAULT now64(3) -- Record updated timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
-PARTITION BY hostfrom
+PARTITION BY oid
 ORDER BY (urlfrom, updated_at);
 
 -- Distributed table for redirect_history
@@ -472,7 +472,7 @@ CREATE TABLE thread_visitors_local ON CLUSTER tracker_cluster (
     created_at DateTime64(3) DEFAULT now64(3) -- Creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
-PARTITION BY (oid, tid)
+PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (oid, org, tid, vid);
 
 -- Distributed table for thread_visitors

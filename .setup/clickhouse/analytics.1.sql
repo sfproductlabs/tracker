@@ -102,11 +102,13 @@ CREATE TABLE events_local ON CLUSTER tracker_cluster (
 
 
 ) ENGINE = ReplicatedMergeTree()
-PARTITION BY (oid, hhash, toYYYYMM(created_at))
+PARTITION BY (oid, toYYYYMM(created_at))
 ORDER BY (created_at, eid)
 SETTINGS index_granularity = 8192,
          min_bytes_for_wide_part = 0,
-         deduplicate_merge_projection_mode = 'rebuild';
+         deduplicate_merge_projection_mode = 'rebuild',
+         parts_to_delay_insert = 30000,
+         parts_to_throw_insert = 50000;
 
 -- Distributed table for events
 CREATE TABLE IF NOT EXISTS events ON CLUSTER tracker_cluster
@@ -407,7 +409,7 @@ CREATE TABLE usernames_local ON CLUSTER tracker_cluster (
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
-PARTITION BY hhash
+PARTITION BY toYYYYMM(created_at)
 ORDER BY (hhash, uhash, vid);
 
 -- Distributed table for usernames
@@ -425,7 +427,7 @@ CREATE TABLE cells_local ON CLUSTER tracker_cluster (
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
-PARTITION BY hhash
+PARTITION BY toYYYYMM(created_at)
 ORDER BY (hhash, chash, vid);
 
 -- Distributed table for cells
@@ -443,7 +445,7 @@ CREATE TABLE emails_local ON CLUSTER tracker_cluster (
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
-PARTITION BY hhash
+PARTITION BY toYYYYMM(created_at)
 ORDER BY (hhash, ehash);
 
 -- Distributed table for emails

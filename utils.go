@@ -226,52 +226,20 @@ func getRequestHostInfo(r *http.Request) map[string]string {
 // 2. host (standard host header)
 // 3. x-forwarded-host (if behind a trusted proxy)
 // 4. x-host (fallback custom header)
-// 5. x-real-ip (if no host headers available)
-// 6. x-forwarded-for (last resort, first client IP in chain)
-// 7. server-ip (absolute last resort)
+// NOTE: x-real-ip and x-forwarded-for are IP addresses, not hostnames.
+// Using them here caused unique hhash per visitor, exploding partition count.
+// IP-based identification is handled separately by getIP() → iphash.
 func getPrimaryHost(r *http.Request) string {
 	headers := r.Header
 
-	// Try each header in order of reliability
-	host := headers.Get("x-original-host")
-	if host != "" {
-		return cleanHost(host)
-	}
-
-	host = headers.Get("host")
-	if host != "" {
-		return cleanHost(host)
-	}
-
-	host = headers.Get("x-forwarded-host")
-	if host != "" {
-		return cleanHost(host)
-	}
-
-	host = headers.Get("x-host")
-	if host != "" {
-		return cleanHost(host)
-	}
-
-	host = headers.Get("x-real-ip")
-	if host != "" {
-		return cleanHost(host)
-	}
-
-	// Handle x-forwarded-for (take first IP in chain)
-	if forwardedFor := headers.Get("x-forwarded-for"); forwardedFor != "" {
-		if ips := strings.Split(forwardedFor, ","); len(ips) > 0 {
-			firstIP := strings.TrimSpace(ips[0])
-			if firstIP != "" {
-				return cleanHost(firstIP)
-			}
+	// Only use actual hostname headers, not IP headers
+	for _, h := range []string{"x-original-host", "host", "x-forwarded-host", "x-host"} {
+		if v := headers.Get(h); v != "" {
+			return cleanHost(v)
 		}
 	}
 
-	host = headers.Get("server-ip")
-	if host != "" {
-		return cleanHost(host)
-	}
+	return ""
 
 	return ""
 }
@@ -279,9 +247,9 @@ func getPrimaryHost(r *http.Request) string {
 // cleanHost removes port from host if present and returns clean hostname/IP
 func cleanHost(host string) string {
 	if addr, _, err := net.SplitHostPort(host); err != nil {
-		return host
+		return strings.ToLower(host)
 	} else {
-		return addr
+		return strings.ToLower(addr)
 	}
 }
 

@@ -209,7 +209,7 @@ CREATE TABLE userhosts_local ON CLUSTER tracker_cluster (
     created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
-PARTITION BY hhash
+PARTITION BY toYYYYMM(created_at)
 ORDER BY (hhash, uid, vid);
 
 -- Distributed table for userhosts
