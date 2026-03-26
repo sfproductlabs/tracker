@@ -256,6 +256,8 @@ CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
     updatedms Int64 DEFAULT 0, -- Update milliseconds - participant updated timestamp
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this thread
+    text_normalized String DEFAULT '', -- NLTK-processed normalized text for full-text search
+    text_tokens Array(String) DEFAULT [] -- Tokenized text for search
 
 ) ENGINE = ReplicatedReplacingMergeTree()
 PARTITION BY (oid, toYYYYMM(created_at))
@@ -389,7 +391,9 @@ CREATE TABLE mstore_local ON CLUSTER tracker_cluster (
     hide DateTime64(3) DEFAULT toDateTime64(0, 3),
     hidden Boolean DEFAULT false,
     funnel_stage String DEFAULT '',
-    conversion_event_count Int64 DEFAULT 0  -- Number of conversion events
+    conversion_event_count Int64 DEFAULT 0, -- Number of conversion events
+    text_normalized String DEFAULT '', -- NLTK-processed normalized text for full-text search
+    text_tokens Array(String) DEFAULT [] -- Tokenized text for search
 
 ) ENGINE = ReplicatedMergeTree()
 PARTITION BY (oid, toYYYYMM(created_at))
