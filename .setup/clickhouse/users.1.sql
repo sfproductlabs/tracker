@@ -267,6 +267,7 @@ CREATE TABLE orgs_local ON CLUSTER tracker_cluster (
     expiry Date DEFAULT today(), -- Expiration date for organization account
     email String DEFAULT '', -- Primary contact email
     phone String DEFAULT '', -- Primary contact phone number
+    slack_webhook_url String DEFAULT '', -- Slack incoming webhook for Budget Guardian alerts
     created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this organization
     updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp

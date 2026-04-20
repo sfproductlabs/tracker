@@ -350,6 +350,24 @@ FROM platform_credentials
 GROUP BY oid, org, platform
 ORDER BY oid, org, platform;
 
+-- OAuth CSRF state tokens (5-min TTL, pruned via TTL)
+CREATE TABLE IF NOT EXISTS oauth_states_local ON CLUSTER tracker_cluster (
+    state String DEFAULT '',
+    oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',
+    platform String DEFAULT '',
+    uid UUID DEFAULT '00000000-0000-0000-0000-000000000000',
+    created_at DateTime64(3) DEFAULT now64(3),
+    expires_at DateTime64(3) DEFAULT toDateTime64(now64(3) + 300.0, 3)
+) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/oauth_states', '{replica}', created_at)
+PARTITION BY toYYYYMMDD(created_at)
+ORDER BY (state)
+TTL toDateTime(expires_at) + INTERVAL 1 HOUR
+SETTINGS index_granularity = 8192;
+
+CREATE TABLE IF NOT EXISTS oauth_states ON CLUSTER tracker_cluster
+AS oauth_states_local
+ENGINE = Distributed(tracker_cluster, sfpla, oauth_states_local, rand());
+
 -- Multi-armed Bandit testing tables
 
 -- Variant Performance table - Tracks performance metrics for A/B test variants
