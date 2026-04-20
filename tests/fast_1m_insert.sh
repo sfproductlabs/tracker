@@ -44,7 +44,7 @@ for ((batch=1; batch<=NUM_INSERTS; batch++)); do
         if [ $i -gt 1 ]; then
             insert_sql="$insert_sql,"
         fi
-        insert_sql="$insert_sql (generateUUIDv4(), generateUUIDv4(), generateUUIDv4(), 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'bulk_insert', 'test_$((batch * ROWS_PER_INSERT + i))', 'test-org', now64(3))"
+        insert_sql="$insert_sql (generateUUIDv4(), generateUUIDv4(), generateUUIDv4(), 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'bulk_insert', 'test_$((batch * ROWS_PER_INSERT + i))', 'test-org', now64(3, 'UTC'))"
     done
 
     # Execute INSERT via clickhouse client (uses async inserts)

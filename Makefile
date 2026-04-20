@@ -461,7 +461,7 @@ db-clean:
 
 db-admin:
 	@echo "$(YELLOW)Setting up admin account...$(NC)"
-	@clickhouse client --query "INSERT INTO accounts VALUES (toUUID('14fb0860-b4bf-11e9-8971-7b80435315ac'), 'W6ph5Mm5Pz8GgiULbPgzG37mj9g=', '127.0.0.1', 'demo admin user', toDateTime64('2024-01-01 00:00:00', 3), '{\"*\":{\"*\":\"*\"}}', toDateTime64('2019-08-07 00:00:00', 3), now64(3), toUUID('14fb0860-b4bf-11e9-8971-7b80435315ac'))" 2>/dev/null || true
+	@clickhouse client --query "INSERT INTO accounts VALUES (toUUID('14fb0860-b4bf-11e9-8971-7b80435315ac'), 'W6ph5Mm5Pz8GgiULbPgzG37mj9g=', '127.0.0.1', 'demo admin user', toDateTime64('2024-01-01 00:00:00', 3), '{\"*\":{\"*\":\"*\"}}', toDateTime64('2019-08-07 00:00:00', 3), now64(3, 'UTC'), toUUID('14fb0860-b4bf-11e9-8971-7b80435315ac'))" 2>/dev/null || true
 	@echo "$(GREEN)✅ Admin account ready (uid: 14fb0860-b4bf-11e9-8971-7b80435315ac, password hash: W6ph5Mm5Pz8GgiULbPgzG37mj9g=)$(NC)"
 
 # ====================================================================

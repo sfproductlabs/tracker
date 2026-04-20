@@ -46,7 +46,7 @@ EOF
         if [ $i -gt 1 ]; then
             echo "," >> "$TEMP_SQL"
         fi
-        echo -n "(generateUUIDv4(), generateUUIDv4(), generateUUIDv4(), 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'bulk_insert', 'test_$((batch * ROWS_PER_INSERT + i))', 'test-org', now64(3))" >> "$TEMP_SQL"
+        echo -n "(generateUUIDv4(), generateUUIDv4(), generateUUIDv4(), 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'bulk_insert', 'test_$((batch * ROWS_PER_INSERT + i))', 'test-org', now64(3, 'UTC'))" >> "$TEMP_SQL"
     done
 
     # Execute INSERT via clickhouse client

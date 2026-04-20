@@ -47,7 +47,7 @@ EOF
         if [ $i -gt 1 ]; then
             echo "," >> "$sql_file"
         fi
-        echo -n "(generateUUIDv4(), generateUUIDv4(), generateUUIDv4(), 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'bulk_insert', 'test_$((batch * ROWS_PER_INSERT + i))', 'test-org', now64(3))" >> "$sql_file"
+        echo -n "(generateUUIDv4(), generateUUIDv4(), generateUUIDv4(), 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'bulk_insert', 'test_$((batch * ROWS_PER_INSERT + i))', 'test-org', now64(3, 'UTC'))" >> "$sql_file"
     done
 
     # Execute in background with parallel job limit

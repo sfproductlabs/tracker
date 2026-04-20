@@ -14,6 +14,7 @@
         <errorlog>./tmp/clickhouse/logs/clickhouse.err.log</errorlog>
     </logger>
 
+    <timezone>UTC</timezone>
     <users_config>./clickhouse-users.xml</users_config>
     <!-- Embedded Keeper (ChKeeper) Setup -->
   <keeper_server>
