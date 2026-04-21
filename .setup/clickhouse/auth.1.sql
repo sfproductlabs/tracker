@@ -11,8 +11,8 @@ CREATE TABLE accounts_local ON CLUSTER tracker_cluster (
     msg String DEFAULT '', -- Message/notes about this account
     expires DateTime64(3) DEFAULT toDateTime64(0, 3), -- Account expiration date
     creds JSON DEFAULT '{}', -- Credentials and permissions as JSON (host, claim[yes])
-    created_at DateTime64(3) DEFAULT now64(3), -- Account creation timestamp
-    updated_at DateTime64(3) DEFAULT now64(3), -- Account updated timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Account creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Account updated timestamp
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this account
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -52,11 +52,11 @@ CREATE TABLE services_local ON CLUSTER tracker_cluster (
     secret String DEFAULT '', -- Secret hash - securely stored authentication secret
     roles Array(String) DEFAULT [], -- Service roles - array of role names granted to this service
     expiry Date DEFAULT today(), -- Expiration date - when service access expires
-    created_at DateTime64(3) DEFAULT now64(3), -- Service creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Service creation timestamp
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this service belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this service
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID of who last updated this service
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -72,7 +72,7 @@ ENGINE = Distributed(tracker_cluster, sfpla, services_local, rand());
 CREATE TABLE action_names_local ON CLUSTER tracker_cluster (
 
     name String DEFAULT '', -- Action name - unique identifier for this action type
-    created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 ORDER BY name;
@@ -93,10 +93,10 @@ CREATE TABLE actions_local ON CLUSTER tracker_cluster (
     dsrc String DEFAULT '', -- Differentiator source - what the differentiator represents (e.g., "uid")
     meta JSON DEFAULT '{}', -- Metadata - additional information about the action (e.g., split info)
     exqid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Executing queue ID - links to the queue handling this action
-    created_at DateTime64(3) DEFAULT now64(3), -- Action creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Action creation timestamp
     started DateTime64(3) DEFAULT toDateTime64(0, 3), -- When action execution started
     completed DateTime64(3) DEFAULT toDateTime64(0, 3), -- When action execution completed
-    updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Last update timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(created_at)
@@ -116,8 +116,8 @@ CREATE TABLE actions_ext_local ON CLUSTER tracker_cluster (
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - optional link to affected user
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this action belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Record creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     meta JSON DEFAULT '{}' -- Metadata - additional information about the action (e.g., email hash, bounce status)
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -167,7 +167,7 @@ CREATE TABLE logs_local ON CLUSTER tracker_cluster (
 
     id UUID DEFAULT generateUUIDv4(), -- Unique log entry identifier
     ldate Date DEFAULT today(), -- Log date for partitioning and querying
-    created_at DateTime64(3) DEFAULT now64(3), -- When the log entry was created
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- When the log entry was created
     ltime DateTime64(9) DEFAULT toDateTime64(0, 9), -- Nanosecond precision time for detailed server debugging
     topic String DEFAULT '', -- Log topic/category
     name String DEFAULT '', -- Component/service name generating the log
@@ -206,7 +206,7 @@ ENGINE = Distributed(tracker_cluster, sfpla, logs_local, rand());
 CREATE TABLE updates_local ON CLUSTER tracker_cluster (
 
     id String DEFAULT '', -- Unique identifier for the update
-    updated_at DateTime64(3) DEFAULT now64(3), -- When the update occurred
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- When the update occurred
     msg String DEFAULT '', -- Description of the update
     PROJECTION updated_at_proj
     (
@@ -236,7 +236,7 @@ CREATE TABLE permissions_local ON CLUSTER tracker_cluster (
     ref UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Reference ID - user or entity receiving the permission
     action String DEFAULT '', -- Action being permitted (e.g., "read", "write", "delete")
     effect Boolean DEFAULT false, -- Effect - true=allow, false=deny
-    updated_at DateTime64(3) DEFAULT now64(3) -- Creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY (oid, org, rtype, rpath, ref, action);
@@ -295,8 +295,8 @@ CREATE TABLE platform_credentials_local ON CLUSTER tracker_cluster (
     encrypted_refresh_token String DEFAULT '',         -- Fernet-encrypted refresh token
     token_expires_at DateTime64(3) DEFAULT toDateTime64(0, 3),         -- When access token expires (for auto-refresh)
     scopes String DEFAULT '',               -- OAuth scopes granted (comma-separated)
-    connected_at DateTime64(3) DEFAULT now64(3),  -- When first connected
-    updated_at DateTime64(3) DEFAULT now64(3),    -- Last token refresh
+    connected_at DateTime64(3) DEFAULT now64(3, 'UTC'),  -- When first connected
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'),    -- Last token refresh
     is_valid Bool DEFAULT true,             -- False if token refresh fails
     metadata JSON DEFAULT '{}',             -- Additional platform-specific data
 
@@ -356,8 +356,8 @@ CREATE TABLE IF NOT EXISTS oauth_states_local ON CLUSTER tracker_cluster (
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',
     platform String DEFAULT '',
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000',
-    created_at DateTime64(3) DEFAULT now64(3),
-    expires_at DateTime64(3) DEFAULT toDateTime64(now64(3) + 300.0, 3)
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'),
+    expires_at DateTime64(3) DEFAULT toDateTime64(now64(3, 'UTC') + 300.0, 3)
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/oauth_states', '{replica}', created_at)
 PARTITION BY toYYYYMMDD(created_at)
 ORDER BY (state)

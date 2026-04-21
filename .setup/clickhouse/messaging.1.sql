@@ -8,7 +8,7 @@ CREATE TABLE affiliates_local ON CLUSTER tracker_cluster (
     hhash String DEFAULT '', -- Host hash - identifies the website/application
     aff String DEFAULT '', -- Affiliate ID or code
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - the visitor who came through the affiliate
-    created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Record creation timestamp
     version_ts Int64 DEFAULT 0 -- Version timestamp (negative created_at for keeping oldest record)
 
 ) ENGINE = ReplicatedReplacingMergeTree(version_ts)
@@ -44,9 +44,9 @@ CREATE TABLE redirects_local ON CLUSTER tracker_cluster (
     urlto String DEFAULT '', -- Destination URL with protocol (e.g., 'https://example.com/new-path')
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization identifier for multi-tenant support
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    updated_at DateTime64(3) DEFAULT now64(3), -- When this redirect was last updated
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- When this redirect was last updated
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID of the person who created/updated this redirect
-    created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY urlfrom;
@@ -69,7 +69,7 @@ CREATE TABLE redirect_history_local ON CLUSTER tracker_cluster (
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization identifier for multi-tenant support
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID of the person who created this redirect
-    updated_at DateTime64(3) DEFAULT now64(3) -- Record updated timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record updated timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY oid
@@ -96,12 +96,12 @@ CREATE TABLE msec_local ON CLUSTER tracker_cluster (
     pending Boolean DEFAULT false, -- Pending flag - whether this security request is awaiting approval
     approver UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Approver user ID - who approved this security request
     approved DateTime64(3) DEFAULT toDateTime64(0, 3), -- Approval timestamp - when this request was approved
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this security record belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this security record
     updatedms Int64 DEFAULT 0, -- Update milliseconds - participant updated timestamp in ms
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this security record
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -247,14 +247,14 @@ CREATE TABLE mthreads_local ON CLUSTER tracker_cluster (
     creator_notes String DEFAULT '', -- Creator notes - additional information
     parent_tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Parent thread ID - for variant hierarchies (article->variations)
     deleted DateTime64(3) DEFAULT toDateTime64(0, 3), -- Deletion timestamp - when thread was deleted
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this thread belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this thread
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - authenticated user who owns/created this thread
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - anonymous visitor who initiated this thread
     updatedms Int64 DEFAULT 0, -- Update milliseconds - participant updated timestamp
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this thread
     text_normalized String DEFAULT '', -- NLTK-processed normalized text for full-text search
     text_tokens Array(String) DEFAULT [] -- Tokenized text for search
@@ -323,13 +323,13 @@ CREATE TABLE mtriage_local ON CLUSTER tracker_cluster (
     deleted DateTime64(3) DEFAULT toDateTime64(0, 3), -- Deletion timestamp - when message was deleted
     keep Boolean DEFAULT false, -- Keep flag - whether to retain on server
     createdms Int64 DEFAULT 0, -- Creation milliseconds - precise creation time for sorting
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this message belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this message
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - user requiring follow-up
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - visitor requiring follow-up
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this message
 
 ) ENGINE = ReplicatedMergeTree()
@@ -378,7 +378,7 @@ CREATE TABLE mstore_local ON CLUSTER tracker_cluster (
     deleted DateTime64(3) DEFAULT toDateTime64(0, 3),
     keep Boolean DEFAULT false,
     createdms Int64 DEFAULT 0,
-    created_at DateTime64(3) DEFAULT now64(3),
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'),
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000',
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000',
@@ -420,8 +420,8 @@ CREATE TABLE mdevices_local ON CLUSTER tracker_cluster (
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     mtype String DEFAULT '', -- Message type - delivery method (e.g., "apn", "fcm", "email")
     device_token String DEFAULT '', -- Device token or address for push notifications
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
-    created_at DateTime64(3) DEFAULT now64(3) -- Creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY oid
@@ -443,11 +443,11 @@ CREATE TABLE mfailures_local ON CLUSTER tracker_cluster (
     failure String DEFAULT '', -- Failure type - reason for failure (e.g., "nopened", "noack")
     retries Int32 DEFAULT 0, -- Retry count - number of retry attempts
     died DateTime64(3) DEFAULT toDateTime64(0, 3), -- Death timestamp - when to stop retrying
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this failure record belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created the original message
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this failure record
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -473,7 +473,7 @@ CREATE TABLE thread_visitors_local ON CLUSTER tracker_cluster (
     interactions Array(String) DEFAULT [], -- Interactions - types of engagement (click, view, etc.)
     conversion Boolean DEFAULT false, -- Conversion flag - whether visitor converted
     conversion_value Float64 DEFAULT 0.0, -- Conversion value - monetary value of conversion
-    created_at DateTime64(3) DEFAULT now64(3) -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY (oid, toYYYYMM(created_at))
@@ -498,7 +498,7 @@ CREATE TABLE impression_daily_local ON CLUSTER tracker_cluster (
     identified_impressions Int64 DEFAULT 0, -- Identified impressions - from known users
     unique_visitors Int64 DEFAULT 0, -- Unique visitors - distinct visitors
     conversions Int64 DEFAULT 0, -- Conversions - successful conversion events
-    updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Last update timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(day))
@@ -521,7 +521,7 @@ CREATE TABLE channel_metrics_local ON CLUSTER tracker_cluster (
     clicks Int64 DEFAULT 0, -- Clicks - click events
     conversions Int64 DEFAULT 0, -- Conversions - successful conversion events
     conversion_value Float64 DEFAULT 0.0, -- Conversion value - monetary value of conversions
-    updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Last update timestamp
 
 ) ENGINE = ReplicatedSummingMergeTree((impressions, unique_visitors, clicks, conversions, conversion_value))
 PARTITION BY (oid, toYYYYMM(day))
@@ -546,7 +546,7 @@ CREATE TABLE impression_hourly_local ON CLUSTER tracker_cluster (
     identified_impressions Int64 DEFAULT 0, -- Identified impressions - from known users
     unique_visitors Int64 DEFAULT 0, -- Unique visitors - distinct visitors
     conversions Int64 DEFAULT 0, -- Conversions - successful conversion events
-    updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Last update timestamp
 
 ) ENGINE = ReplicatedSummingMergeTree((total_impressions, anonymous_impressions, identified_impressions, unique_visitors, conversions))
 PARTITION BY (oid, toYYYYMM(day))

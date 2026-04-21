@@ -15,7 +15,7 @@ CREATE TABLE payments_local ON CLUSTER tracker_cluster (
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                     -- Session ID - session when payment was made
     invid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                   -- Invoice ID - reference to invoice
     orid UUID DEFAULT '00000000-0000-0000-0000-000000000000',                    -- Order ID - unique identifier for the order
-    invoiced_at DateTime64(3) DEFAULT now64(3),   -- Invoice date - when invoice was issued
+    invoiced_at DateTime64(3) DEFAULT now64(3, 'UTC'),   -- Invoice date - when invoice was issued
     product String DEFAULT '',               -- Product name - what was purchased
     product_id UUID DEFAULT '00000000-0000-0000-0000-000000000000',              -- Product identifier - reference to product catalog
     pcat String DEFAULT '',                  -- Product category - for grouping/reporting
@@ -23,8 +23,8 @@ CREATE TABLE payments_local ON CLUSTER tracker_cluster (
     model String DEFAULT '',                 -- Model - product model/variant
     qty Float64 DEFAULT 0.0,                  -- Quantity - number of units purchased
     duration Int64 DEFAULT 0,               -- Duration - for subscription products (in days/months)
-    starts DateTime64(3) DEFAULT now64(3),         -- Start date - when service/subscription begins
-    ends DateTime64(3) DEFAULT now64(3),           -- End date - when service/subscription ends
+    starts DateTime64(3) DEFAULT now64(3, 'UTC'),         -- Start date - when service/subscription begins
+    ends DateTime64(3) DEFAULT now64(3, 'UTC'),           -- End date - when service/subscription ends
     price Float64 DEFAULT 0.0,                -- Unit price - price per unit
     discount Float64 DEFAULT 0.0,             -- Discount amount - total discount applied
     revenue Float64 DEFAULT 0.0,              -- Revenue - actual revenue after discounts
@@ -43,9 +43,9 @@ CREATE TABLE payments_local ON CLUSTER tracker_cluster (
     rcode String DEFAULT '',                 -- Region code - region/state code
     region String DEFAULT '',                -- Region name - region/state name
     campaign_id String DEFAULT '',             -- Campaign ID - marketing campaign attribution
-    paid_at DateTime64(3) DEFAULT now64(3),        -- Payment date - when payment was received
-    created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    paid_at DateTime64(3) DEFAULT now64(3, 'UTC'),        -- Payment date - when payment was received
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Record creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
 
     -- Projection for fast invoice line item lookups
     PROJECTION invid_proj
@@ -150,9 +150,9 @@ CREATE TABLE ltv_local ON CLUSTER tracker_cluster (
     paid Float64 DEFAULT 0.0, -- Total amount paid - cumulative lifetime value for this id (auto-summed)
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this record belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this record
-    created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Record creation timestamp
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this record
 
 ) ENGINE = ReplicatedSummingMergeTree(paid)
@@ -206,7 +206,7 @@ CREATE TABLE userhosts_local ON CLUSTER tracker_cluster (
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - authenticated user identifier
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - anonymous tracking identifier
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - for the current/last session
-    created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(created_at)
@@ -231,7 +231,7 @@ CREATE TABLE addresses_local ON CLUSTER tracker_cluster (
     active Boolean DEFAULT false, -- Active flag - whether this address is currently valid
     type String DEFAULT '', -- Address type (e.g., "billing", "shipping", "home", "work")
     phone String DEFAULT '', -- Contact phone number for this address
-    updated_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY id;
@@ -268,9 +268,9 @@ CREATE TABLE orgs_local ON CLUSTER tracker_cluster (
     email String DEFAULT '', -- Primary contact email
     phone String DEFAULT '', -- Primary contact phone number
     slack_webhook_url String DEFAULT '', -- Slack incoming webhook for Budget Guardian alerts
-    created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Record creation timestamp
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this organization
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this record
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -311,11 +311,11 @@ CREATE TABLE users_local ON CLUSTER tracker_cluster (
     cohorts Array(String) DEFAULT [], -- Cohort assignments - for segmentation
     splits JSON DEFAULT '{}', -- A/B test assignments - experiment participations
     lang String DEFAULT '', -- Language preference
-    created_at DateTime64(3) DEFAULT now64(3), -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Record creation timestamp
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - primary organization affiliation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this user
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this user
     -- Additional fields from schema.4
     mdevices JSON DEFAULT '{}', -- Message devices - registered notification endpoints
@@ -391,11 +391,11 @@ CREATE TABLE user_verifications_local ON CLUSTER tracker_cluster (
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID - whose identity is being verified
     vmethod String DEFAULT '', -- Verification method (e.g., "email", "phone", "id", "document")
     verifier UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Verifier user ID - who performed the verification
-    created_at DateTime64(3) DEFAULT now64(3), -- Verification timestamp - when verification occurred
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Verification timestamp - when verification occurred
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this verification is for
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who initiated this verification
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this verification
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -446,8 +446,8 @@ CREATE TABLE files_local ON CLUSTER tracker_cluster (
     roles Array(String) DEFAULT [], -- Role permissions - which roles can access - these are platform roles
     r_r Boolean DEFAULT false, -- Role read permission
     r_w Boolean DEFAULT false, -- Role write permission
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     expires DateTime64(3) DEFAULT toDateTime64(0, 3), -- Expiration timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000' -- Updater user ID - who last modified this file
 
@@ -465,9 +465,9 @@ CREATE TABLE pprovider_local ON CLUSTER tracker_cluster (
     name String DEFAULT '', -- Provider name - unique identifier (e.g., "stripe", "paypal")
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this provider record
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this provider
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -497,9 +497,9 @@ CREATE TABLE pauth_local ON CLUSTER tracker_cluster (
     meta String DEFAULT '', -- Metadata about the payment method in JSON format
     priority Int32 DEFAULT 0, -- Priority order for multiple payment methods
     active_since DateTime64(3) DEFAULT toDateTime64(0, 3), -- Timestamp when this payment method became active
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who owns this payment method
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this payment method
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -527,9 +527,9 @@ CREATE TABLE pconfirmation_local ON CLUSTER tracker_cluster (
     external_ref String DEFAULT '', -- External reference ID - typically a transaction ID from payment provider
     rtype String DEFAULT '', -- Reference type - describes what the ref field references
     meta String DEFAULT '', -- Metadata about the payment event in JSON format
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who owns this payment confirmation
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this confirmation
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)

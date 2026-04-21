@@ -24,7 +24,7 @@ CREATE TABLE events_local ON CLUSTER tracker_cluster (
     app String DEFAULT '', -- Application name
     rel String DEFAULT '', -- Application release/version
     cflags Int64 DEFAULT 0, -- Compliance flags
-    created_at DateTime64(3) DEFAULT now64(3), -- When this event was recorded
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- When this event was recorded
     uid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID if authenticated
     tid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Thread ID - linked to message thread
     last String DEFAULT '', -- Previous action/URL
@@ -80,7 +80,9 @@ CREATE TABLE events_local ON CLUSTER tracker_cluster (
     culture String DEFAULT '', -- Culture/locale
     ref UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Referrer
     rcode String DEFAULT '', -- Referral code
-    aff String DEFAULT '', -- Affiliate
+    aff String DEFAULT '', -- Affiliate / arm reference from redirect URLs
+    arm_id String DEFAULT '', -- Meta-campaign arm UUID for direct attribution
+    mcid String DEFAULT '', -- Meta-campaign ID for grouping arms
     browser String DEFAULT '', -- Browser
     device String DEFAULT '', -- Device type
     os String DEFAULT '', -- Operating system
@@ -406,7 +408,7 @@ CREATE TABLE usernames_local ON CLUSTER tracker_cluster (
     uhash String DEFAULT '', -- Username hash - hashed for privacy and efficient lookups
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when username was recorded
-    created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(created_at)
@@ -424,7 +426,7 @@ CREATE TABLE cells_local ON CLUSTER tracker_cluster (
     chash String DEFAULT '', -- Cell phone hash - hashed for privacy and efficient lookups
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when cell number was recorded
-    created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(created_at)
@@ -442,7 +444,7 @@ CREATE TABLE emails_local ON CLUSTER tracker_cluster (
     ehash String DEFAULT '', -- Email hash - hashed for privacy and efficient lookups
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - links to a visitor record
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID - identifies the session when email was recorded
-    created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(created_at)

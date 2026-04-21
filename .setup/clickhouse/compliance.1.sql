@@ -49,7 +49,7 @@ CREATE TABLE zips_local ON CLUSTER tracker_cluster (
     lat Float64 DEFAULT 0.0, -- Latitude coordinate
     lon Float64 DEFAULT 0.0, -- Longitude coordinate
     loc JSON DEFAULT '{}', -- Structured location data (replaced frozen<geo_pol>)
-    updated_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY (country, zip);
@@ -67,7 +67,7 @@ CREATE TABLE jurisdictions_local ON CLUSTER tracker_cluster (
     seq UInt32 DEFAULT 0, -- Sequence number for ordering multiple rules
     rules JSON DEFAULT '{}', -- Rules configuration (e.g., essential,session:comfort,30:analytics,730)
     locs JSON DEFAULT '{}', -- Geographic locations where this regulation applies
-    updated_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY regulation
@@ -93,8 +93,8 @@ FROM jurisdictions;
 CREATE TABLE agreements_local ON CLUSTER tracker_cluster (
 
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - unique identifier for the visitor who made the agreement
-    created_at DateTime64(3) DEFAULT now64(3), -- Agreement creation timestamp
-    updated_at DateTime64(3) DEFAULT now64(3), -- Agreement update timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Agreement creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Agreement update timestamp
     compliances JSON DEFAULT '{}', -- Compliance settings agreed to (e.g., cookies, marketing)
     cflags Int64 DEFAULT 0, -- Compliance flags as bitfield for efficient querying
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID when agreement was made
@@ -147,8 +147,8 @@ ENGINE = Distributed(tracker_cluster, sfpla, agreements_local, rand());
 CREATE TABLE agreed_local ON CLUSTER tracker_cluster (
 
     vid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Visitor ID - unique identifier for the visitor who made the agreement
-    created_at DateTime64(3) DEFAULT now64(3), -- Agreement creation timestamp
-    updated_at DateTime64(3) DEFAULT now64(3), -- Agreement update timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Agreement creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Agreement update timestamp
     compliances JSON DEFAULT '{}', -- Compliance settings agreed to (e.g., cookies, marketing)
     cflags Int64 DEFAULT 0, -- Compliance flags as bitfield for efficient querying
     sid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Session ID when agreement was made
@@ -210,11 +210,11 @@ CREATE TABLE queues_local ON CLUSTER tracker_cluster (
     schedule DateTime64(3) DEFAULT toDateTime64(0, 3), -- Schedule time - when this task is scheduled to run
     started DateTime64(3) DEFAULT toDateTime64(0, 3), -- Start time - when execution of this task began
     completed DateTime64(3) DEFAULT toDateTime64(0, 3), -- Completion time - when execution of this task finished
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp - when this task was created
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp - when this task was created
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this task belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this task
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this task
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -256,11 +256,11 @@ CREATE TABLE cohorts_local ON CLUSTER tracker_cluster (
     imported Int32 DEFAULT 0, -- Imported count - number of successfully imported users
     started DateTime64(3) DEFAULT toDateTime64(0, 3), -- Start time - when import process began
     completed DateTime64(3) DEFAULT toDateTime64(0, 3), -- Completion time - when import process finished
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this cohort belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this cohort
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this cohort
 
     -- Visitor tracking and user attributes
@@ -296,11 +296,11 @@ CREATE TABLE splits_local ON CLUSTER tracker_cluster (
     uids Array(UUID) DEFAULT [], -- Users list - explicit set of users in this split
     vids Array(UUID) DEFAULT [], -- Visitors list - explicit set of visitors in this split (if uid is not known yet), this can come directly from events table
     pct Float64 DEFAULT 0.0, -- Percentage - traffic allocation for this variant (mutually exclusive with users)
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - which oid this split belongs to
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     owner UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner user ID - who created this split
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID - who last modified this split
 
     -- Visitor tracking and targeting
@@ -341,7 +341,7 @@ CREATE TABLE mcerts_local ON CLUSTER tracker_cluster (
     skey String DEFAULT '', -- Symmetric/shared key (optional)
     dhpub String DEFAULT '', -- Diffie-Hellman public key
     dhpriv String DEFAULT '', -- Diffie-Hellman private key (optional)
-    updated_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     expires DateTime64(3) DEFAULT toDateTime64(0, 3), -- Expiration timestamp
     owner_id UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Owner ID - who owns this certificate
     object_type String DEFAULT '' -- Object type - what type of object this certificate belongs to
@@ -365,8 +365,8 @@ CREATE TABLE compliance_settings_local ON CLUSTER tracker_cluster (
     setting_value String DEFAULT '', -- Configuration value
     description String DEFAULT '', -- Detailed description of the compliance requirement
     applies_to Array(String) DEFAULT [], -- Components/systems this setting applies to
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Updater user ID
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -387,8 +387,8 @@ CREATE TABLE payment_settings_local ON CLUSTER tracker_cluster (
     value Float64 DEFAULT 0.0, -- Numeric value for the setting
     description String DEFAULT '', -- Detailed description of the setting
     end_date DateTime64(3) DEFAULT toDateTime64(0, 3), -- Date when setting expires (NULL if current)
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- User ID who last updated this setting
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -413,9 +413,9 @@ CREATE TABLE budget_limits_local ON CLUSTER tracker_cluster (
     warning_threshold Float64 DEFAULT 0.8, -- Warning threshold (0-1, e.g., 0.8 = 80%)
     critical_threshold Float64 DEFAULT 0.95, -- Critical threshold (0-1, e.g., 0.95 = 95%)
     auto_pause_enabled Boolean DEFAULT true, -- Enable automatic campaign pausing
-    created_at DateTime64(3) DEFAULT now64(3), -- Creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Creation timestamp
     expires_at Nullable(DateTime64(3)) DEFAULT NULL, -- Limit expiration date (NULL for permanent)
-    updated_at DateTime64(3) DEFAULT now64(3), -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Last update timestamp
     updater Nullable(UUID) DEFAULT NULL -- User who last updated this limit
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
@@ -444,8 +444,8 @@ CREATE TABLE budget_alerts_local ON CLUSTER tracker_cluster (
     resolved Boolean DEFAULT false, -- Whether the alert has been resolved
     resolved_at Nullable(DateTime64(3)) DEFAULT NULL, -- When the alert was resolved
     metadata JSON DEFAULT '{}', -- Additional alert metadata in JSON format
-    created_at DateTime64(3) DEFAULT now64(3), -- Alert creation timestamp
-    updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC'), -- Alert creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Last update timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(created_at))
@@ -472,7 +472,7 @@ CREATE TABLE budget_emergency_actions_local ON CLUSTER tracker_cluster (
     success Boolean DEFAULT false, -- Whether the action was successful
     error_message Nullable(String) DEFAULT NULL, -- Error message if action failed
     executed_by Nullable(UUID) DEFAULT NULL, -- User who executed the action (NULL for automatic)
-    updated_at DateTime64(3) DEFAULT now64(3) -- Action execution timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Action execution timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(updated_at))
@@ -490,7 +490,7 @@ CREATE TABLE spend_velocity_analytics_local ON CLUSTER tracker_cluster (
     oid UUID DEFAULT '00000000-0000-0000-0000-000000000000', -- Organization ID - for multi-tenant data isolation
     org LowCardinality(String) DEFAULT '', -- Sub-organization within oid (e.g., client's client like "microsoft" under "acme")
     campaign_id String DEFAULT '', -- Campaign ID (empty for oid-wide analysis)
-    analysis_time DateTime64(3) DEFAULT now64(3), -- When the analysis was performed
+    analysis_time DateTime64(3) DEFAULT now64(3, 'UTC'), -- When the analysis was performed
     window_hours Int32 DEFAULT 0, -- Analysis window in hours (e.g., 24, 168)
     current_spend Float64 DEFAULT 0.0, -- Current spend amount
     hourly_burn_rate Float64 DEFAULT 0.0, -- Hourly burn rate
@@ -501,7 +501,7 @@ CREATE TABLE spend_velocity_analytics_local ON CLUSTER tracker_cluster (
     confidence_score Float64 DEFAULT 0.0, -- Confidence score (0-1)
     trend LowCardinality(String) DEFAULT '', -- Trend: increasing, stable, decreasing
     data_points Int32 DEFAULT 0, -- Number of data points used in analysis
-    updated_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 PARTITION BY (oid, toYYYYMM(updated_at))

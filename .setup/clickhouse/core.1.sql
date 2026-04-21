@@ -20,7 +20,7 @@ CREATE TABLE sequences_local ON CLUSTER tracker_cluster (
 
     name String DEFAULT '', -- Name of the sequence
     seq UInt32 DEFAULT 0, -- Current sequence value
-    updated_at DateTime64(3) DEFAULT now64(3) -- Last update timestamp
+    updated_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Last update timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(updated_at)
 ORDER BY name;
@@ -41,7 +41,7 @@ CREATE TABLE geo_points_dictionary_local ON CLUSTER tracker_cluster (
     id UUID DEFAULT generateUUIDv4(), -- Unique identifier for this geographic point
     lat Float64 DEFAULT 0.0, -- Latitude coordinate
     lon Float64 DEFAULT 0.0, -- Longitude coordinate
-    created_at DateTime64(3) DEFAULT now64(3) -- Created timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Created timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 ORDER BY id;
@@ -57,7 +57,7 @@ CREATE TABLE viewport_dictionary_local ON CLUSTER tracker_cluster (
     id UUID DEFAULT generateUUIDv4(), -- Unique identifier for this viewport
     w Int64 DEFAULT 0, -- Width in pixels
     h Int64 DEFAULT 0, -- Height in pixels
-    created_at DateTime64(3) DEFAULT now64(3) -- Created timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Created timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 ORDER BY id;
@@ -77,7 +77,7 @@ CREATE TABLE geo_pols_local ON CLUSTER tracker_cluster (
     county String DEFAULT '', -- County/legislative sub-region
     city String DEFAULT '', -- City name
     zip String DEFAULT '', -- Postal/ZIP code
-    created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 ORDER BY id;
@@ -93,7 +93,7 @@ CREATE TABLE countries_local ON CLUSTER tracker_cluster (
     country String DEFAULT '', -- ISO-2 country code (e.g., US)
     name String DEFAULT '', -- Full country name (e.g., United States of America)
     continent String DEFAULT '', -- Continent name (e.g., North America)
-    created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 ORDER BY country;
@@ -118,7 +118,7 @@ CREATE TABLE geo_ip_local ON CLUSTER tracker_cluster (
     lon Float64 DEFAULT 0.0, -- Longitude coordinate
     tz String DEFAULT '', -- Timezone of the IP range
     zip String DEFAULT '', -- Postal/ZIP code
-    created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 PARTITION BY ipc
@@ -134,7 +134,7 @@ CREATE TABLE hosts_local ON CLUSTER tracker_cluster (
 
     hhash String DEFAULT '', -- Host hash for privacy and efficient lookups
     hostname String DEFAULT '', -- Actual hostname
-    created_at DateTime64(3) DEFAULT now64(3) -- Record creation timestamp
+    created_at DateTime64(3) DEFAULT now64(3, 'UTC') -- Record creation timestamp
 
 ) ENGINE = ReplicatedReplacingMergeTree(created_at)
 ORDER BY (hhash, hostname);

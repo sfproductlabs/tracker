@@ -1892,6 +1892,8 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	cleanInterfaceString(v["term"])
 	cleanInterfaceString(v["rcode"])
 	cleanInterfaceString(v["aff"])
+	cleanInterfaceString(v["arm_id"])
+	cleanInterfaceString(v["mcid"])
 	cleanInterfaceString(v["device"])
 	cleanInterfaceString(v["os"])
 	cleanInterfaceString(v["relation"])
@@ -2094,7 +2096,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			"app", "rel", "cflags", "created", "uid", "last", "url", "ip", "latlon", "ptyp",
 			"bhash", "auth_id", "duration", "xid", "split", "etyp", "ver", "sink", "score",
 			"gaid", "idfa", "msid", "fbid", "country", "region", "city", "zip", "culture",
-			"ref", "aff", "browser", "device", "os", "tz", "vp", "targets", "rid", "relation",
+			"ref", "aff", "arm_id", "mcid", "browser", "device", "os", "tz", "vp", "targets", "rid", "relation",
 			"rcode", "ename", "source", "content", "medium", "campaign", "term", "v1",
 		}
 		for _, field := range excludeFields {
@@ -2334,15 +2336,15 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			created_at, uid, tid, last, url, ip, iphash, lat, lon, ptyp,
 			bhash, auth_id, duration, xid, split, ename, source, medium, campaign, content,
 			country, region, city, zip, term, etyp, ver, sink, score, params,
-			invoice_id, targets, relation, rid, ja4h
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			invoice_id, targets, relation, rid, ja4h, aff, arm_id, mcid
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 SETTINGS insert_deduplicate = 1`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), getStringValue(v["org"]), hhash, v["app"], v["rel"], cflags,
 				updated, parseUUID(uid), parseUUID(tid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(authID), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"], v["content"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
-				parseUUID(invoiceID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
+				parseUUID(invoiceID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H, v["aff"], v["arm_id"], v["mcid"],
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
 		}
