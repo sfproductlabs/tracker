@@ -2336,8 +2336,9 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			created_at, uid, tid, last, url, ip, iphash, lat, lon, ptyp,
 			bhash, auth_id, duration, xid, split, ename, source, medium, campaign, content,
 			country, region, city, zip, term, etyp, ver, sink, score, params,
-			invoice_id, targets, relation, rid, ja4h, aff, arm_id, mcid
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			invoice_id, targets, relation, rid, ja4h, aff, arm_id, mcid,
+			device, os
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 SETTINGS insert_deduplicate = 1`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), getStringValue(v["org"]), hhash, v["app"], v["rel"], cflags,
@@ -2345,6 +2346,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				bhash, parseUUID(authID), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"], v["content"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
 				parseUUID(invoiceID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H, v["aff"], v["arm_id"], v["mcid"],
+				v["device"], v["os"],
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
 		}
