@@ -144,6 +144,18 @@ function track(params) {
   const aff = getCookie(C.AFF);
   if (aff && !json.aff) json.aff = aff;
 
+  // UTM attribution (from persisted cookies)
+  const src = getCookie(C.SOURCE);
+  if (src && !json.source) json.source = src;
+  const med = getCookie(C.MEDIUM);
+  if (med && !json.medium) json.medium = med;
+  const camp = getCookie(C.CAMPAIGN);
+  if (camp && !json.campaign) json.campaign = camp;
+  const cont = getCookie(C.CONTENT);
+  if (cont && !json.content) json.content = cont;
+  const trm = getCookie(C.TERM);
+  if (trm && !json.term) json.term = trm;
+
   // Session
   const now = Date.now();
   const inactive = now - Number(getCookie(C.LAST_ACTIVE) || now);
