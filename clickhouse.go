@@ -857,16 +857,18 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 						lon = &lonfp
 					}
 				}
-				if lat == nil || lon == nil {
-					if gip, err := GetGeoIP(net.ParseIP(ip)); err == nil && gip != nil {
+				if lat == nil || lon == nil || country == nil || region == nil {
+					if gip, err := GetGeoIP(net.ParseIP(ip), i.AppConfig.Debug); err == nil && gip != nil {
 						var geoip GeoIP
-						if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
-							lat = &geoip.Latitude
-							lon = &geoip.Longitude
-							if geoip.CountryISO2 != "" {
+						if err := json.Unmarshal(gip, &geoip); err == nil {
+							if (lat == nil || lon == nil) && geoip.Latitude != 0 && geoip.Longitude != 0 {
+								lat = &geoip.Latitude
+								lon = &geoip.Longitude
+							}
+							if country == nil && geoip.CountryISO2 != "" {
 								country = &geoip.CountryISO2
 							}
-							if geoip.Region != "" {
+							if region == nil && geoip.Region != "" {
 								region = &geoip.Region
 							}
 						}
@@ -1026,7 +1028,7 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 			ip = r.URL.Query()["ip"][0]
 		}
 		pip := net.ParseIP(ip)
-		if gip, err := GetGeoIP(pip); err == nil && gip != nil {
+		if gip, err := GetGeoIP(pip, i.AppConfig.Debug); err == nil && gip != nil {
 			(*w).WriteHeader(http.StatusOK)
 			(*w).Header().Set("Content-Type", "application/json")
 			(*w).Write(gip)
@@ -1971,8 +1973,11 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 	//[country]
 	var country, region, city *string
-	zip := v["zip"]
-	ensureInterfaceString(zip)
+	var zip interface{} = v["zip"]
+	// Treat empty string zip as absent so GeoIP fallback can supply it.
+	if z, ok := zip.(string); ok && z == "" {
+		zip = nil
+	}
 	if tz, ok := v["tz"].(string); ok {
 		if ct, oktz := countries[tz]; oktz {
 			country = &ct
@@ -1996,23 +2001,27 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			lon = &lonfp
 		}
 	}
-	if lat == nil || lon == nil {
-		if gip, err := GetGeoIP(net.ParseIP(w.IP)); err == nil && gip != nil {
+	// GeoIP fallback: populate country/region/city/zip independently of lat/lon,
+	// so records with zero or missing coordinates still get geo attribution.
+	if lat == nil || lon == nil || country == nil || region == nil || city == nil || zip == nil {
+		if gip, err := GetGeoIP(net.ParseIP(w.IP), i.AppConfig.Debug); err == nil && gip != nil {
 			var geoip GeoIP
-			if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
-				lat = &geoip.Latitude
-				lon = &geoip.Longitude
-				if geoip.CountryISO2 != "" {
+			if err := json.Unmarshal(gip, &geoip); err == nil {
+				if (lat == nil || lon == nil) && geoip.Latitude != 0 && geoip.Longitude != 0 {
+					lat = &geoip.Latitude
+					lon = &geoip.Longitude
+				}
+				if country == nil && geoip.CountryISO2 != "" {
 					country = &geoip.CountryISO2
 				}
-				if geoip.Region != "" {
+				if region == nil && geoip.Region != "" {
 					region = &geoip.Region
 				}
-				if geoip.City != "" {
+				if city == nil && geoip.City != "" {
 					city = &geoip.City
 				}
 				if zip == nil && geoip.Zip != "" {
-					zip = &geoip.Zip
+					zip = geoip.Zip
 				}
 			}
 		}

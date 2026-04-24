@@ -153,6 +153,7 @@ func (w *pebbleWriteBatch) Clear() {
 	// see https://github.com/cockroachdb/pebble/pull/849 for details
 	w.wb.Close()
 	w.wb = w.db.NewBatch()
+	w.applied = false
 }
 
 func (w *pebbleWriteBatch) Count() int {

@@ -258,7 +258,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 					}
 				}
 				if latlon == nil {
-					if gip, err := GetGeoIP(net.ParseIP(ip)); err == nil && gip != nil {
+					if gip, err := GetGeoIP(net.ParseIP(ip), i.AppConfig.Debug); err == nil && gip != nil {
 						var geoip GeoIP
 						if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
 							latlon = &geo_point{}
@@ -500,7 +500,7 @@ func (i *CassandraService) serve(w *http.ResponseWriter, r *http.Request, s *Ser
 			ip = r.URL.Query()["ip"][0]
 		}
 		pip := net.ParseIP(ip)
-		if gip, err := GetGeoIP(pip); err == nil && gip != nil {
+		if gip, err := GetGeoIP(pip, i.AppConfig.Debug); err == nil && gip != nil {
 			(*w).WriteHeader(http.StatusOK)
 			(*w).Header().Set("Content-Type", "application/json")
 			(*w).Write(gip)
@@ -1093,7 +1093,7 @@ func (i *CassandraService) write(w *WriteArgs) error {
 			}
 		}
 		if latlon == nil {
-			if gip, err := GetGeoIP(net.ParseIP(w.IP)); err == nil && gip != nil {
+			if gip, err := GetGeoIP(net.ParseIP(w.IP), i.AppConfig.Debug); err == nil && gip != nil {
 				var geoip GeoIP
 				if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
 					latlon = &geo_point{}

@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-func GetGeoIP(pip net.IP) ([]byte, error) {
+func GetGeoIP(pip net.IP, debug bool) ([]byte, error) {
 	if pip == nil {
 		return nil, fmt.Errorf("Bad Request (IP)")
 	}
@@ -35,14 +35,18 @@ func GetGeoIP(pip net.IP) ([]byte, error) {
 					var geoip GeoIP
 					err := json.Unmarshal(val, &geoip)
 					if err != nil {
-						fmt.Println("Error marshalling :", key, string(k), string(val))
+						if debug {
+							fmt.Println("Error marshalling :", key, string(k), string(val))
+						}
 						return fmt.Errorf("Server Error (IP)")
 					} else {
-						if key > string(k) && FixedLengthNumberString(10, geoip.IPEnd) > FixedLengthNumberString(10, ipp) {
+						if key > string(k) && FixedLengthNumberString(10, geoip.IPEnd) >= FixedLengthNumberString(10, ipp) {
 							value = val
 							return nil
 						} else {
-							fmt.Println("Not found:", key, string(k), string(val))
+							if debug {
+								fmt.Println("Not found:", key, string(k), string(val))
+							}
 							return fmt.Errorf("Not Found (IP)")
 						}
 					}
@@ -75,14 +79,18 @@ func GetGeoIP(pip net.IP) ([]byte, error) {
 					var geoip GeoIP
 					err := json.Unmarshal(val, &geoip)
 					if err != nil {
-						fmt.Println("Error marshalling :", key, string(k), string(val))
+						if debug {
+							fmt.Println("Error marshalling :", key, string(k), string(val))
+						}
 						return fmt.Errorf("Server Error (IP)")
 					} else {
-						if key > string(k) && FixedLengthNumberString(39, geoip.IPEnd) > FixedLengthNumberString(39, ipp) {
+						if key > string(k) && FixedLengthNumberString(39, geoip.IPEnd) >= FixedLengthNumberString(39, ipp) {
 							value = val
 							return nil
 						} else {
-							fmt.Println("Not found:", key, string(k), string(val))
+							if debug {
+								fmt.Println("Not found:", key, string(k), string(val))
+							}
 							return fmt.Errorf("Not Found (IP)")
 						}
 					}

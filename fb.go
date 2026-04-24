@@ -168,7 +168,7 @@ func (i *FacebookService) write(w *WriteArgs) error {
 				}
 			}
 			if latlon == nil {
-				if gip, err := GetGeoIP(net.ParseIP(w.IP)); err == nil && gip != nil {
+				if gip, err := GetGeoIP(net.ParseIP(w.IP), i.AppConfig.Debug); err == nil && gip != nil {
 					var geoip GeoIP
 					if err := json.Unmarshal(gip, &geoip); err == nil && geoip.Latitude != 0 && geoip.Longitude != 0 {
 						latlon = &geo_point{}

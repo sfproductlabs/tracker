@@ -1244,24 +1244,37 @@ func main() {
 			kv.GetValue([]byte("DB_VER"), func(val []byte) error {
 				if len(val) == 0 || val[0] != byte(configuration.GeoIPVersion) {
 					fmt.Println("Restoring Geoip Database...")
-					Unzip(configuration.IPv4GeoIPZip, configuration.TempDirectory)
-					Unzip(configuration.IPv6GeoIPZip, configuration.TempDirectory)
-					wb := kv.GetWriteBatch()
-					i := 0
-					load := func(src string, keyprefix string, pad int) {
-						file, _ := os.Open(src)
+					if err := Unzip(configuration.IPv4GeoIPZip, configuration.TempDirectory); err != nil {
+						fmt.Printf("[ERROR] Failed to unzip IPv4 GeoIP: %v\n", err)
+						return err
+					}
+					if err := Unzip(configuration.IPv6GeoIPZip, configuration.TempDirectory); err != nil {
+						fmt.Printf("[ERROR] Failed to unzip IPv6 GeoIP: %v\n", err)
+						return err
+					}
+					load := func(src string, keyprefix string, pad int) error {
+						file, err := os.Open(src)
+						if err != nil {
+							fmt.Printf("[ERROR] Failed to open GeoIP CSV %s: %v\n", src, err)
+							return err
+						}
 						defer file.Close()
+						wb := kv.GetWriteBatch()
+						defer wb.wb.Close()
 						r := csv.NewReader(file)
+						i := 0
+						wrote := 0
 						for {
-							i++
 							rec, err := r.Read()
 							if err == io.EOF {
 								break
 							}
 							if err != nil {
-								log.Fatal(err)
+								fmt.Printf("[ERROR] CSV read error at row %d of %s: %v\n", i, src, err)
+								return err
 							}
-							if rec[0] == "" || rec[1] == "" || rec[0] == "-" || rec[1] == "-" {
+							i++
+							if len(rec) < 10 || rec[0] == "" || rec[1] == "" || rec[0] == "-" || rec[1] == "-" {
 								continue
 							}
 							for g := 0; g < len(rec); g++ {
@@ -1287,17 +1300,33 @@ func main() {
 							}
 							if i%100000 == 0 {
 								fmt.Print(".")
-								kv.CommitWriteBatch(wb)
+								if cerr := kv.CommitWriteBatch(wb); cerr != nil {
+									fmt.Printf("[ERROR] GeoIP batch commit failed at row %d: %v\n", i, cerr)
+									return cerr
+								}
 								wb.Clear()
 							}
-							js, err := json.Marshal(geoip)
+							js, jerr := json.Marshal(geoip)
+							if jerr != nil {
+								fmt.Printf("[ERROR] GeoIP marshal failed at row %d: %v\n", i, jerr)
+								continue
+							}
 							wb.Put([]byte(keyprefix+FixedLengthNumberString(pad, rec[0])), js)
+							wrote++
 						}
-						kv.CommitWriteBatch(wb)
-						wb.wb.Close()
+						if cerr := kv.CommitWriteBatch(wb); cerr != nil {
+							fmt.Printf("[ERROR] GeoIP final batch commit failed: %v\n", cerr)
+							return cerr
+						}
+						fmt.Printf("\n[INFO] GeoIP loaded %d rows from %s (scanned %d)\n", wrote, src, i)
+						return nil
 					}
-					load(configuration.TempDirectory+configuration.IPv4GeoIPCSVDest, IDX_PREFIX_IPV4, 10)
-					load(configuration.TempDirectory+configuration.IPv6GeoIPCSVDest, IDX_PREFIX_IPV6, 39)
+					if err := load(configuration.TempDirectory+configuration.IPv4GeoIPCSVDest, IDX_PREFIX_IPV4, 10); err != nil {
+						return err
+					}
+					if err := load(configuration.TempDirectory+configuration.IPv6GeoIPCSVDest, IDX_PREFIX_IPV6, 39); err != nil {
+						return err
+					}
 					kv.SaveValue([]byte("DB_VER"), []byte{byte(configuration.GeoIPVersion)})
 				}
 				return nil
