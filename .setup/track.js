@@ -15,8 +15,9 @@
 // ─── Cookie Names (override via window._sfpl.cookies) ───────────────────────
 const C = Object.assign({
   VISITOR:    'vid',
-  SESSION:    'sess',
+  SESSION:    'sid',
   USER:       'uid',
+  ORG:        'oid',
   AUTH:       'jwt',
   REFERRAL:   'ref',
   LAST_ACTIVE:'la',
@@ -172,6 +173,8 @@ function track(params) {
   // User
   const uid = getCookie(C.USER);
   if (uid) json.uid = uid;
+  const oid = getCookie(C.ORG);
+  if (oid && !json.oid) json.oid = oid;
 
   // Timezone
   try { json.tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch {}
