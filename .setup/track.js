@@ -176,8 +176,10 @@ function track(params) {
   const oid = getCookie(C.ORG);
   if (oid && !json.oid) json.oid = oid;
 
-  // Timezone
+  // Timezone (IANA) and Culture (locale) — sent on every frame so WS events
+  // (which carry no Accept-Language per-message) still record locale.
   try { json.tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch {}
+  try { json.culture = navigator.language || ''; } catch {}
 
   // Device + OS
   json.device = detectDevice();
@@ -196,7 +198,9 @@ function track(params) {
     setCookie(C.VISITOR, json.vid, VISITOR_EXPIRY);
   }
 
-  // Auth
+  // Auth — included in every payload so WS frames carry identity even if
+  // the user logged in AFTER the WS upgrade (cookies on the upgrade request
+  // are a snapshot; payload fields take precedence server-side).
   const jwt = getCookie(C.AUTH);
   if (jwt) json.auth = jwt;
 

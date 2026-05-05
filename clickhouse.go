@@ -272,7 +272,7 @@ func getUUIDArrayOrDefault(val interface{}, defaultVal []uuid.UUID) []uuid.UUID 
 		result := make([]uuid.UUID, 0, len(v))
 		for _, item := range v {
 			if str, ok := item.(string); ok {
-				if uid, err := uuid.Parse(str); err == nil {
+				if uid, err := parseUUIDString(str); err == nil {
 					result = append(result, uid)
 				}
 			}
@@ -281,7 +281,7 @@ func getUUIDArrayOrDefault(val interface{}, defaultVal []uuid.UUID) []uuid.UUID 
 	case []string:
 		result := make([]uuid.UUID, 0, len(v))
 		for _, str := range v {
-			if uid, err := uuid.Parse(str); err == nil {
+			if uid, err := parseUUIDString(str); err == nil {
 				result = append(result, uid)
 			}
 		}
@@ -887,42 +887,42 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 				// Convert vid to UUID if present
 				var vid *uuid.UUID
 				if vidStr, ok := b["vid"].(string); ok {
-					if parsedVid, err := uuid.Parse(vidStr); err == nil {
+					if parsedVid, err := parseUUIDString(vidStr); err == nil {
 						vid = &parsedVid
 					}
 				}
 				// Convert sid to UUID if present
 				var sid *uuid.UUID
 				if sidStr, ok := b["sid"].(string); ok {
-					if parsedSid, err := uuid.Parse(sidStr); err == nil {
+					if parsedSid, err := parseUUIDString(sidStr); err == nil {
 						sid = &parsedSid
 					}
 				}
 				// Convert uid to UUID if present
 				var uid *uuid.UUID
 				if uidStr, ok := b["uid"].(string); ok {
-					if parsedUid, err := uuid.Parse(uidStr); err == nil {
+					if parsedUid, err := parseUUIDString(uidStr); err == nil {
 						uid = &parsedUid
 					}
 				}
 				// Convert avid to UUID if present
 				var avid *uuid.UUID
 				if avidStr, ok := b["avid"].(string); ok {
-					if parsedAvid, err := uuid.Parse(avidStr); err == nil {
+					if parsedAvid, err := parseUUIDString(avidStr); err == nil {
 						avid = &parsedAvid
 					}
 				}
 				// Convert owner to UUID if present
 				var owner *uuid.UUID
 				if ownerStr, ok := b["owner"].(string); ok {
-					if parsedOwner, err := uuid.Parse(ownerStr); err == nil {
+					if parsedOwner, err := parseUUIDString(ownerStr); err == nil {
 						owner = &parsedOwner
 					}
 				}
 				// Convert oid to UUID if present
 				var oid *uuid.UUID
 				if orgStr, ok := b["oid"].(string); ok {
-					if parsedOrg, err := uuid.Parse(orgStr); err == nil {
+					if parsedOrg, err := parseUUIDString(orgStr); err == nil {
 						oid = &parsedOrg
 					}
 				}
@@ -1174,14 +1174,14 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 				// Parse updater UUID
 				var updater *uuid.UUID
 				if updaterStr, ok := (*s.Values)["uid"]; ok {
-					if parsedUpdater, err := uuid.Parse(updaterStr); err == nil {
+					if parsedUpdater, err := parseUUIDString(updaterStr); err == nil {
 						updater = &parsedUpdater
 					}
 				}
 				// Parse oid UUID if present
 				var oid *uuid.UUID
 				if orgStr, ok := b["oid"].(string); ok {
-					if parsedOrg, err := uuid.Parse(orgStr); err == nil {
+					if parsedOrg, err := parseUUIDString(orgStr); err == nil {
 						oid = &parsedOrg
 					}
 				}
@@ -1499,7 +1499,7 @@ func (i *ClickhouseService) write(w *WriteArgs) error {
 			// Parse owner UUID if present
 			var owner *uuid.UUID
 			if ownerStr, ok := v["owner"].(string); ok {
-				if parsedOwner, err := uuid.Parse(ownerStr); err == nil {
+				if parsedOwner, err := parseUUIDString(ownerStr); err == nil {
 					owner = &parsedOwner
 				}
 			}
@@ -1899,6 +1899,17 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	cleanInterfaceString(v["device"])
 	cleanInterfaceString(v["os"])
 	cleanInterfaceString(v["relation"])
+	// tz/culture: lowercase in-place on the map. Unlike the other
+	// cleanInterfaceString calls above (which are no-ops for map entries
+	// because interface{} values are passed by copy — the REST path handles
+	// them via its global body lowercase), these run on WS frames too where
+	// the client sends mixed-case `America/Los_Angeles` and `en-US`.
+	if s, ok := v["tz"].(string); ok {
+		v["tz"] = strings.ToLower(strings.TrimSpace(s))
+	}
+	if s, ok := v["culture"].(string); ok {
+		v["culture"] = strings.ToLower(strings.TrimSpace(s))
+	}
 
 	//////////////////////////////////////////////
 	//FIX VARS
@@ -1936,37 +1947,37 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	// Parse UUID fields
 	var vid, sid, uid, authID, rid, oid, invoiceID *uuid.UUID
 	if temp, ok := v["vid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			vid = &parsed
 		}
 	}
 	if temp, ok := v["sid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			sid = &parsed
 		}
 	}
 	if temp, ok := v["uid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			uid = &parsed
 		}
 	}
 	if temp, ok := v["auth_id"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			authID = &parsed
 		}
 	}
 	if temp, ok := v["rid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			rid = &parsed
 		}
 	}
 	if temp, ok := v["oid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			oid = &parsed
 		}
 	}
 	if temp, ok := v["invoice_id"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			invoiceID = &parsed
 		}
 	}
@@ -2003,25 +2014,43 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	}
 	// GeoIP fallback: populate country/region/city/zip independently of lat/lon,
 	// so records with zero or missing coordinates still get geo attribution.
+	//
+	// Private/loopback/link-local IPs are skipped — IP2Location has no entries
+	// for them, so the lookup wastes cycles and emits misleading zero results.
+	// Errors are surfaced under Debug mode only to avoid log spam in production.
 	if lat == nil || lon == nil || country == nil || region == nil || city == nil || zip == nil {
-		if gip, err := GetGeoIP(net.ParseIP(w.IP), i.AppConfig.Debug); err == nil && gip != nil {
-			var geoip GeoIP
-			if err := json.Unmarshal(gip, &geoip); err == nil {
-				if (lat == nil || lon == nil) && geoip.Latitude != 0 && geoip.Longitude != 0 {
-					lat = &geoip.Latitude
-					lon = &geoip.Longitude
+		parsedIP := net.ParseIP(w.IP)
+		switch {
+		case parsedIP == nil:
+			if i.AppConfig.Debug {
+				fmt.Printf("GeoIP: unparseable IP %q\n", w.IP)
+			}
+		case parsedIP.IsLoopback(), parsedIP.IsPrivate(), parsedIP.IsLinkLocalUnicast(), parsedIP.IsUnspecified():
+			// skip: no useful geo for private/local addresses
+		default:
+			if gip, err := GetGeoIP(parsedIP, i.AppConfig.Debug); err != nil {
+				if i.AppConfig.Debug {
+					fmt.Printf("GeoIP lookup failed for %s: %v\n", parsedIP, err)
 				}
-				if country == nil && geoip.CountryISO2 != "" {
-					country = &geoip.CountryISO2
-				}
-				if region == nil && geoip.Region != "" {
-					region = &geoip.Region
-				}
-				if city == nil && geoip.City != "" {
-					city = &geoip.City
-				}
-				if zip == nil && geoip.Zip != "" {
-					zip = geoip.Zip
+			} else if gip != nil {
+				var geoip GeoIP
+				if err := json.Unmarshal(gip, &geoip); err == nil {
+					if (lat == nil || lon == nil) && geoip.Latitude != 0 && geoip.Longitude != 0 {
+						lat = &geoip.Latitude
+						lon = &geoip.Longitude
+					}
+					if country == nil && geoip.CountryISO2 != "" {
+						country = &geoip.CountryISO2
+					}
+					if region == nil && geoip.Region != "" {
+						region = &geoip.Region
+					}
+					if city == nil && geoip.City != "" {
+						city = &geoip.City
+					}
+					if zip == nil && geoip.Zip != "" {
+						zip = geoip.Zip
+					}
 				}
 			}
 		}
@@ -2121,12 +2150,19 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		convertParamsToTypes(params)
 	}
 
-	//[culture]
+	//[culture] — payload wins over Accept-Language; WebSocket frames don't
+	// carry Accept-Language per-message, so clients must send `culture` in JSON
+	// to preserve locale on every event.
 	var culture *string
-	c := strings.Split(w.Language, ",")
-	if len(c) > 0 {
-		culture = &c[0]
-		cleanString(culture)
+	if cul, ok := v["culture"].(string); ok && strings.TrimSpace(cul) != "" {
+		cleanCul := strings.TrimSpace(cul)
+		culture = &cleanCul
+	} else {
+		c := strings.Split(w.Language, ",")
+		if len(c) > 0 && strings.TrimSpace(c[0]) != "" {
+			culture = &c[0]
+			cleanString(culture)
+		}
 	}
 
 	//WARNING: w.URI has destructive changes here
@@ -2208,7 +2244,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 	//EventID
 	if temp, ok := v["eid"].(string); ok {
-		if evt, err := uuid.Parse(temp); err == nil {
+		if evt, err := parseUUIDString(temp); err == nil {
 			w.EventID = evt
 		}
 	}
@@ -2224,14 +2260,14 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		isNew = true
 	} else {
 		//Let's override the event id too
-		if _, err := uuid.Parse(vidstring); err != nil {
+		if _, err := parseUUIDString(vidstring); err != nil {
 			v["vid"] = uuid.Must(uuid.NewUUID()).String()
 			isNew = true
 		}
 	}
 	// //[uid] - let's overwrite the vid if we have a uid
 	// if uidstring, ok := v["uid"].(string); ok {
-	// 	if _, err := uuid.Parse(uidstring); err == nil {
+	// 	if _, err := parseUUIDString(uidstring); err == nil {
 	// 		v["vid"] = v["uid"]
 	// 		isNew = false
 	// 	}
@@ -2244,7 +2280,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			v["sid"] = uuid.Must(uuid.NewUUID()).String()
 		}
 	} else {
-		if _, err := uuid.Parse(sidstring); err != nil {
+		if _, err := parseUUIDString(sidstring); err != nil {
 			v["sid"] = uuid.Must(uuid.NewUUID()).String()
 		}
 	}
@@ -2259,7 +2295,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		if i.AppConfig.Debug {
 			fmt.Printf("[DEBUG] Found tid string in event: %s\n", tidStr)
 		}
-		if parsedTid, err := uuid.Parse(tidStr); err == nil {
+		if parsedTid, err := parseUUIDString(tidStr); err == nil {
 			tid = &parsedTid
 			if i.AppConfig.Debug {
 				fmt.Printf("[DEBUG] Successfully parsed tid: %v\n", *tid)
@@ -2346,8 +2382,8 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 			bhash, auth_id, duration, xid, split, ename, source, medium, campaign, content,
 			country, region, city, zip, term, etyp, ver, sink, score, params,
 			invoice_id, targets, relation, rid, ja4h, aff, arm_id, mcid,
-			device, os
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			device, os, tz, vp_w, vp_h, culture
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 SETTINGS insert_deduplicate = 1`,
 			[]interface{}{
 				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), getStringValue(v["org"]), hhash, v["app"], v["rel"], cflags,
@@ -2355,7 +2391,7 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 				bhash, parseUUID(authID), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"], v["content"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
 				parseUUID(invoiceID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H, v["aff"], v["arm_id"], v["mcid"],
-				v["device"], v["os"],
+				v["device"], v["os"], getStringValue(v["tz"]), toInt64OrZero(v["w"]), toInt64OrZero(v["h"]), derefStringOrEmpty(culture),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
 		}
@@ -2695,42 +2731,42 @@ func (i *ClickhouseService) writeLTVBatch(ctx context.Context, w *WriteArgs, v m
 	// Parse common UUID fields
 	var uid, oid, tid, invid, vid, sid, updater, owner *uuid.UUID
 	if temp, ok := v["uid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			uid = &parsed
 		}
 	}
 	if temp, ok := v["oid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			oid = &parsed
 		}
 	}
 	if temp, ok := v["tid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			tid = &parsed
 		}
 	}
 	if temp, ok := v["invid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			invid = &parsed
 		}
 	}
 	if temp, ok := v["vid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			vid = &parsed
 		}
 	}
 	if temp, ok := v["sid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			sid = &parsed
 		}
 	}
 	if temp, ok := v["updater"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			updater = &parsed
 		}
 	}
 	if temp, ok := v["owner"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			owner = &parsed
 		}
 	}
@@ -2783,42 +2819,42 @@ func (i *ClickhouseService) writeLTVSingle(ctx context.Context, w *WriteArgs, v 
 	// Parse UUID fields
 	var uid, oid, tid, invid, vid, sid, updater, owner *uuid.UUID
 	if temp, ok := v["uid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			uid = &parsed
 		}
 	}
 	if temp, ok := v["oid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			oid = &parsed
 		}
 	}
 	if temp, ok := v["tid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			tid = &parsed
 		}
 	}
 	if temp, ok := v["invid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			invid = &parsed
 		}
 	}
 	if temp, ok := v["vid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			vid = &parsed
 		}
 	}
 	if temp, ok := v["sid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			sid = &parsed
 		}
 	}
 	if temp, ok := v["updater"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			updater = &parsed
 		}
 	}
 	if temp, ok := v["owner"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			owner = &parsed
 		}
 	}
@@ -2878,14 +2914,14 @@ func (i *ClickhouseService) processLineItem(ctx context.Context, lineItem map[st
 
 	// Parse product_id UUID
 	if temp, ok := lineItem["product_id"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			productID = &parsed
 		}
 	}
 
 	// Parse orid UUID (order ID)
 	if temp, ok := lineItem["orid"].(string); ok {
-		if parsed, err := uuid.Parse(temp); err == nil {
+		if parsed, err := parseUUIDString(temp); err == nil {
 			orid = &parsed
 		}
 	}

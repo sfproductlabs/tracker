@@ -53,6 +53,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -62,6 +63,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,6 +75,43 @@ import (
 // zeroUUID is a constant representing the zero UUID (all zeros)
 // Used as default value when UUID is nil to prevent ClickHouse binding panics
 var zeroUUID = uuid.MustParse("00000000-0000-0000-0000-000000000000")
+
+// normalizeUUIDString accepts common UUID shapes and returns the canonical
+// lower-case 8-4-4-4-12 dashed form. Returns "" for empty input. Returns the
+// original string when it does not match a recognized shape so that uuid.Parse
+// can still produce a useful error.
+//
+// Production cookies store UUIDs without dashes (32-hex). Go's uuid.Parse
+// only accepts the dashed form, so without this helper every dashless UUID
+// falls back to the zero UUID in parseUUID().
+func normalizeUUIDString(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	// Already canonical 8-4-4-4-12
+	if len(s) == 36 && s[8] == '-' && s[13] == '-' && s[18] == '-' && s[23] == '-' {
+		return strings.ToLower(s)
+	}
+	// 32-hex, no dashes
+	if len(s) == 32 {
+		if _, err := hex.DecodeString(s); err == nil {
+			return strings.ToLower(s[0:8] + "-" + s[8:12] + "-" + s[12:16] + "-" + s[16:20] + "-" + s[20:])
+		}
+	}
+	// Braced {8-4-4-4-12}
+	if len(s) == 38 && s[0] == '{' && s[37] == '}' {
+		return normalizeUUIDString(s[1:37])
+	}
+	return s
+}
+
+// parseUUIDString is the single entry point for parsing untrusted UUID strings
+// across the tracker. It applies normalizeUUIDString first so dashless/braced
+// inputs succeed instead of silently becoming zero UUIDs.
+func parseUUIDString(s string) (uuid.UUID, error) {
+	return uuid.Parse(normalizeUUIDString(s))
+}
 
 // //////////////////////////////////////
 // hash
@@ -602,6 +641,56 @@ func getStringPtr(v interface{}) *string {
 	return &str
 }
 
+// toInt64OrZero coerces a value of any JSON-numeric shape into an int64.
+// JSON numbers arrive as float64 via encoding/json; query strings arrive as
+// plain strings. Returns 0 on any failure.
+func toInt64OrZero(v interface{}) int64 {
+	switch x := v.(type) {
+	case nil:
+		return 0
+	case int64:
+		return x
+	case int:
+		return int64(x)
+	case int32:
+		return int64(x)
+	case float64:
+		return int64(x)
+	case float32:
+		return int64(x)
+	case json.Number:
+		if i, err := x.Int64(); err == nil {
+			return i
+		}
+		if f, err := x.Float64(); err == nil {
+			return int64(f)
+		}
+		return 0
+	case string:
+		s := strings.TrimSpace(x)
+		if s == "" {
+			return 0
+		}
+		if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+			return i
+		}
+		if f, err := strconv.ParseFloat(s, 64); err == nil {
+			return int64(f)
+		}
+		return 0
+	default:
+		return 0
+	}
+}
+
+// derefStringOrEmpty returns the dereferenced string or "" if the pointer is nil.
+func derefStringOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 // parseUUID converts interface{} or *uuid.UUID to *uuid.UUID with error handling
 // By default returns a pointer to the zero UUID instead of nil to prevent ClickHouse binding panics
 // Pass allowNil=true as second argument to allow nil returns (for optional UUID fields)
@@ -638,7 +727,7 @@ func parseUUID(v interface{}, allowNil ...bool) *uuid.UUID {
 		return &zeroUUID
 	}
 
-	if parsed, err := uuid.Parse(str); err == nil {
+	if parsed, err := parseUUIDString(str); err == nil {
 		return &parsed
 	}
 

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tracker Reference Client Harness</title>
+</head>
+<body>
+  <h1>Tracker data-quality test harness</h1>
+  <p>Loads packages/tracker/.setup/track.js with a configurable tracker URL.</p>
+
+  <script>
+    // _sfpl config is set from the test before this page loads, via a query
+    // param that the test page script consumes. See injected setup below.
+    const params = new URLSearchParams(location.search);
+    const trackerUrl = params.get('trackerUrl') || 'https://localhost:8443';
+    const wsUrl = params.get('wsUrl') || trackerUrl.replace(/^http/, 'ws') + '/tr/v1/ws';
+    window._sfpl = { trackerUrl, wsUrl };
+  </script>
+  <!-- Load the reference tracker. Path is relative to http-server root
+       (tests/playwright/fixtures). We symlink or copy .setup/track.js here
+       at test-run time. -->
+  <script src="./track.js"></script>
+
+  <script>
+    // Expose a hook so tests can fire specific events.
+    window.fireEvent = function(payload) {
+      try { window.track(payload); return true; } catch (e) { return String(e); }
+    };
+  </script>
+</body>
+</html>

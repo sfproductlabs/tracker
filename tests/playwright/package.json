@@ -1,0 +1,15 @@
+{
+  "name": "tracker-playwright-tests",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Playwright data-quality tests for the Go tracker (reference client + www + st app).",
+  "scripts": {
+    "install-browsers": "npx playwright install chromium",
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.1",
+    "http-server": "^14.1.1"
+  }
+}
