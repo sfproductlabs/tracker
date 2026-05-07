@@ -53,7 +53,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -1071,6 +1073,10 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		if !cached {
 			var dbRedirect string
 			if err := (*i.Session).QueryRow(ctx, `SELECT urlto FROM sfpla.redirects FINAL WHERE urlfrom=?`, lookupKey).Scan(&dbRedirect); err != nil {
+				if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "no rows in result set") {
+					(*w).WriteHeader(http.StatusNotFound)
+					return nil
+				}
 				return err
 			}
 			redirect = dbRedirect
