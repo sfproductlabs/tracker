@@ -105,6 +105,11 @@ setupWebSocket();
 
 // ─── Send ───────────────────────────────────────────────────────────────────
 function send(obj) {
+  delete obj.auth;
+  delete obj.accesstoken;
+  delete obj.accessToken;
+  delete obj.refreshtoken;
+  delete obj.refreshToken;
   if (socket && socket.readyState === WebSocket.OPEN) {
     try { socket.send(JSON.stringify(obj)); } catch {}
   } else if (TRACKER_URL) {
@@ -120,7 +125,6 @@ function send(obj) {
 
 // ─── State ──────────────────────────────────────────────────────────────────
 let lastUrl = window.location.href;
-let beenFirst = false;
 
 // ─── Main Track Function ────────────────────────────────────────────────────
 function track(params) {
@@ -166,7 +170,6 @@ function track(params) {
     json.sid = sid;
   } else {
     json.sid = uuid();
-    if (!beenFirst) { beenFirst = true; json.first = 'true'; }
     setCookie(C.SESSION, json.sid, 1);
   }
 
@@ -219,7 +222,7 @@ function track(params) {
       delete qps.ptyp; delete qps.token; delete qps.accessToken; delete qps.refreshToken;
       Object.keys(qps).forEach(function (k) { if (!(k in json)) json[k] = qps[k]; });
 
-      if (qps.xid || qps.ver || qps.source || qps.medium) {
+      if (qps.xid || qps.ver || qps.source || qps.medium || qps.campaign) {
         if (qps.xid) setCookie(C.EXPERIMENT, qps.xid, COOKIE_EXPIRY);
         if (qps.ver != null) setCookie(C.VER, qps.ver, COOKIE_EXPIRY);
         if (qps.arm_id) setCookie(C.ARM_ID, qps.arm_id, COOKIE_EXPIRY);
