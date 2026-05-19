@@ -50,6 +50,7 @@ package main
 
 import (
 	"crypto/tls"
+	"sync"
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
@@ -1443,8 +1444,33 @@ func main() {
 	}()
 	fmt.Printf("Serving TLS requests on: %s\n", proxyPortTLS)
 	if configuration.UseLocalTLS {
-		server.TLSConfig.GetCertificate = nil
-		log.Fatal(server.ListenAndServeTLS(configuration.TLSCert, configuration.TLSKey)) // SERVE HTTPS!
+		certFile := configuration.TLSCert
+		keyFile := configuration.TLSKey
+		var certMu sync.RWMutex
+		var cachedCert *tls.Certificate
+		var certLoadedAt time.Time
+		server.TLSConfig.GetCertificate = func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			certMu.RLock()
+			if cachedCert != nil && time.Since(certLoadedAt) < 24*time.Hour {
+				c := cachedCert
+				certMu.RUnlock()
+				return c, nil
+			}
+			certMu.RUnlock()
+			certMu.Lock()
+			defer certMu.Unlock()
+			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				if cachedCert != nil {
+					return cachedCert, nil // serve stale cert rather than drop connections
+				}
+				return nil, err
+			}
+			cachedCert = &cert
+			certLoadedAt = time.Now()
+			return cachedCert, nil
+		}
+		log.Fatal(server.ListenAndServeTLS("", "")) // SERVE HTTPS!
 	} else {
 		log.Fatal(server.ListenAndServeTLS("", "")) // SERVE HTTPS!
 	}
