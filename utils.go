@@ -261,6 +261,7 @@ func getRequestHostInfo(r *http.Request) map[string]string {
 
 // getPrimaryHost returns the most reliable host identifier for hhash calculation
 // Order of precedence:
+// 0. x-sfpl-tracker-host (explicit canonical tracker host e.g. tr.actgreen.org from track.js / proxy)
 // 1. x-original-host (original client request host before any proxying)
 // 2. host (standard host header)
 // 3. x-forwarded-host (if behind a trusted proxy)
@@ -272,24 +273,59 @@ func getPrimaryHost(r *http.Request) string {
 	headers := r.Header
 
 	// Only use actual hostname headers, not IP headers
-	for _, h := range []string{"x-original-host", "host", "x-forwarded-host", "x-host"} {
+	for _, h := range []string{"x-sfpl-tracker-host", "x-original-host", "host", "x-forwarded-host", "x-host"} {
 		if v := headers.Get(h); v != "" {
 			return cleanHost(v)
 		}
 	}
 
-	return ""
+	if r.Host != "" {
+		return cleanHost(r.Host)
+	}
 
 	return ""
 }
 
-// cleanHost removes port from host if present and returns clean hostname/IP
+// cleanHost removes scheme/path/port from host if present and returns clean lowercase hostname/IP
 func cleanHost(host string) string {
-	if addr, _, err := net.SplitHostPort(host); err != nil {
-		return strings.ToLower(host)
-	} else {
-		return strings.ToLower(addr)
+	h := strings.TrimSpace(strings.ToLower(host))
+	if h == "" {
+		return ""
 	}
+	if strings.Contains(h, "://") {
+		if parts := strings.SplitN(h, "://", 2); len(parts) == 2 {
+			h = parts[1]
+		}
+	}
+	if idx := strings.IndexAny(h, "/?#"); idx != -1 {
+		h = h[:idx]
+	}
+	if addr, _, err := net.SplitHostPort(h); err != nil {
+		return strings.Trim(h, ".")
+	} else {
+		return strings.Trim(addr, ".")
+	}
+}
+
+// extractRootDomain returns the registrable apex domain (e.g. "tr.actgreen.org" -> "actgreen.org")
+// so wildcard subdomain keys/hashes work across all subdomains (*.actgreen.org).
+func extractRootDomain(host string) string {
+	cleaned := cleanHost(host)
+	if cleaned == "" {
+		return ""
+	}
+	parts := strings.Split(cleaned, ".")
+	if len(parts) <= 2 {
+		return cleaned
+	}
+	lastTwo := parts[len(parts)-2] + "." + parts[len(parts)-1]
+	switch lastTwo {
+	case "co.uk", "org.uk", "gov.uk", "ac.uk", "com.au", "org.au", "co.nz", "co.jp", "com.br":
+		if len(parts) >= 3 {
+			return parts[len(parts)-3] + "." + lastTwo
+		}
+	}
+	return lastTwo
 }
 
 func getIP(r *http.Request) string {

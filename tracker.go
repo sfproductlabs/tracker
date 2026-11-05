@@ -523,6 +523,7 @@ const (
 	SVC_POST_AGREE        = 1 << iota
 	SVC_GET_JURISDICTIONS = 1 << iota
 	SVC_GET_GEOIP         = 1 << iota
+	SVC_POST_SUBTENANTS   = 1 << iota
 
 	SVC_DESC_GET_REDIRECTS     = "getRedirects"
 	SVC_DESC_POST_REDIRECT     = "postRedirect"
@@ -530,6 +531,7 @@ const (
 	SVC_DESC_GET_AGREE         = "getAgreememts"
 	SVC_DESC_POST_AGREE        = "postAgreements"
 	SVC_DESC_GET_JURISDICTIONS = "getJurisdictions"
+	SVC_DESC_POST_SUBTENANTS   = "postSubtenants"
 )
 
 var (
@@ -1421,7 +1423,54 @@ func main() {
 			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 		}
 	}).Methods("POST")
+	rtr.HandleFunc("/tr/"+apiVersion+"/rpi/subtenants", func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-connc:
+			params := mux.Vars(r)
+			sargs := ServiceArgs{
+				ServiceType: SVC_POST_SUBTENANTS,
+				Values:      &params,
+			}
+			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+			if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(err.Error()))
+			}
+			connc <- struct{}{}
+		default:
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+		}
+	}).Methods("POST")
 	http.Handle("/tr/"+apiVersion+"/rpi/", rtr)
+
+	http.HandleFunc("/tr/"+apiVersion+"/subtenants", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			handlePreflight(&w, &configuration.AllowOrigin)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		select {
+		case <-connc:
+			params := map[string]string{}
+			sargs := ServiceArgs{
+				ServiceType: SVC_POST_SUBTENANTS,
+				Values:      &params,
+			}
+			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
+			if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(err.Error()))
+			}
+			connc <- struct{}{}
+		default:
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
+		}
+	})
 
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
 	go func() {
