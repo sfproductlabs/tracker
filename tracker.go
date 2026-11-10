@@ -50,7 +50,6 @@ package main
 
 import (
 	"crypto/tls"
-	"sync"
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
@@ -68,6 +67,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -431,6 +431,11 @@ type Configuration struct {
 	IgnoreInsecureTLS        bool
 	TLSCert                  string
 	TLSKey                   string
+	UseCHCerts               bool   // CH-backed per-SNI certs + approved-domain allowlist
+	CHCertDB                 string // CH database (default sfpla)
+	CHCertTable              string // cert/challenge table (default mcerts)
+	CHCertRefreshSeconds     int    // background refresh interval (default 30)
+	UseTelemetryGate         bool   // drop telemetry from sites not approved by the allowlist
 	Notify                   []Service
 	Consume                  []Service
 	API                      Service
@@ -523,7 +528,6 @@ const (
 	SVC_POST_AGREE        = 1 << iota
 	SVC_GET_JURISDICTIONS = 1 << iota
 	SVC_GET_GEOIP         = 1 << iota
-	SVC_POST_SUBTENANTS   = 1 << iota
 
 	SVC_DESC_GET_REDIRECTS     = "getRedirects"
 	SVC_DESC_POST_REDIRECT     = "postRedirect"
@@ -531,7 +535,6 @@ const (
 	SVC_DESC_GET_AGREE         = "getAgreememts"
 	SVC_DESC_POST_AGREE        = "postAgreements"
 	SVC_DESC_GET_JURISDICTIONS = "getJurisdictions"
-	SVC_DESC_POST_SUBTENANTS   = "postSubtenants"
 )
 
 var (
@@ -834,6 +837,18 @@ func main() {
 		}
 	}
 
+	//////////////////////////////////////// CH-BACKED TLS CERTS + ALLOWLIST (x owns ACME; tracker is passive)
+	var tlsCerts *TlsCertManager
+	if configuration.UseCHCerts {
+		tlsCerts = NewTlsCertManager(configuration.CHCertDB, configuration.CHCertTable, time.Duration(configuration.CHCertRefreshSeconds)*time.Second)
+		if err := tlsCerts.Start(&configuration); err != nil {
+			fmt.Printf("[ERROR] CH cert manager failed to start: %v\n", err)
+		} else {
+			fmt.Printf("CH cert manager ready (db=%s table=%s refresh=%ds)\n", tlsCerts.db, tlsCerts.table, configuration.CHCertRefreshSeconds)
+			gTlsCertMgr = tlsCerts // enable telemetry attribution gate + IsApproved
+		}
+	}
+
 	//////////////////////////////////////// SSL CERT MANAGER
 	certManager := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
@@ -934,17 +949,45 @@ func main() {
 		}
 	})
 
+	//////////////////////////////////////// SHARED REVERSE PROXY (frontend + API)
+	// When ProxyUrl is set, any path that is not a tracked/short URL falls
+	// through to this reverse proxy. The upstream (nginx) routes by Host to the
+	// right backend (e.g. x.sfpl.io -> Next.js frontend, xapi.sfpl.io -> API).
+	var apiProxy *httputil.ReverseProxy
+	if configuration.ProxyUrl != "" {
+		apiOrigin, _ := url.Parse(configuration.ProxyUrl)
+		apiDirector := func(req *http.Request) {
+			req.Header.Add("X-Forwarded-Host", req.Host)
+			req.Header.Add("X-Origin-Host", apiOrigin.Host)
+			if configuration.ProxyForceJson {
+				if req.Header.Get("content-type") == "" {
+					req.Header.Set("content-type", "application/json")
+				}
+			}
+			req.URL.Scheme = "http"
+			req.URL.Host = apiOrigin.Host
+		}
+		apiProxy = &httputil.ReverseProxy{Director: apiDirector}
+	}
+
 	//////////////////////////////////////// REDIRECT URL & SHORTENER
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-connc:
-			sargs := ServiceArgs{
-				ServiceType: SVC_GET_REDIRECT,
-			}
-			if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
-				w.WriteHeader(http.StatusNotFound)
-				w.Write([]byte(err.Error()))
+			if apiProxy != nil {
+				// Proxy mode (e.g. x-1 serving the x frontend + API): forward
+				// every non-telemetry request to the upstream (nginx), which
+				// routes by Host (x.sfpl.io -> frontend, xapi.sfpl.io -> API).
+				w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
+				apiProxy.ServeHTTP(w, r)
 			} else {
+				sargs := ServiceArgs{
+					ServiceType: SVC_GET_REDIRECT,
+				}
+				if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
+					w.WriteHeader(http.StatusNotFound)
+					w.Write([]byte(err.Error()))
+				} else {
 				values := make(map[string]interface{})
 				values["last"] = r.RequestURI
 
@@ -980,7 +1023,8 @@ func main() {
 					IsServer:  isTracked, // tracked URLs are server-side events
 					Values:    &values,
 				}
-				trackWithArgs(&configuration, &w, r, &wargs)
+					trackWithArgs(&configuration, &w, r, &wargs)
+				}
 			}
 			connc <- struct{}{}
 		default:
@@ -990,19 +1034,7 @@ func main() {
 	})
 
 	//////////////////////////////////////// PROXY API ROUTES
-	if configuration.ProxyUrl != "" {
-		fmt.Println("Proxying to:", configuration.ProxyUrl)
-		origin, _ := url.Parse(configuration.ProxyUrl)
-		director := func(req *http.Request) {
-			req.Header.Add("X-Forwarded-Host", req.Host)
-			req.Header.Add("X-Origin-Host", origin.Host)
-			if configuration.ProxyForceJson {
-				req.Header.Set("content-type", "application/json")
-			}
-			req.URL.Scheme = "http"
-			req.URL.Host = origin.Host
-		}
-		proxy := &httputil.ReverseProxy{Director: director}
+	if configuration.ProxyUrl != "" && apiProxy != nil {
 		proxyFilter, _ := regexp.Compile(configuration.ProxyUrlFilter)
 		http.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 			if !configuration.IgnoreProxyOptions && r.Method == http.MethodOptions {
@@ -1021,8 +1053,7 @@ func main() {
 				}
 				//Proxy
 				w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
-				w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-				proxy.ServeHTTP(w, r)
+				apiProxy.ServeHTTP(w, r)
 				//Track
 				if configuration.ProxyUrlFilter != "" && !proxyFilter.MatchString(r.URL.Path) {
 					track(&configuration, &w, r, nil)
@@ -1423,67 +1454,34 @@ func main() {
 			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
 		}
 	}).Methods("POST")
-	rtr.HandleFunc("/tr/"+apiVersion+"/rpi/subtenants", func(w http.ResponseWriter, r *http.Request) {
-		select {
-		case <-connc:
-			params := mux.Vars(r)
-			sargs := ServiceArgs{
-				ServiceType: SVC_POST_SUBTENANTS,
-				Values:      &params,
-			}
-			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-			if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(err.Error()))
-			}
-			connc <- struct{}{}
-		default:
-			w.Header().Set("Retry-After", "1")
-			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
-		}
-	}).Methods("POST")
 	http.Handle("/tr/"+apiVersion+"/rpi/", rtr)
-
-	http.HandleFunc("/tr/"+apiVersion+"/subtenants", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			handlePreflight(&w, &configuration.AllowOrigin)
-			return
-		}
-		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		select {
-		case <-connc:
-			params := map[string]string{}
-			sargs := ServiceArgs{
-				ServiceType: SVC_POST_SUBTENANTS,
-				Values:      &params,
-			}
-			w.Header().Set("access-control-allow-origin", configuration.AllowOrigin)
-			if err = serveWithArgs(&configuration, &w, r, &sargs); err != nil {
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(err.Error()))
-			}
-			connc <- struct{}{}
-		default:
-			w.Header().Set("Retry-After", "1")
-			http.Error(w, "Maximum clients reached on this node.", http.StatusServiceUnavailable)
-		}
-	})
 
 	//////////////////////////////////////// SERVE, REDIRECT AUTO to HTTPS
 	go func() {
 		fmt.Printf("Serving HTTP Redirect from %s to %s\n", proxyPort, proxyPortRedirect)
+		var inner http.Handler
 		if configuration.UseLocalTLS {
-			http.ListenAndServe(proxyPort, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			inner = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				http.Redirect(w, req, "https://"+getHost(req)+proxyPortRedirect+req.RequestURI, http.StatusFound)
-			}))
-
+			})
 		} else {
-			http.ListenAndServe(proxyPort, certManager.HTTPHandler(nil))
+			inner = certManager.HTTPHandler(nil)
 		}
-
+		handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			// ACME HTTP-01 challenge: self-authenticating (token minted by x, stored in CH).
+			if tlsCerts != nil && strings.HasPrefix(req.URL.Path, "/.well-known/acme-challenge/") {
+				token := strings.TrimPrefix(req.URL.Path, "/.well-known/acme-challenge/")
+				if v, ok := tlsCerts.GetChallenge(token); ok && v != "" {
+					w.Header().Set("Content-Type", "text/plain")
+					_, _ = w.Write([]byte(v))
+					return
+				}
+				http.NotFound(w, req)
+				return
+			}
+			inner.ServeHTTP(w, req)
+		})
+		http.ListenAndServe(proxyPort, handler)
 	}()
 	go func() {
 		if configuration.ProxyExceptHTTP != "" {
@@ -1492,6 +1490,10 @@ func main() {
 		}
 	}()
 	fmt.Printf("Serving TLS requests on: %s\n", proxyPortTLS)
+	if configuration.UseCHCerts && tlsCerts != nil {
+		server.TLSConfig.GetCertificate = tlsCerts.GetCertificate
+		log.Fatal(server.ListenAndServeTLS("", "")) // CH-BACKED CERTS
+	}
 	if configuration.UseLocalTLS {
 		certFile := configuration.TLSCert
 		keyFile := configuration.TLSKey
@@ -1609,6 +1611,15 @@ func track(c *Configuration, w *http.ResponseWriter, r *http.Request, opts *Trac
 }
 
 func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wargs *WriteArgs) error {
+	// Telemetry attribution gate: drop events whose site is not an approved
+	// domain (or subdomain). Only active when the CH cert manager started and
+	// UseTelemetryGate is set; the caller still writes its normal response, so
+	// the drop is silent to the client. Defense-in-depth on top of the TLS
+	// per-SNI cert gate (an unapproved domain has no cert, so the handshake
+	// already fails).
+	if c.UseTelemetryGate && gTlsCertMgr != nil && wargs.Host != "" && !gTlsCertMgr.IsApproved(wargs.Host) {
+		return nil
+	}
 	//Normalize all data TOLOWERCASE
 
 	//Process
