@@ -989,7 +989,12 @@ func main() {
 					w.Write([]byte(err.Error()))
 				} else {
 				values := make(map[string]interface{})
-				values["last"] = r.RequestURI
+				if ref := strings.TrimSpace(r.Header.Get("Referer")); ref != "" {
+					values["last"] = strings.ToLower(ref)
+					values["slug"] = r.RequestURI
+				} else {
+					values["last"] = r.RequestURI
+				}
 
 				// Check if SVC_GET_REDIRECT resolved a tracked URL inline.
 				// If so, the tracked params (xid, score, etyp, source, etc.)
@@ -1796,6 +1801,11 @@ func trackWithArgs(c *Configuration, w *http.ResponseWriter, r *http.Request, wa
 	if okc && !oke {
 		j["ename"] = j["content"]
 		delete(j, "content")
+	}
+	if lastStr, ok := j["last"].(string); !ok || strings.TrimSpace(lastStr) == "" {
+		if ref := strings.TrimSpace(r.Header.Get("Referer")); ref != "" {
+			j["last"] = strings.ToLower(ref)
+		}
 	}
 	if wargs.Host == "" {
 		wargs.Host = getHost(r)

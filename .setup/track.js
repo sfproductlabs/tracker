@@ -973,16 +973,126 @@
     }
   })();
 
+  // ─── Scroll Depth, Active Dwell & Click Heatmap Telemetry ───────────────────
+  let pageEnterTs = Date.now();
+  let lastActiveInputTs = Date.now();
+  let activeEngagementMs = 0;
+  let maxScrollPct = 0;
+  let exitFlushedForUrl = '';
+  const recentClicks = [];
+
+  function computeScrollPct() {
+    try {
+      const doc = document.documentElement || document.body;
+      const scrollTop = window.pageYOffset || doc.scrollTop || 0;
+      const viewportH = window.innerHeight || doc.clientHeight || 0;
+      const fullH = Math.max(doc.scrollHeight || 0, document.body ? document.body.scrollHeight : 0, 1);
+      if (fullH <= viewportH) return 100;
+      return Math.min(100, Math.max(0, Math.round(((scrollTop + viewportH) / fullH) * 100)));
+    } catch {
+      return 0;
+    }
+  }
+
+  function recordUserActivity() {
+    const now = Date.now();
+    const delta = now - lastActiveInputTs;
+    if (delta > 0 && delta < 30000) {
+      activeEngagementMs += delta;
+    }
+    lastActiveInputTs = now;
+  }
+
+  function resetPageEngagement() {
+    pageEnterTs = Date.now();
+    lastActiveInputTs = pageEnterTs;
+    activeEngagementMs = 0;
+    maxScrollPct = computeScrollPct();
+    exitFlushedForUrl = '';
+  }
+
+  function flushPageEngagement(exitUrl) {
+    const targetUrl = exitUrl || lastUrl || window.location.href;
+    if (!targetUrl || exitFlushedForUrl === targetUrl) return;
+    recordUserActivity();
+    const dwellMs = Math.max(0, Date.now() - pageEnterTs);
+    if (dwellMs < 250) return;
+    exitFlushedForUrl = targetUrl;
+    const finalScroll = Math.max(maxScrollPct, computeScrollPct());
+    try {
+      track({
+        ename: 'page_exit',
+        etyp: 'engagement',
+        url: targetUrl,
+        duration: dwellMs,
+        params: {
+          max_scroll_pct: finalScroll,
+          active_ms: Math.min(dwellMs, Math.round(activeEngagementMs)),
+        },
+      });
+    } catch {}
+  }
+
+  window.addEventListener('scroll', function () {
+    recordUserActivity();
+    const pct = computeScrollPct();
+    if (pct > maxScrollPct) maxScrollPct = pct;
+  }, { passive: true });
+
+  window.addEventListener('pointerdown', recordUserActivity, { passive: true });
+  window.addEventListener('keydown', recordUserActivity, { passive: true });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') {
+      flushPageEngagement(window.location.href);
+    } else if (document.visibilityState === 'visible') {
+      lastActiveInputTs = Date.now();
+      exitFlushedForUrl = '';
+    }
+  });
+  window.addEventListener('pagehide', function () {
+    flushPageEngagement(window.location.href);
+  });
+
   // ─── Click Tracking ─────────────────────────────────────────────────────────
   window.addEventListener('click', function (e) {
     const el = e.target;
     if (!el) return;
+    recordUserActivity();
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'canvas') return;
+
+    const now = Date.now();
+    const cx = Number(e.clientX || 0);
+    const cy = Number(e.clientY || 0);
+    recentClicks.push({ ts: now, cx: cx, cy: cy });
+    while (recentClicks.length > 5) recentClicks.shift();
+    const nearbyRapid = recentClicks.filter(function (c) {
+      return now - c.ts <= 800 && Math.hypot(cx - c.cx, cy - c.cy) <= 30;
+    }).length;
+    const isRage = nearbyRapid >= 3;
+
     const text = (el.textContent || '').trim().substring(0, 50).toLowerCase();
     const trackData = el.closest?.('[data-track]')?.dataset?.track;
     const alt = el.closest?.('[alt]')?.getAttribute?.('alt');
-    const label = trackData || text || alt;
-    if (label && el.tagName?.toLowerCase() !== 'canvas') {
-      track({ ename: 'click', params: { firsttext: label } });
+    const label = trackData || text || alt || (isRage ? tag : '');
+    if (label || isRage) {
+      const vw = window.innerWidth || 0;
+      const vh = window.innerHeight || 0;
+      const clickParams = {
+        firsttext: label || tag,
+        x: Math.round(e.pageX || cx),
+        y: Math.round(e.pageY || cy),
+        vx: vw > 0 ? +(cx / vw).toFixed(4) : 0,
+        vy: vh > 0 ? +(cy / vh).toFixed(4) : 0,
+        tag: tag,
+      };
+      const elId = el.id || el.closest?.('[id]')?.id;
+      if (elId) clickParams.el_id = String(elId).substring(0, 64);
+      const anchorHref = el.closest?.('a')?.href;
+      if (anchorHref) clickParams.href = String(anchorHref).substring(0, 300);
+      if (isRage) clickParams.rage = 1;
+      track({ ename: 'click', etyp: 'engagement', params: clickParams });
     }
   });
 
@@ -990,6 +1100,8 @@
   function onRouteChange() {
     const url = window.location.href;
     if (url !== lastUrl) {
+      flushPageEngagement(lastUrl);
+      resetPageEngagement();
       try { track({ ename: 'reroute', etyp: 'page', last: lastUrl, url: url }); } catch {}
       lastUrl = url;
       autoHydrateBanditAndCms();

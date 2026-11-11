@@ -1951,10 +1951,24 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	updated := time.Now().UTC()
 
 	// Parse UUID fields
-	var vid, sid, uid, authID, rid, oid, invoiceID *uuid.UUID
+	var vid, sid, uid, authID, rid, oid, invoiceID, deviceID, refID *uuid.UUID
 	if temp, ok := v["vid"].(string); ok {
 		if parsed, err := parseUUIDString(temp); err == nil {
 			vid = &parsed
+		}
+	}
+	if temp, ok := v["device_id"].(string); ok {
+		if parsed, err := parseUUIDString(temp); err == nil {
+			deviceID = &parsed
+		}
+	} else if temp, ok := v["did"].(string); ok {
+		if parsed, err := parseUUIDString(temp); err == nil {
+			deviceID = &parsed
+		}
+	}
+	if temp, ok := v["ref"].(string); ok {
+		if parsed, err := parseUUIDString(temp); err == nil {
+			refID = &parsed
 		}
 	}
 	if temp, ok := v["sid"].(string); ok {
@@ -2382,22 +2396,60 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 
 	//events (batched)
 	if w.CallingService == nil || (w.CallingService != nil && w.CallingService.ProxyRealtimeStorageServiceTables.Has(TABLE_EVENTS)) {
+		browserVal := getStringValue(v["browser"])
+		if browserVal == "" {
+			browserVal = w.Browser
+		}
+		deviceVal := getStringValue(v["device"])
+		osVal := getStringValue(v["os"])
+		if (deviceVal == "" || osVal == "") && w.Browser != "" {
+			uaLower := strings.ToLower(w.Browser)
+			if deviceVal == "" {
+				switch {
+				case strings.Contains(uaLower, "bot") || strings.Contains(uaLower, "spider") || strings.Contains(uaLower, "crawl") || strings.Contains(uaLower, "headless"):
+					deviceVal = "bot"
+				case strings.Contains(uaLower, "ipad") || strings.Contains(uaLower, "tablet"):
+					deviceVal = "tablet"
+				case strings.Contains(uaLower, "mobi") || strings.Contains(uaLower, "iphone") || strings.Contains(uaLower, "android"):
+					deviceVal = "mobile"
+				default:
+					deviceVal = "desktop"
+				}
+			}
+			if osVal == "" {
+				switch {
+				case strings.Contains(uaLower, "iphone") || strings.Contains(uaLower, "ipad") || strings.Contains(uaLower, "cpu os"):
+					osVal = "ios"
+				case strings.Contains(uaLower, "android"):
+					osVal = "android"
+				case strings.Contains(uaLower, "mac os x") || strings.Contains(uaLower, "macintosh"):
+					osVal = "macos"
+				case strings.Contains(uaLower, "windows"):
+					osVal = "windows"
+				case strings.Contains(uaLower, "linux"):
+					osVal = "linux"
+				}
+			}
+		}
 		if xerr := i.batchInsert("events", `INSERT INTO sfpla.events (
-			eid, vid, sid, oid, org, hhash, app, rel, cflags,
+			eid, vid, device_id, sid, oid, org, hhash, app, rel, cflags,
 			created_at, uid, tid, last, url, ip, iphash, lat, lon, ptyp,
 			bhash, auth_id, duration, xid, split, ename, source, medium, campaign, content,
 			country, region, city, zip, term, etyp, ver, sink, score, params,
-			invoice_id, targets, relation, rid, ja4h, aff, arm_id, mcid,
-			device, os, tz, vp_w, vp_h, culture
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			invoice_id, targets, relation, rid, ja4h, gaid, idfa, msid, fbid,
+			ref, rcode, aff, arm_id, mcid,
+			browser, device, os, tz, vp_w, vp_h, culture
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 SETTINGS insert_deduplicate = 1`,
 			[]interface{}{
-				w.EventID, parseUUID(vid), parseUUID(sid), parseUUID(v["oid"]), getStringValue(v["org"]), hhash, v["app"], v["rel"], cflags,
+				w.EventID, parseUUID(vid), parseUUID(deviceID), parseUUID(sid), parseUUID(v["oid"]), getStringValue(v["org"]), hhash, v["app"], v["rel"], cflags,
 				updated, parseUUID(uid), parseUUID(tid), v["last"], v["url"], v["cleanIP"], iphash, lat, lon, v["ptyp"],
 				bhash, parseUUID(authID), duration, v["xid"], v["split"], v["ename"], v["source"], v["medium"], v["campaign"], v["content"],
 				country, region, city, zip, v["term"], v["etyp"], version, v["sink"], score, jsonOrNull(params),
-				parseUUID(invoiceID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H, v["aff"], v["arm_id"], v["mcid"],
-				v["device"], v["os"], getStringValue(v["tz"]), toInt64OrZero(v["w"]), toInt64OrZero(v["h"]), derefStringOrEmpty(culture),
+				parseUUID(invoiceID), jsonOrNull(v["targets"]), v["relation"], parseUUID(rid), w.JA4H,
+				getStringValue(v["gaid"]), getStringValue(v["idfa"]), getStringValue(v["msid"]), getStringValue(v["fbid"]),
+				parseUUID(refID), getStringValue(v["rcode"]), v["aff"], v["arm_id"], v["mcid"],
+				browserVal, deviceVal, osVal, getStringValue(v["tz"]), toInt64OrZero(v["w"]), toInt64OrZero(v["h"]), derefStringOrEmpty(culture),
 			}, v); xerr != nil && i.AppConfig.Debug {
 			fmt.Println("CH[events]:", xerr)
 		}
