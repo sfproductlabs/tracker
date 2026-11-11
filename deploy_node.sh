@@ -13,6 +13,7 @@ c=json.load(open(p))
 c["UseCHCerts"]=True
 c["CHCertDB"]="sfpla"; c["CHCertTable"]="mcerts"; c["CHCertRefreshSeconds"]=30
 c["UseTelemetryGate"]=False  # defense-in-depth; enable per-tenant once registered in site_configs
+c["UseRemoveIP"]=False  # GDPR off (USA): capture the full client IP in events (ip column)
 c["ProxyPort"]=":80"; c["ProxyPortRedirect"]=""
 json.dump(c,open(p,"w"),indent=2)
 print("config updated: UseCHCerts=True ProxyPort=:80 backup=tracker.old-%s"%os.environ["STAMP"])
