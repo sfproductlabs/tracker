@@ -101,6 +101,18 @@ func (m *TlsCertManager) Start(cfg *Configuration) error {
 	if err := m.connect(cfg); err != nil {
 		return err
 	}
+	// Populate before serving: retry a few times so a transient CH blip at
+	// startup doesn't leave the cert map empty for a full refresh cycle
+	// (which would make the TLS handshake fail -> "bad SSL cert").
+	for i := 0; i < 10; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := m.refresh(ctx)
+		cancel()
+		if err == nil {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
 	go func() {
 		ticker := time.NewTicker(m.refreshEvery)
 		defer ticker.Stop()
@@ -186,6 +198,17 @@ func (m *TlsCertManager) refresh(ctx context.Context) error {
 		}
 	}
 	cRows.Close()
+
+	// Don't clear a populated cert map on an empty result (likely a transient
+	// CH flake on the distributed table); keep the last-known-good certs.
+	if len(newCerts) == 0 {
+		m.mu.RLock()
+		hadCerts := len(m.certs) > 0
+		m.mu.RUnlock()
+		if hadCerts {
+			return nil
+		}
+	}
 
 	m.mu.Lock()
 	m.certs = newCerts

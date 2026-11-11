@@ -758,55 +758,6 @@ func (i *ClickhouseService) listen() error {
 	return fmt.Errorf("[ERROR] ClickHouse listen not implemented")
 }
 
-func (i *ClickhouseService) authDomainKey(r *http.Request, body map[string]interface{}) (uuid.UUID, string, error) {
-	dkey := ""
-	if r != nil {
-		dkey = strings.TrimSpace(r.Header.Get("X-SFPL-Domain-Key"))
-		if dkey == "" {
-			dkey = strings.TrimSpace(r.Header.Get("X-Domain-Key"))
-		}
-		if dkey == "" {
-			authHdr := strings.TrimSpace(r.Header.Get("Authorization"))
-			lowerAuth := strings.ToLower(authHdr)
-			if strings.HasPrefix(lowerAuth, "bearer ") {
-				dkey = strings.TrimSpace(authHdr[7:])
-			} else if strings.HasPrefix(lowerAuth, "domainkey ") {
-				dkey = strings.TrimSpace(authHdr[10:])
-			} else if strings.HasPrefix(authHdr, "sfpl_dk_") {
-				dkey = authHdr
-			}
-		}
-		if dkey == "" && r.URL != nil {
-			dkey = strings.TrimSpace(r.URL.Query().Get("dkey"))
-			if dkey == "" {
-				dkey = strings.TrimSpace(r.URL.Query().Get("domain_key"))
-			}
-		}
-	}
-	if dkey == "" && body != nil {
-		if v, ok := body["dkey"].(string); ok && strings.TrimSpace(v) != "" {
-			dkey = strings.TrimSpace(v)
-		} else if v, ok := body["domain_key"].(string); ok && strings.TrimSpace(v) != "" {
-			dkey = strings.TrimSpace(v)
-		}
-	}
-	if dkey == "" || !strings.HasPrefix(dkey, "sfpl_dk_") {
-		return uuid.Nil, "", fmt.Errorf("Unauthorized: missing required X-SFPL-Domain-Key (sfpl_dk_...)")
-	}
-
-	var matchedOID uuid.UUID
-	var rootDomain string
-	err := (*i.Session).QueryRow(
-		context.Background(),
-		`SELECT oid, root_domain FROM sfpla.site_configs FINAL WHERE domain_key = ? LIMIT 1`,
-		dkey,
-	).Scan(&matchedOID, &rootDomain)
-	if err != nil || matchedOID == uuid.Nil {
-		return uuid.Nil, "", fmt.Errorf("Unauthorized: invalid or unregistered domain key")
-	}
-	return matchedOID, rootDomain, nil
-}
-
 func (i *ClickhouseService) auth(s *ServiceArgs) error {
 	//TODO: AG implement JWT
 	//TODO: AG implement creds (check domain level auth)
@@ -1288,113 +1239,6 @@ func (i *ClickhouseService) serve(w *http.ResponseWriter, r *http.Request, s *Se
 		} else {
 			return fmt.Errorf("Bad request (body)")
 		}
-	case SVC_POST_SUBTENANTS:
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil || len(body) == 0 {
-			return fmt.Errorf("Bad request (empty body)")
-		}
-		payload := make(map[string]interface{})
-		if err := json.Unmarshal(body, &payload); err != nil {
-			return fmt.Errorf("Bad request (invalid JSON)")
-		}
-		oidUUID, rootDomain, err := i.authDomainKey(r, payload)
-		if err != nil {
-			return err
-		}
-
-		var items []map[string]interface{}
-		if rawList, ok := payload["subtenants"].([]interface{}); ok {
-			for _, elem := range rawList {
-				if m, ok := elem.(map[string]interface{}); ok {
-					items = append(items, m)
-				}
-			}
-		}
-		if orgStr, ok := payload["org"].(string); ok && strings.TrimSpace(orgStr) != "" {
-			items = append(items, payload)
-		}
-		if len(items) == 0 {
-			return fmt.Errorf("Bad request: provide 'org' or 'subtenants' array")
-		}
-
-		now := time.Now().UTC()
-		upserted := 0
-		for _, item := range items {
-			orgID := strings.TrimSpace(getStringValue(item["org"]))
-			if orgID == "" {
-				continue
-			}
-			parentOrg := strings.TrimSpace(getStringValue(item["parent_org"]))
-			kind := strings.TrimSpace(getStringValue(item["kind"]))
-			if kind == "" {
-				kind = "organization"
-			}
-			slug := strings.TrimSpace(getStringValue(item["slug"]))
-			userName := strings.TrimSpace(getStringValue(item["user_name"]))
-			displayName := strings.TrimSpace(getStringValue(item["display_name"]))
-			if displayName == "" {
-				displayName = slug
-			}
-			if displayName == "" {
-				displayName = orgID
-			}
-			targetURL := strings.TrimSpace(getStringValue(item["target_url"]))
-			domain := strings.TrimSpace(getStringValue(item["domain"]))
-			if domain == "" {
-				domain = rootDomain
-			}
-			status := strings.TrimSpace(getStringValue(item["status"]))
-			if status == "" {
-				status = "active"
-			}
-
-			aliasMap := map[string]bool{}
-			for _, v := range []string{orgID, slug, userName} {
-				if v != "" {
-					aliasMap[v] = true
-				}
-			}
-			if rawAliases, ok := item["aliases"].([]interface{}); ok {
-				for _, a := range rawAliases {
-					aStr := strings.TrimSpace(getStringValue(a))
-					if aStr != "" {
-						aliasMap[aStr] = true
-					}
-				}
-			}
-			aliases := make([]string, 0, len(aliasMap))
-			for k := range aliasMap {
-				aliases = append(aliases, k)
-			}
-
-			cfgStr := "{}"
-			if cfgObj, ok := item["config"]; ok && cfgObj != nil {
-				cfgStr = getJSONString(cfgObj)
-			}
-
-			if execErr := (*i.Session).Exec(
-				ctx,
-				`INSERT INTO sfpla.subtenants (
-					oid, org, parent_org, kind, slug, user_name, display_name,
-					aliases, target_url, domain, status, config, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				oidUUID, orgID, parentOrg, kind, slug, userName, displayName,
-				aliases, targetURL, domain, status, cfgStr, now,
-			); execErr != nil {
-				return execErr
-			}
-			upserted++
-		}
-
-		(*w).Header().Set("Content-Type", "application/json")
-		(*w).WriteHeader(http.StatusOK)
-		respBytes, _ := json.Marshal(map[string]interface{}{
-			"success": true,
-			"oid":     oidUUID.String(),
-			"count":   upserted,
-		})
-		(*w).Write(respBytes)
-		return nil
 	default:
 		return fmt.Errorf("[ERROR] ClickHouse service not implemented %d", s.ServiceType)
 	}
@@ -2076,20 +1920,6 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//////////////////////////////////////////////
 	//FIX VARS
 	//////////////////////////////////////////////
-	// Normalize tracker host when explicitly supplied by track.js (`thost`, e.g. "tr.actgreen.org")
-	// so every track.js event (WS, POST, or proxied) is deterministically associated with the
-	// tenant's tracker host `hhash` and can be explicitly filtered from non-tracker API calls.
-	if thost, ok := v["thost"].(string); ok {
-		cleanedTHost := cleanHost(thost)
-		if cleanedTHost != "" {
-			if w.Host != "" && w.Host != cleanedTHost {
-				if _, hasShost := v["shost"].(string); !hasShost {
-					v["shost"] = w.Host
-				}
-			}
-			w.Host = cleanedTHost
-		}
-	}
 	//[hhash]
 	var hhash *string
 	if w.Host != "" {
@@ -2105,15 +1935,15 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 		iphash = iphash + strconv.FormatInt(int64(hash(w.IP+iphash)), 36)
 		iphash = iphash + strconv.FormatInt(int64(hash(w.IP+iphash)), 36)
 	}
-	// Check host account id / wildcard root domain key if AccountHashMixer is enabled
+	//check host account id
+	//don't track without it
+	//SEVERELY LIMITING SO DON'T USE IT
+	var hAccountID *string
 	if w.Host != "" && i.AppConfig.AccountHashMixer != "" {
-		exactHash := strconv.FormatInt(int64(hash(w.Host+i.AppConfig.AccountHashMixer)), 36)
-		rootDom := extractRootDomain(w.Host)
-		rootHash := strconv.FormatInt(int64(hash(rootDom+i.AppConfig.AccountHashMixer)), 36)
-		acctStr, _ := v["acct"].(string)
-		dkeyStr, _ := v["dkey"].(string)
-		if acctStr != exactHash && acctStr != rootHash && !strings.HasPrefix(dkeyStr, "sfpl_dk_") {
-			err := fmt.Errorf("[ERROR] Host: %s (Root: %s) Account-ID: %s/%s Incorrect for (acct): %v", w.Host, rootDom, exactHash, rootHash, v["acct"])
+		temp := strconv.FormatInt(int64(hash(w.Host+i.AppConfig.AccountHashMixer)), 36)
+		hAccountID = &temp
+		if v["acct"].(string) != *hAccountID {
+			err := fmt.Errorf("[ERROR] Host: %s Account-ID: %s Incorrect for (acct): %s", w.Host, *hAccountID, v["acct"])
 			return err
 		}
 	}
@@ -2524,17 +2354,15 @@ func (i *ClickhouseService) writeEvent(ctx context.Context, w *WriteArgs, v map[
 	//////////////////////////////////////////////
 
 	//ips
-	if hhash != nil && *hhash != "" {
-		ipsData := map[string]interface{}{
-			"hhash": *hhash,
-			"ip":    w.IP,
-			"total": 1,
-			"date":  time.Now().UTC().Format("2006-01-02"),
-		}
-		if xerr := i.batchInsert("ips", `INSERT INTO sfpla.ips (hhash, ip, total, date) VALUES (?, ?, ?, ?)`,
-			[]interface{}{*hhash, w.IP, 1, time.Now().UTC().Format("2006-01-02")}, ipsData); xerr != nil && i.AppConfig.Debug {
-			fmt.Println("CH[ips]:", xerr)
-		}
+	ipsData := map[string]interface{}{
+		"hhash": *hhash,
+		"ip":    w.IP,
+		"total": 1,
+		"date":  time.Now().UTC().Format("2006-01-02"),
+	}
+	if xerr := i.batchInsert("ips", `INSERT INTO sfpla.ips (hhash, ip, total, date) VALUES (?, ?, ?, ?)`,
+		[]interface{}{*hhash, w.IP, 1, time.Now().UTC().Format("2006-01-02")}, ipsData); xerr != nil && i.AppConfig.Debug {
+		fmt.Println("CH[ips]:", xerr)
 	}
 
 	// //Used to confirm ReplicatedSummingMergeTree is working
