@@ -24,37 +24,67 @@ import (
 // mode is off or failed to start). Used by the telemetry attribution gate.
 var gTlsCertMgr *TlsCertManager
 
+// SiteConfig is a single site/tenant row from `site_configs` (the source of
+// truth managed by the x admin UI). Cached in-memory for ~5 minutes so the
+// tracker never hardcodes tenant domains and never hits CH per request.
+type SiteConfig struct {
+	OID          string `json:"oid"`
+	Org          string `json:"org"`
+	SiteName     string `json:"site_name"`
+	RootDomain   string `json:"root_domain"`
+	TrackerHost  string `json:"tracker_host"`
+	TrackerHhash string `json:"tracker_hhash"`
+	DomainKey    string `json:"domain_key"`
+	SiteURL      string `json:"site_url"`
+	IsActive     bool   `json:"is_active"`
+}
+
 type TlsCertManager struct {
-	mu           sync.RWMutex
-	conn         clickhouse.Conn
-	db           string
-	table        string
-	refreshEvery time.Duration
+	mu             sync.RWMutex
+	conn           clickhouse.Conn
+	db             string
+	table          string
+	certRefresh    time.Duration
+	siteTable      string
+	siteRefresh    time.Duration
 
 	certs      map[string]*tls.Certificate // domain -> cert
 	approved   map[string]struct{}         // approved root domains (lowercased)
 	challenges map[string]string           // token -> keyAuthorization
+	sites      map[string]SiteConfig       // root_domain (lowercased) -> config
+	siteByTrk  map[string]SiteConfig       // tracker_host (lowercased) -> config
 	loadedAt   time.Time
+	siteLoaded time.Time
 	lastErr    error
 }
 
-func NewTlsCertManager(db, table string, refresh time.Duration) *TlsCertManager {
+func NewTlsCertManager(db, table string, certRefresh time.Duration, siteTable string, siteRefresh time.Duration) *TlsCertManager {
 	if db == "" {
 		db = "sfpla"
 	}
 	if table == "" {
 		table = "mcerts"
 	}
-	if refresh <= 0 {
-		refresh = 30 * time.Second
+	if siteTable == "" {
+		siteTable = "site_configs"
+	}
+	if certRefresh <= 0 {
+		certRefresh = 30 * time.Second
+	}
+	if siteRefresh <= 0 {
+		siteRefresh = 5 * time.Minute
 	}
 	return &TlsCertManager{
 		db:           db,
 		table:        table,
-		refreshEvery: refresh,
+		certRefresh:  certRefresh,
+		siteTable:    siteTable,
+		siteRefresh:  siteRefresh,
 		certs:        map[string]*tls.Certificate{},
 		approved:     map[string]struct{}{},
 		challenges:   map[string]string{},
+		sites:        map[string]SiteConfig{},
+		siteByTrk:    map[string]SiteConfig{},
 	}
 }
 
@@ -93,10 +123,11 @@ func (m *TlsCertManager) connect(cfg *Configuration) error {
 		return fmt.Errorf("open ch: %w", err)
 	}
 	m.conn = conn
-	return m.refresh(context.Background())
+	return m.refreshCerts(context.Background())
 }
 
-// Start connects and launches the background refresher.
+// Start connects and launches the background refreshers: certs (frequent, for
+// ACME freshness) + the full site config (~5 min, the site/tenant source of truth).
 func (m *TlsCertManager) Start(cfg *Configuration) error {
 	if err := m.connect(cfg); err != nil {
 		return err
@@ -106,37 +137,52 @@ func (m *TlsCertManager) Start(cfg *Configuration) error {
 	// (which would make the TLS handshake fail -> "bad SSL cert").
 	for i := 0; i < 10; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := m.refresh(ctx)
+		sErr := m.refreshSites(ctx)
+		cErr := m.refreshCerts(ctx)
 		cancel()
-		if err == nil {
+		if sErr == nil && cErr == nil {
 			break
 		}
 		time.Sleep(2 * time.Second)
 	}
+	// Cert refresh (default 30s) — per-SNI certs + ACME challenges.
 	go func() {
-		ticker := time.NewTicker(m.refreshEvery)
+		ticker := time.NewTicker(m.certRefresh)
 		defer ticker.Stop()
 		for range ticker.C {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			err := m.refresh(ctx)
-			cancel()
-			if err != nil {
+			if err := m.refreshCerts(ctx); err != nil {
 				m.mu.Lock()
 				m.lastErr = err
 				m.mu.Unlock()
 			}
+			cancel()
+		}
+	}()
+	// Site config refresh (default 5 min) — the full site/tenant config + approved domains.
+	go func() {
+		ticker := time.NewTicker(m.siteRefresh)
+		defer ticker.Stop()
+		for range ticker.C {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			if err := m.refreshSites(ctx); err != nil {
+				m.mu.Lock()
+				m.lastErr = err
+				m.mu.Unlock()
+			}
+			cancel()
 		}
 	}()
 	return nil
 }
 
-// refresh reloads certs + approved roots + challenges and swaps them in atomically.
-func (m *TlsCertManager) refresh(ctx context.Context) error {
+// refreshCerts reloads per-SNI certs + ACME challenges and swaps them in
+// atomically (frequent, for ACME freshness).
+func (m *TlsCertManager) refreshCerts(ctx context.Context) error {
 	if m.conn == nil {
 		return fmt.Errorf("not connected")
 	}
 	newCerts := map[string]*tls.Certificate{}
-	newApproved := map[string]struct{}{}
 	newChallenges := map[string]string{}
 
 	// A domain can have multiple rows (e.g. an old staging cert + a new prod
@@ -168,22 +214,6 @@ func (m *TlsCertManager) refresh(ctx context.Context) error {
 	}
 	rows.Close()
 
-	aRows, err := m.conn.Query(ctx, "SELECT DISTINCT root_domain FROM "+m.db+".site_configs WHERE is_active=1 AND root_domain != ''")
-	if err != nil {
-		return fmt.Errorf("query approved: %w", err)
-	}
-	for aRows.Next() {
-		var rd string
-		if err := aRows.Scan(&rd); err != nil {
-			continue
-		}
-		rd = strings.ToLower(strings.TrimSpace(rd))
-		if rd != "" {
-			newApproved[rd] = struct{}{}
-		}
-	}
-	aRows.Close()
-
 	cRows, err := m.conn.Query(ctx, "SELECT name, skey FROM "+m.db+"."+m.table+" FINAL WHERE object_type='acme_challenge'")
 	if err != nil {
 		return fmt.Errorf("query challenges: %w", err)
@@ -212,10 +242,75 @@ func (m *TlsCertManager) refresh(ctx context.Context) error {
 
 	m.mu.Lock()
 	m.certs = newCerts
-	m.approved = newApproved
 	m.challenges = newChallenges
 	m.loadedAt = time.Now()
 	m.lastErr = nil
+	m.mu.Unlock()
+	return nil
+}
+
+// refreshSites reloads the FULL site/tenant config from `site_configs` (the
+// source of truth managed by the x admin UI) and caches it in-memory (default
+// ~5 min). It also derives the approved-domain allowlist used by the gate.
+func (m *TlsCertManager) refreshSites(ctx context.Context) error {
+	if m.conn == nil {
+		return fmt.Errorf("not connected")
+	}
+	newSites := map[string]SiteConfig{}
+	newByTrk := map[string]SiteConfig{}
+	newApproved := map[string]struct{}{}
+
+	rows, err := m.conn.Query(ctx,
+		"SELECT toString(oid), org, site_name, root_domain, tracker_host, tracker_hhash, domain_key, site_url, is_active "+
+			"FROM "+m.db+"."+m.siteTable+" FINAL WHERE is_active=1 AND root_domain != ''")
+	if err != nil {
+		fmt.Printf("[sites] refreshSites query error: %v\n", err)
+		return fmt.Errorf("query sites: %w", err)
+	}
+	scanErrs := 0
+	for rows.Next() {
+		var s SiteConfig
+		var active uint8
+		if err := rows.Scan(&s.OID, &s.Org, &s.SiteName, &s.RootDomain, &s.TrackerHost, &s.TrackerHhash, &s.DomainKey, &s.SiteURL, &active); err != nil {
+			if scanErrs == 0 {
+				fmt.Printf("[sites] first scan error: %v\n", err)
+			}
+			scanErrs++
+			continue
+		}
+		s.IsActive = active != 0
+		rd := strings.ToLower(strings.TrimSpace(s.RootDomain))
+		th := strings.ToLower(strings.TrimSpace(s.TrackerHost))
+		s.RootDomain = rd
+		if rd == "" {
+			continue
+		}
+		newSites[rd] = s
+		newApproved[rd] = struct{}{}
+		if th != "" {
+			newByTrk[th] = s
+		}
+	}
+	rows.Close()
+	if scanErrs > 0 {
+		fmt.Printf("[sites] refreshSites: %d scan errors (sites=%d)\n", scanErrs, len(newSites))
+	}
+
+	// Don't drop a populated site/allowlist on an empty (likely transient) read.
+	if len(newSites) == 0 {
+		m.mu.RLock()
+		hadSites := len(m.sites) > 0
+		m.mu.RUnlock()
+		if hadSites {
+			return nil
+		}
+	}
+
+	m.mu.Lock()
+	m.sites = newSites
+	m.siteByTrk = newByTrk
+	m.approved = newApproved
+	m.siteLoaded = time.Now()
 	m.mu.Unlock()
 	return nil
 }
@@ -250,6 +345,38 @@ func (m *TlsCertManager) IsApproved(d string) bool {
 		}
 	}
 	return false
+}
+
+// ResolveHost resolves a request host to its cached site/tenant config — by
+// tracker_host (tr.<domain>), root_domain, or any subdomain of the root. Returns
+// ok=false when the host is unknown (no site config). Backed by the ~5-min cache
+// so the tracker serves tenants purely from the DB (no hardcoded domains).
+func (m *TlsCertManager) ResolveHost(host string) (SiteConfig, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	h := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	if h == "" {
+		return SiteConfig{}, false
+	}
+	if s, ok := m.siteByTrk[h]; ok {
+		return s, true
+	}
+	if s, ok := m.sites[h]; ok {
+		return s, true
+	}
+	for root, s := range m.sites {
+		if h == root || strings.HasSuffix(h, "."+root) {
+			return s, true
+		}
+	}
+	return SiteConfig{}, false
+}
+
+// SiteCount returns the number of cached sites (for diagnostics / health).
+func (m *TlsCertManager) SiteCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.sites)
 }
 
 // GetChallenge queries CH directly (fresh) for the ACME keyAuthorization for a

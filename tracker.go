@@ -434,8 +434,10 @@ type Configuration struct {
 	UseCHCerts               bool   // CH-backed per-SNI certs + approved-domain allowlist
 	CHCertDB                 string // CH database (default sfpla)
 	CHCertTable              string // cert/challenge table (default mcerts)
-	CHCertRefreshSeconds     int    // background refresh interval (default 30)
+	CHCertRefreshSeconds     int    // background refresh interval for certs (default 30)
 	UseTelemetryGate         bool   // drop telemetry from sites not approved by the allowlist
+	SiteConfigTable          string // site_configs table (default site_configs) — the site source of truth
+	SiteConfigRefreshSeconds int    // background refresh interval for the full site config (default 300 = 5 min)
 	Notify                   []Service
 	Consume                  []Service
 	API                      Service
@@ -840,12 +842,21 @@ func main() {
 	//////////////////////////////////////// CH-BACKED TLS CERTS + ALLOWLIST (x owns ACME; tracker is passive)
 	var tlsCerts *TlsCertManager
 	if configuration.UseCHCerts {
-		tlsCerts = NewTlsCertManager(configuration.CHCertDB, configuration.CHCertTable, time.Duration(configuration.CHCertRefreshSeconds)*time.Second)
+		siteRefreshSecs := configuration.SiteConfigRefreshSeconds
+		if siteRefreshSecs <= 0 {
+			siteRefreshSecs = 300 // default 5 minutes
+		}
+		tlsCerts = NewTlsCertManager(
+			configuration.CHCertDB, configuration.CHCertTable,
+			time.Duration(configuration.CHCertRefreshSeconds)*time.Second,
+			configuration.SiteConfigTable, time.Duration(siteRefreshSecs)*time.Second,
+		)
 		if err := tlsCerts.Start(&configuration); err != nil {
 			fmt.Printf("[ERROR] CH cert manager failed to start: %v\n", err)
 		} else {
-			fmt.Printf("CH cert manager ready (db=%s table=%s refresh=%ds)\n", tlsCerts.db, tlsCerts.table, configuration.CHCertRefreshSeconds)
-			gTlsCertMgr = tlsCerts // enable telemetry attribution gate + IsApproved
+			fmt.Printf("CH cert manager ready (db=%s table=%s certRefresh=%ds siteTable=%s siteRefresh=%ds sites=%d)\n",
+				tlsCerts.db, tlsCerts.table, configuration.CHCertRefreshSeconds, tlsCerts.siteTable, siteRefreshSecs, tlsCerts.SiteCount())
+			gTlsCertMgr = tlsCerts // enable telemetry attribution gate + IsApproved + ResolveHost
 		}
 	}
 
