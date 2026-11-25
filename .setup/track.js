@@ -530,6 +530,39 @@
     const ms = getCookie('_uetmsclkid') || getCookie('MUID');
     if (ms && !json.msid) json.msid = ms;
 
+    // 5b. CMS/Content-Bandit Tracking (from the server-injected tracking block).
+    // The SSR content router injects a hidden <script type="application/sfpl+cms-tracking"
+    // data="{...}"> carrying the §3 tracking JSON (xid, arm_id, ver, params). These are
+    // the content-bandit attribution fields. They only fill in fields NOT already set by
+    // the URL params (the ad's landing URL) or the cookies — the URL is the more specific,
+    // just-in-time signal and is never overridden. The params are merged (existing
+    // params + CMS decision params + URL params; URL params win).
+    try {
+      const cmsEl = document.querySelector('script[type="application/sfpl+cms-tracking"]');
+      if (cmsEl) {
+        const cmsRaw = cmsEl.getAttribute('data');
+        if (cmsRaw) {
+          const cms = JSON.parse(cmsRaw);
+          if (cms.xid && !json.xid) json.xid = cms.xid;
+          if (cms.arm_id && !json.content) json.content = cms.arm_id;
+          if (cms.ver != null && json.ver === undefined) json.ver = cms.ver;
+          // Merge params: existing + CMS decision params + URL (ad) params (URL wins).
+          const urlParams = {};
+          try {
+            const q = new URLSearchParams(window.location.search);
+            ['mcid', 'arm_id', 'xid', 'acquisition_arm_id', 'content', 'ver', 'dkey', 'decision_id'].forEach((k) => {
+              const v = q.get(k);
+              if (v) urlParams[k] = v;
+            });
+          } catch {}
+          let cmsParams = {};
+          try { cmsParams = (typeof cms.params === 'string') ? (JSON.parse(cms.params) || {}) : (cms.params || {}); } catch { cmsParams = {}; }
+          const merged = Object.assign({}, json.params || {}, cmsParams, urlParams);
+          if (Object.keys(merged).length) json.params = merged;
+        }
+      }
+    } catch {}
+
     // 6. Session & AFK
     const now = Date.now();
     const inactive = now - Number(getCookie(C.LAST_ACTIVE) || now);

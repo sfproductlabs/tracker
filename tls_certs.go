@@ -12,6 +12,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -37,6 +38,11 @@ type SiteConfig struct {
 	DomainKey    string `json:"domain_key"`
 	SiteURL      string `json:"site_url"`
 	IsActive     bool   `json:"is_active"`
+	// CMS config (from the config JSON column): the CDN base + the content route
+	// prefix. Used by the tr-cluster content fallback (serves canonical from the
+	// CDN + CH when x-1 is down).
+	CdnCname    string `json:"cdn_cname"`
+	RoutePrefix string `json:"route_prefix"`
 }
 
 type TlsCertManager struct {
@@ -261,7 +267,7 @@ func (m *TlsCertManager) refreshSites(ctx context.Context) error {
 	newApproved := map[string]struct{}{}
 
 	rows, err := m.conn.Query(ctx,
-		"SELECT toString(oid), org, site_name, root_domain, tracker_host, tracker_hhash, domain_key, site_url, is_active "+
+		"SELECT toString(oid), org, site_name, root_domain, tracker_host, tracker_hhash, domain_key, site_url, is_active, toString(config) "+
 			"FROM "+m.db+"."+m.siteTable+" FINAL WHERE is_active=1 AND root_domain != ''")
 	if err != nil {
 		fmt.Printf("[sites] refreshSites query error: %v\n", err)
@@ -271,7 +277,8 @@ func (m *TlsCertManager) refreshSites(ctx context.Context) error {
 	for rows.Next() {
 		var s SiteConfig
 		var active uint8
-		if err := rows.Scan(&s.OID, &s.Org, &s.SiteName, &s.RootDomain, &s.TrackerHost, &s.TrackerHhash, &s.DomainKey, &s.SiteURL, &active); err != nil {
+		var configRaw string
+		if err := rows.Scan(&s.OID, &s.Org, &s.SiteName, &s.RootDomain, &s.TrackerHost, &s.TrackerHhash, &s.DomainKey, &s.SiteURL, &active, &configRaw); err != nil {
 			if scanErrs == 0 {
 				fmt.Printf("[sites] first scan error: %v\n", err)
 			}
@@ -279,6 +286,17 @@ func (m *TlsCertManager) refreshSites(ctx context.Context) error {
 			continue
 		}
 		s.IsActive = active != 0
+		// Parse the config JSON (cdn_cname, route_prefix, brand_tokens, …).
+		if len(configRaw) > 0 {
+			var cfg struct {
+				CdnCname    string `json:"cdn_cname"`
+				RoutePrefix string `json:"route_prefix"`
+			}
+			if err := json.Unmarshal([]byte(configRaw), &cfg); err == nil {
+				s.CdnCname = cfg.CdnCname
+				s.RoutePrefix = cfg.RoutePrefix
+			}
+		}
 		rd := strings.ToLower(strings.TrimSpace(s.RootDomain))
 		th := strings.ToLower(strings.TrimSpace(s.TrackerHost))
 		s.RootDomain = rd

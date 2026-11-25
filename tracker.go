@@ -649,7 +649,7 @@ func main() {
 
 	//////////////////////////////////////// SETUP CONFIG VARIABLES
 	fmt.Println("Trusted domains: ", configuration.Domains)
-	apiVersion := "v" + strconv.Itoa(configuration.ApiVersion)
+	apiVersion = "v" + strconv.Itoa(configuration.ApiVersion)
 	//LetsEncrypt needs 443 & 80, So only override if possible
 	proxyPort := ":http"
 	if configuration.UseLocalTLS && configuration.ProxyPort != "" {
@@ -983,6 +983,14 @@ func main() {
 
 	//////////////////////////////////////// REDIRECT URL & SHORTENER
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Content route (tr-cluster fallback, phase D) — dispatch directly. This
+		// guard is immune to mux ordering: without it the catch-all proxies the
+		// content request to the nginx shim (localhost:3030), which is not running
+		// on the ch cluster nodes (-> 502).
+		if strings.HasPrefix(r.URL.Path, "/tr/"+apiVersion+"/content/") {
+			contentResolveHandler(w, r)
+			return
+		}
 		select {
 		case <-connc:
 			if apiProxy != nil {
@@ -1158,6 +1166,11 @@ func main() {
 		}
 
 	})
+
+	//////////////////////////////////////// Content Resolve (tr-cluster fallback, phase D)
+	// Serves the canonical CMS content from the CDN + CH when x-1 is down. The
+	// secops/actgreen content routers try x-1 first, then this route.
+	http.HandleFunc("/tr/"+apiVersion+"/content/resolve/", contentResolveHandler)
 
 	//////////////////////////////////////// Track Lifetime Value
 	http.HandleFunc("/tr/"+apiVersion+"/ltv/", func(w http.ResponseWriter, r *http.Request) {
